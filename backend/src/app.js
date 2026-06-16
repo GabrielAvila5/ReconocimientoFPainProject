@@ -18,11 +18,11 @@ const server = http.createServer(app);
 app.disable('x-powered-by');
 app.use(helmet());
 
-const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+const frontendUrl = process.env.FRONTEND_URL || process.env.VITE_API_URL || 'http://localhost:5173';
 
 const io = new Server(server, {
   cors: {
-    origin: frontendUrl,
+    origin: process.env.NODE_ENV === 'production' ? '*' : frontendUrl,
     methods: ['GET', 'POST', 'PUT', 'DELETE']
   }
 });
@@ -38,7 +38,9 @@ io.on('connection', (socket) => {
   });
 });
 
-app.use(cors({ origin: frontendUrl }));
+app.use(cors({ 
+  origin: process.env.NODE_ENV === 'production' ? '*' : frontendUrl 
+}));
 app.use(express.json());
 
 // Montar rutas
@@ -54,10 +56,26 @@ app.use('/api/v1/shifts', shiftsRouter);
 const departmentsRouter = require('./modules/departments/departments.router');
 app.use('/api/v1/departments', departmentsRouter);
 
-// Manejo de errores 404
-app.use((req, res) => {
-  res.status(404).json({ error: 'Ruta no encontrada' });
+// Manejo de errores 404 para la API
+app.use('/api', (req, res) => {
+  res.status(404).json({ error: 'Ruta de API no encontrada' });
 });
+
+// Servir frontend en producción
+const path = require('path');
+if (process.env.NODE_ENV === 'production') {
+  const frontendDistPath = path.join(__dirname, '../../frontend/dist');
+  app.use(express.static(frontendDistPath));
+
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(frontendDistPath, 'index.html'));
+  });
+} else {
+  // Manejo de errores 404 general para desarrollo
+  app.use((req, res) => {
+    res.status(404).json({ error: 'Ruta no encontrada' });
+  });
+}
 
 // Función para emitir notificaciones
 const emitNotification = (notificationData) => {
