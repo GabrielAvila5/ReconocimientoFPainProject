@@ -1,0 +1,174 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Department {
+  id          Int               @id @default(autoincrement())
+  name        String            @unique
+  employees   Employee[]
+  shifts      DepartmentShift[]
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+}
+
+model Employee {
+  id             String             @id @default(uuid())
+  firstName      String
+  lastName       String
+  identifier     String             @unique // Número de empleado o DNI
+  email          String?            @unique
+  position       String?
+  departmentId   Int?
+  department     Department?        @relation(fields: [departmentId], references: [id])
+  faceDescriptor String?            @db.Text // JSON stringificado de Float32Array(128)
+  enrolledAt     DateTime?          // fecha del último enrolamiento
+  isActive       Boolean            @default(true)
+  attendances    AttendanceRecord[]
+  shifts         EmployeeShift[]
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  @@index([identifier])
+}
+
+model AttendanceRecord {
+  id              String    @id @default(uuid())
+  employeeId      String
+  employee        Employee  @relation(fields: [employeeId], references: [id])
+  date            DateTime  @db.Date // Para facilitar búsquedas por día exacto
+  entrada         DateTime?
+  recesoInicio    DateTime?
+  recesoFin       DateTime?
+  salida          DateTime?
+  
+  // Nuevos campos para Turnos y Acciones Especiales
+  shiftId         Int?
+  shift           Shift?    @relation(fields: [shiftId], references: [id])
+  earlyExit       Boolean   @default(false)
+  earlyExitReason String?   @db.Text
+  overtimeMinutes Int?
+  isLate          Boolean   @default(false)
+  lateMinutes     Int?
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([employeeId, date])
+  @@index([date])
+}
+
+model Shift {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  startTime      String   // Formato "HH:mm"
+  endTime        String   // Formato "HH:mm"
+  tolerance      Int?     // Opcional: si null, usa SystemSettings.latenessToleranceMin
+  breakStartTime String?  // Formato "HH:mm"
+  breakEndTime   String?  // Formato "HH:mm"
+  isActive       Boolean  @default(true)
+  
+  departments DepartmentShift[]
+  employees   EmployeeShift[]
+  attendances AttendanceRecord[]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model DepartmentShift {
+  id           Int        @id @default(autoincrement())
+  departmentId Int
+  shiftId      Int
+  
+  department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  shift        Shift      @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  
+  @@unique([departmentId, shiftId])
+}
+
+model EmployeeShift {
+  id         Int      @id @default(autoincrement())
+  employeeId String
+  shiftId    Int
+  
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  shift      Shift    @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  
+  @@unique([employeeId, shiftId])
+}
+
+model AdminUser {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String   // Hash
+  name      String
+  role      String   @default("ADMIN")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Notification {
+  id         String           @id @default(cuid())
+  title      String
+  message    String
+  type       NotificationType
+  category   String           // "device" | "attendance" | "system" | "security"
+  entityId   String?          // ID del recurso relacionado (para deep linking)
+  isRead     Boolean          @default(false)
+  createdAt  DateTime         @default(now())
+}
+
+enum NotificationType {
+  INFO
+  WARNING
+  ERROR
+  SUCCESS
+}
+
+model SystemSettings {
+  id                    Int      @id @default(1)
+
+  // General
+  companyName           String   @default("PAIN")
+  timezone              String   @default("America/Mexico_City")
+  
+  // Asistencia
+  workdayStartHour      Int      @default(8)   // hora de entrada (0-23)
+  workdayStartMinute    Int      @default(0)   // minuto de entrada (0-59)
+  latenessToleranceMin  Int      @default(15)  // minutos de tolerancia (0-60)
+  workdayEndHour        Int      @default(17)  // hora de salida esperada
+  workdayEndMinute      Int      @default(0)
+  
+  breakStartTime        String   @default("13:00")
+  breakEndTime          String   @default("14:00")
+  
+  // Reconocimiento facial
+  faceConfidenceThreshold Float  @default(0.85) // 0.5 a 1.0
+  captureMode           String   @default("AUTO") // "AUTO" | "MANUAL"
+  
+  // Validación Facial
+  enableQualityValidation Boolean  @default(true)
+  minFaceLuminance        Int      @default(40)
+  maxPoseDeviation        Float    @default(0.2)
+  
+  // Notificaciones
+  alertEmail            String   @default("")
+  notifyOnDeviceOffline Boolean  @default(true)
+  notifyOnUnknownFace   Boolean  @default(true)
+  notifyOnLatenessMin   Int      @default(30) // minutos sin salida antes de notificar
+  
+  // Privacidad
+  photoRetentionDays    Int      @default(30)  // 0 = no guardar, máx 365
+  showConsentOnKiosk    Boolean  @default(true)
+  
+  // Sistema
+  maintenanceMode       Boolean  @default(false)
+  defaultExportFormat   String   @default("CSV") // "CSV" | "PDF"
+
+  updatedAt             DateTime @updatedAt
+}

@@ -1,0 +1,27 @@
+// ---------------------------------------------
+// schema.prod.prisma (Production - MariaDB/MySQL)
+// ---------------------------------------------
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             String       @id @default(uuid())
+  name           String
+  faceDescriptor String       @db.Text // Usamos Text en MySQL ya que un array de 128 floats stringificado es un string largo
+  createdAt      DateTime     @default(now())
+  attendances    Attendance[]
+}
+
+model Attendance {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  confidence Float    
+  timestamp  DateTime @default(now())
+}
