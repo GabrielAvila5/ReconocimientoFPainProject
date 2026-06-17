@@ -5,7 +5,7 @@
   "scripts": {
     "postinstall": "cd backend && npm install && cd ../frontend && npm install --include=dev",
     "build": "cd frontend && npm run build",
-    "start": "cd backend && npm start",
+    "start": "cd backend && npx prisma db push --accept-data-loss && node src/server.js",
     "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install",
     "dev:backend": "cd backend && npm run dev",
     "dev:frontend": "cd frontend && npm run dev",
