@@ -242,21 +242,24 @@ const FaceRecognitionPage = () => {
     // El ciclo detect() en idle (gracias a processingRef = false) retomará el escaneo automáticamente.
   };
 
+  const contextRef = useRef(null);
+  useEffect(() => { contextRef.current = context; }, [context]);
+
   const handleConfirmIdentity = () => {
-    if (!context) {
+    if (!contextRef.current) {
       setStage(STAGES.PROCESSING);
       setTimeout(() => {
-        if (context) goToNextAfterIdentity();
+        if (contextRef.current) goToNextAfterIdentity(contextRef.current);
         else resetFlow();
-      }, 1500);
+      }, 2000);
       return;
     }
-    goToNextAfterIdentity();
+    goToNextAfterIdentity(contextRef.current);
   };
 
-  const goToNextAfterIdentity = () => {
+  const goToNextAfterIdentity = (currentCtx = contextRef.current) => {
     // Si no tiene entrada, SIEMPRE mostrar selector de turno para confirmar
-    if (!context.hasEntrada && context.availableShifts?.length >= 1 && !selectedShiftId) {
+    if (!currentCtx.hasEntrada && currentCtx.availableShifts?.length >= 1 && !selectedShiftId) {
       setStage(STAGES.SELECT_SHIFT);
     } else {
       setStage(STAGES.SELECT_ACTION);
