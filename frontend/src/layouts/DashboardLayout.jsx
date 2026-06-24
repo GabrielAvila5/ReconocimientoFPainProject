@@ -36,17 +36,44 @@ const DashboardLayout = () => {
     };
   }, [showNotifications]);
 
+  const [reportsCount, setReportsCount] = useState(0);
+
+  useEffect(() => {
+    const fetchReportsCount = async () => {
+      try {
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/v1/reports`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}` // assuming jwt
+          }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          // If the backend returns an array of reports, we count them. 
+          // If it's a placeholder object, we'll set 0.
+          if (Array.isArray(data)) {
+            setReportsCount(data.length);
+          } else {
+            setReportsCount(0);
+          }
+        }
+      } catch (e) {
+        console.error('Error fetching reports count', e);
+      }
+    };
+    fetchReportsCount();
+  }, []);
+
   const navItemsPrincipal = [
     { name: 'Dashboard', path: '/dashboard', icon: <LayoutDashboard size={18} /> },
     { name: 'Empleados', path: '/dashboard/employees', icon: <Users size={18} /> },
     { name: 'Asistencia', path: '/dashboard/attendance', icon: <Clock size={18} /> },
     { name: 'Calendario', path: '/dashboard/calendar', icon: <Calendar size={18} /> },
-    { name: 'Reportes', path: '/dashboard/reports', icon: <FileText size={18} />, badge: 3 },
+    { name: 'Reportes', path: '/dashboard/reports', icon: <FileText size={18} />, badge: reportsCount > 0 ? reportsCount : undefined },
   ];
 
   const navItemsSistema = [
     { name: 'Dispositivos', path: '/dashboard/devices', icon: <Monitor size={18} /> },
-    { name: 'Notificaciones', path: '/dashboard/notifications', icon: <Bell size={18} />, badge: 5 },
+    { name: 'Notificaciones', path: '/dashboard/notifications', icon: <Bell size={18} />, badge: unreadCount > 0 ? unreadCount : undefined },
     { name: 'Configuración', path: '/dashboard/settings', icon: <Settings size={18} /> },
   ];
 

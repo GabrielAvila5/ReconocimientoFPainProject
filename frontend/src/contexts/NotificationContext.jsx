@@ -18,8 +18,11 @@ export const NotificationProvider = ({ children }) => {
 
   const fetchUnreadCount = async () => {
     try {
-      // Usar la URL base de tu API
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/v1/notifications/unread-count`);
+      const token = localStorage.getItem('token');
+      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+      const response = await fetch(`${baseUrl}/api/v1/notifications/unread-count`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
       if (response.ok) {
         const data = await response.json();
         setUnreadCount(data.count);
@@ -34,7 +37,8 @@ export const NotificationProvider = ({ children }) => {
     fetchUnreadCount();
 
     // Inicializar Socket.io
-    const newSocket = io(import.meta.env.VITE_API_URL, {
+    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+    const newSocket = io(baseUrl, {
       reconnection: true,
       reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
@@ -70,8 +74,11 @@ export const NotificationProvider = ({ children }) => {
 
   const markAsRead = async (id) => {
     try {
-      await fetch(`${import.meta.env.VITE_API_URL}/api/v1/notifications/${id}/read`, {
-        method: 'PUT'
+      const token = localStorage.getItem('token');
+      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+      await fetch(`${baseUrl}/api/v1/notifications/${id}/read`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${token}` }
       });
       // Actualizamos el conteo localmente para respuesta inmediata
       setUnreadCount(prev => Math.max(0, prev - 1));
@@ -82,8 +89,11 @@ export const NotificationProvider = ({ children }) => {
 
   const markAllAsRead = async () => {
     try {
-      await fetch(`${import.meta.env.VITE_API_URL}/api/v1/notifications/read-all`, {
-        method: 'PUT'
+      const token = localStorage.getItem('token');
+      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+      await fetch(`${baseUrl}/api/v1/notifications/read-all`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${token}` }
       });
       setUnreadCount(0);
     } catch (error) {
@@ -93,8 +103,11 @@ export const NotificationProvider = ({ children }) => {
 
   const deleteNotification = async (id) => {
     try {
-      await fetch(`${import.meta.env.VITE_API_URL}/api/v1/notifications/${id}`, {
-        method: 'DELETE'
+      const token = localStorage.getItem('token');
+      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+      await fetch(`${baseUrl}/api/v1/notifications/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
       });
       // Deberíamos refetch el count por si la borrada no estaba leída, pero para simplificar
       fetchUnreadCount();
@@ -105,8 +118,11 @@ export const NotificationProvider = ({ children }) => {
 
   const deleteReadNotifications = async () => {
     try {
-      await fetch(`${import.meta.env.VITE_API_URL}/api/v1/notifications/read`, {
-        method: 'DELETE'
+      const token = localStorage.getItem('token');
+      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+      await fetch(`${baseUrl}/api/v1/notifications/read`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
       });
     } catch (error) {
       console.error('Error deleting read notifications:', error);

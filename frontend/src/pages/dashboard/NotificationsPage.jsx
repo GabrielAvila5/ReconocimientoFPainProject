@@ -32,12 +32,16 @@ const NotificationsPage = () => {
     setLoading(true);
     setError(null);
     try {
-      let url = `/api/v1/notifications?page=${page}&limit=20`;
+      const token = localStorage.getItem('token');
+      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+      let url = `${baseUrl}/api/v1/notifications?page=${page}&limit=20`;
       if (typeFilter) url += `&type=${typeFilter}`;
       if (statusFilter === 'read') url += '&isRead=true';
       if (statusFilter === 'unread') url += '&isRead=false';
 
-      const response = await fetch(url);
+      const response = await fetch(url, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
       if (!response.ok) throw new Error('Error al cargar notificaciones');
       
       const data = await response.json();

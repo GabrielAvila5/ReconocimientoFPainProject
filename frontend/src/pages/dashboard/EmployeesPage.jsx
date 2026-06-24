@@ -19,8 +19,11 @@ const EmployeesPage = () => {
     try {
       setLoading(true);
       setError(null);
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/v1/employees`, {
-        // En producción el JWT iría aquí
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:4000'}/api/v1/employees`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
       });
       if (!res.ok) throw new Error('Error de conexión con el backend');
       const data = await res.json();

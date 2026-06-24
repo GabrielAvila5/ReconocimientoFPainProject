@@ -1,34 +1,162 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { Users, Clock, AlertTriangle, Activity, AlertCircle, ThermometerSnowflake, CameraOff, MoreHorizontal, ScanFace } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
 const DashboardOverview = () => {
-  // Mock data for Tendencia Semanal (2 bars per day as in screenshot)
-  const barData = [
-    { name: 'Lun', value1: 240, value2: 210 },
-    { name: 'Mar', value1: 245, value2: 220 },
-    { name: 'Mié', value1: 235, value2: 200 },
-    { name: 'Jue', value1: 250, value2: 240 },
-    { name: 'Vie', value1: 238, value2: 225 },
+  const [loading, setLoading] = useState(true);
+  const [attendanceRecords, setAttendanceRecords] = useState([]);
+  const [employeesCount, setEmployeesCount] = useState(0);
+
+  const [dismissedAlerts, setDismissedAlerts] = useState(() => {
+    const saved = localStorage.getItem('dismissedAlerts');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const allAlerts = [
+    {
+      id: 1,
+      title: 'Persona no autorizada',
+      desc: 'Detectada en acceso norte - Cámara 02',
+      time: 'Hace 5 min',
+      Icon: AlertCircle,
+      bg: 'rgba(239, 68, 68, 0.05)',
+      border: 'rgba(239, 68, 68, 0.2)',
+      iconColor: 'text-red-500',
+      titleColor: '#fca5a5',
+      closeColor: '#ef4444',
+      descColor: '#f87171',
+      timeColor: '#991b1b'
+    },
+    {
+      id: 2,
+      title: 'Temperatura fuera de rango',
+      desc: 'Pedro Sánchez - 38.2°C',
+      time: 'Hace 15 min',
+      Icon: ThermometerSnowflake,
+      bg: 'rgba(245, 158, 11, 0.05)',
+      border: 'rgba(245, 158, 11, 0.2)',
+      iconColor: 'text-yellow-500',
+      titleColor: '#fcd34d',
+      closeColor: '#eab308',
+      descColor: '#fbbf24',
+      timeColor: '#b45309'
+    },
+    {
+      id: 3,
+      title: 'Cámara desconectada',
+      desc: 'Cámara 03 - Acceso sur',
+      time: 'Hace 32 min',
+      Icon: CameraOff,
+      bg: 'rgba(249, 115, 22, 0.05)',
+      border: 'rgba(249, 115, 22, 0.2)',
+      iconColor: 'text-orange-500',
+      titleColor: '#fdba74',
+      closeColor: '#f97316',
+      descColor: '#fb923c',
+      timeColor: '#c2410c'
+    }
   ];
 
-  // Mock data for Distribucion de Hoy
+  const systemAlerts = allAlerts.filter(a => !dismissedAlerts.includes(a.id));
+
+  const removeAlert = (id) => {
+    const newDismissed = [...dismissedAlerts, id];
+    setDismissedAlerts(newDismissed);
+    localStorage.setItem('dismissedAlerts', JSON.stringify(newDismissed));
+  };
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const headers = { 'Authorization': `Bearer ${token}` };
+        
+        const [attRes, empRes] = await Promise.all([
+          fetch(`${import.meta.env.VITE_API_URL}/api/v1/attendance`, { headers }),
+          fetch(`${import.meta.env.VITE_API_URL}/api/v1/employees`, { headers })
+        ]);
+
+        if (attRes.ok) {
+          const data = await attRes.json();
+          setAttendanceRecords(data);
+        }
+        if (empRes.ok) {
+          const empData = await empRes.json();
+          setEmployeesCount(empData.length);
+        }
+      } catch (e) {
+        console.error('Error fetching dashboard data:', e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
+
+  const todayStr = new Date().toISOString().split('T')[0];
+  
+  // Filtrar registros de hoy
+  const todayRecords = attendanceRecords.filter(r => r.date && r.date.startsWith(todayStr));
+  
+  const aTiempoCount = todayRecords.filter(r => !r.isLate).length;
+  const retardosCount = todayRecords.filter(r => r.isLate).length;
+  const ausenciasCount = Math.max(0, employeesCount - todayRecords.length); // estimacion
+  const asistenciasHoy = todayRecords.length;
+
+  // Tendencia Semanal (Dinámica según registros reales)
+  const computeWeeklyTrend = () => {
+    const days = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+    const trend = [];
+    
+    // Buscar el lunes de la semana actual
+    const curr = new Date();
+    const first = curr.getDate() - curr.getDay() + (curr.getDay() === 0 ? -6 : 1); 
+    const monday = new Date(curr.setDate(first));
+    
+    for(let i=0; i<5; i++) {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + i);
+      const dateStr = d.toISOString().split('T')[0];
+      
+      const dayRecords = attendanceRecords.filter(r => r.date && r.date.startsWith(dateStr));
+      const onTime = dayRecords.filter(r => !r.isLate).length;
+      
+      // value1: Asistencia esperada (total empleados)
+      // value2: Asistencia real a tiempo
+      trend.push({
+        name: days[d.getDay()],
+        value1: employeesCount || 0,
+        value2: onTime || 0
+      });
+    }
+    return trend;
+  };
+  const barData = computeWeeklyTrend();
+
+  // Distribucion de Hoy
   const pieData = [
-    { name: 'A tiempo', value: 75, color: '#f97316' }, 
-    { name: 'Retardo', value: 14, color: '#eab308' },  
-    { name: 'Falta', value: 7, color: '#b45309' },     
-    { name: 'Permiso', value: 4, color: '#78350f' },   
+    { name: 'A tiempo', value: aTiempoCount || 1, color: '#f97316' }, 
+    { name: 'Retardo', value: retardosCount || 0, color: '#eab308' },  
+    { name: 'Falta', value: ausenciasCount || 0, color: '#b45309' },     
   ];
 
-  // Mock data for Actividad
-  const recentActivity = [
-    { id: 1, initials: 'MG', name: 'María García', dept: 'Desarrollo', time: '08:02:34', type: 'Entrada', status: 'A tiempo', statusColor: 'badge-success' },
-    { id: 2, initials: 'CL', name: 'Carlos López', dept: 'Marketing', time: '08:15:22', type: 'Entrada', status: 'Retardo', statusColor: 'badge-warning' },
-    { id: 3, initials: 'AM', name: 'Ana Martínez', dept: 'Ventas', time: '07:58:11', type: 'Entrada', status: 'A tiempo', statusColor: 'badge-success' },
-    { id: 4, initials: 'PS', name: 'Pedro Sánchez', dept: 'Recursos Humanos', time: '08:01:45', type: 'Entrada', status: 'A tiempo', statusColor: 'badge-success' },
-    { id: 5, initials: 'LT', name: 'Laura Torres', dept: 'Finanzas', time: '08:22:03', type: 'Entrada', status: 'Retardo', statusColor: 'badge-warning' },
-    { id: 6, initials: 'RD', name: 'Roberto Díaz', dept: 'Desarrollo', time: '12:30:15', type: 'Salida', status: 'Normal', statusColor: 'badge-neutral' },
-  ];
+  // Actividad (Mapeado de registros reales)
+  const recentActivity = attendanceRecords.slice(0, 10).map((r, index) => {
+    const isSalida = r.salida != null;
+    const timeToDisplay = isSalida ? new Date(r.salida).toLocaleTimeString() : new Date(r.entrada).toLocaleTimeString();
+    
+    return {
+      id: r.id || index,
+      initials: `${r.employee?.firstName?.[0] || ''}${r.employee?.lastName?.[0] || ''}`,
+      name: `${r.employee?.firstName || 'Desconocido'} ${r.employee?.lastName || ''}`,
+      dept: r.employee?.department?.name || 'General',
+      time: timeToDisplay,
+      type: isSalida ? 'Salida' : 'Entrada',
+      status: r.isLate ? 'Retardo' : 'A tiempo',
+      statusColor: r.isLate ? 'badge-warning' : 'badge-success'
+    };
+  });
 
   // Custom Label for Pie Chart
   const renderCustomizedLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent, index, name, value, color }) => {
@@ -39,7 +167,7 @@ const DashboardOverview = () => {
     
     return (
       <text x={x} y={y} fill={color} textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central" fontSize={12} fontWeight={500}>
-        {`${name} ${value}%`}
+        {`${name} ${value}`}
       </text>
     );
   };
@@ -63,8 +191,10 @@ const DashboardOverview = () => {
             </div>
           </div>
           <div>
-            <h2 style={{ fontSize: '2.5rem', color: 'var(--primary-orange)', lineHeight: '1' }}>248</h2>
-            <p className="text-xs text-muted mt-2"><span style={{ color: 'var(--status-success)' }}>92%</span> asistencia hoy ~+3</p>
+            <h2 style={{ fontSize: '2.5rem', color: 'var(--primary-orange)', lineHeight: '1' }}>
+              {loading ? '-' : employeesCount}
+            </h2>
+            <p className="text-xs text-muted mt-2"><span style={{ color: 'var(--status-success)' }}>{employeesCount > 0 ? Math.round((asistenciasHoy / employeesCount)*100) : 0}%</span> asistencia hoy</p>
           </div>
         </div>
 
@@ -76,8 +206,10 @@ const DashboardOverview = () => {
             </div>
           </div>
           <div>
-            <h2 style={{ fontSize: '2.5rem', color: 'var(--accent-amber)', lineHeight: '1' }}>228</h2>
-            <p className="text-xs text-muted mt-2">A tiempo ~+12</p>
+            <h2 style={{ fontSize: '2.5rem', color: 'var(--accent-amber)', lineHeight: '1' }}>
+              {loading ? '-' : asistenciasHoy}
+            </h2>
+            <p className="text-xs text-muted mt-2">A tiempo</p>
           </div>
         </div>
 
@@ -89,8 +221,10 @@ const DashboardOverview = () => {
             </div>
           </div>
           <div>
-            <h2 style={{ fontSize: '2.5rem', color: 'var(--accent-amber)', lineHeight: '1' }}>15 <span style={{fontSize: '1.25rem', color: 'var(--text-muted)'}}>/ 5</span></h2>
-            <p className="text-xs text-muted mt-2">8 justificados ~-2</p>
+            <h2 style={{ fontSize: '2.5rem', color: 'var(--accent-amber)', lineHeight: '1' }}>
+              {loading ? '-' : retardosCount} <span style={{fontSize: '1.25rem', color: 'var(--text-muted)'}}>/ {loading ? '-' : ausenciasCount}</span>
+            </h2>
+            <p className="text-xs text-muted mt-2">Registros de hoy</p>
           </div>
         </div>
 
@@ -243,45 +377,27 @@ const DashboardOverview = () => {
               <h3 style={{ fontSize: '1rem', marginBottom: '0.25rem' }}>Alertas del Sistema</h3>
               <p className="text-xs text-muted">Notificaciones e incidencias</p>
             </div>
-            <a href="#" style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textDecoration: 'none' }}>Ver todas</a>
+            <Link to="/dashboard/notifications" style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textDecoration: 'none' }}>Ver todas</Link>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <div style={{ backgroundColor: 'rgba(239, 68, 68, 0.05)', border: '1px solid rgba(239, 68, 68, 0.2)', padding: '1rem', borderRadius: '8px', display: 'flex', gap: '1rem' }}>
-              <AlertCircle size={20} className="text-red-500 flex-shrink-0" />
-              <div style={{ flex: 1 }}>
-                <div className="flex justify-between items-start">
-                  <h4 style={{ color: '#fca5a5', fontSize: '0.875rem' }}>Persona no autorizada</h4>
-                  <span style={{ color: '#ef4444', fontSize: '1rem', cursor: 'pointer' }}>×</span>
+            {systemAlerts.length === 0 ? (
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', textAlign: 'center', marginTop: '1rem' }}>No hay alertas recientes.</p>
+            ) : (
+              systemAlerts.map(alert => (
+                <div key={alert.id} style={{ backgroundColor: alert.bg, border: `1px solid ${alert.border}`, padding: '1rem', borderRadius: '8px', display: 'flex', gap: '1rem' }}>
+                  <alert.Icon size={20} className={`flex-shrink-0 ${alert.iconColor}`} />
+                  <div style={{ flex: 1 }}>
+                    <div className="flex justify-between items-start">
+                      <h4 style={{ color: alert.titleColor, fontSize: '0.875rem' }}>{alert.title}</h4>
+                      <span onClick={() => removeAlert(alert.id)} style={{ color: alert.closeColor, fontSize: '1rem', cursor: 'pointer', padding: '0 4px' }}>×</span>
+                    </div>
+                    <p style={{ color: alert.descColor, fontSize: '0.75rem', marginTop: '0.25rem' }}>{alert.desc}</p>
+                    <p style={{ color: alert.timeColor, fontSize: '0.7rem', marginTop: '0.5rem' }}>{alert.time}</p>
+                  </div>
                 </div>
-                <p style={{ color: '#f87171', fontSize: '0.75rem', marginTop: '0.25rem' }}>Detectada en acceso norte - Cámara 02</p>
-                <p style={{ color: '#991b1b', fontSize: '0.7rem', marginTop: '0.5rem' }}>Hace 5 min</p>
-              </div>
-            </div>
-
-            <div style={{ backgroundColor: 'rgba(245, 158, 11, 0.05)', border: '1px solid rgba(245, 158, 11, 0.2)', padding: '1rem', borderRadius: '8px', display: 'flex', gap: '1rem' }}>
-              <ThermometerSnowflake size={20} className="text-yellow-500 flex-shrink-0" />
-              <div style={{ flex: 1 }}>
-                <div className="flex justify-between items-start">
-                  <h4 style={{ color: '#fcd34d', fontSize: '0.875rem' }}>Temperatura fuera de rango</h4>
-                  <span style={{ color: '#eab308', fontSize: '1rem', cursor: 'pointer' }}>×</span>
-                </div>
-                <p style={{ color: '#fbbf24', fontSize: '0.75rem', marginTop: '0.25rem' }}>Pedro Sánchez - 38.2°C</p>
-                <p style={{ color: '#b45309', fontSize: '0.7rem', marginTop: '0.5rem' }}>Hace 15 min</p>
-              </div>
-            </div>
-
-            <div style={{ backgroundColor: 'rgba(249, 115, 22, 0.05)', border: '1px solid rgba(249, 115, 22, 0.2)', padding: '1rem', borderRadius: '8px', display: 'flex', gap: '1rem' }}>
-              <CameraOff size={20} className="text-orange-500 flex-shrink-0" />
-              <div style={{ flex: 1 }}>
-                <div className="flex justify-between items-start">
-                  <h4 style={{ color: '#fdba74', fontSize: '0.875rem' }}>Cámara desconectada</h4>
-                  <span style={{ color: '#f97316', fontSize: '1rem', cursor: 'pointer' }}>×</span>
-                </div>
-                <p style={{ color: '#fb923c', fontSize: '0.75rem', marginTop: '0.25rem' }}>Cámara 03 - Acceso sur</p>
-                <p style={{ color: '#c2410c', fontSize: '0.7rem', marginTop: '0.5rem' }}>Hace 32 min</p>
-              </div>
-            </div>
+              ))
+            )}
           </div>
         </div>
       </div>

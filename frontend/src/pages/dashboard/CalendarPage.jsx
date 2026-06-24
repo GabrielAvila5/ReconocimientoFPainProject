@@ -2,10 +2,10 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Calendar as CalendarIcon, Download, Filter, ChevronLeft, ChevronRight, X, UserX, Clock, CheckCircle } from 'lucide-react';
 import { holidays } from '../../utils/holidays';
 
-// --- Utils: Mock Data Generator ---
-const generateMockData = (year, month, employees) => {
+// --- Utils: Real Data Processor ---
+const processRealData = (year, month, employees, allRecords) => {
   const records = [];
-  if (!employees || employees.length === 0) return records;
+  if (!employees || employees.length === 0 || !allRecords) return records;
   
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   
@@ -14,49 +14,42 @@ const generateMockData = (year, month, employees) => {
     const dateObj = new Date(year, month, i);
     const dayOfWeek = dateObj.getDay();
     
-    // Omitir fines de semana para datos falsos (opcional, pero realista)
-    if (dayOfWeek === 0 || dayOfWeek === 6) {
-      // Dejar un 10% de probabilidad de tener algo el fin de semana
-      if (Math.random() > 0.1) continue;
-    }
+    if (dayOfWeek === 0 || dayOfWeek === 6) continue;
     
-    // ¿Es feriado?
     const isHoliday = holidays.some(h => h.date === currentDateStr);
-    if (isHoliday) continue; // No generamos faltas/tardanzas en feriados
+    if (isHoliday) continue;
     
-    // Para este día, asignar a 3-8 personas con alguna incidencia
-    const incidentCount = Math.floor(Math.random() * 5) + 3; 
+    // Check records for this date
+    const dateRecords = allRecords.filter(r => r.date && r.date.startsWith(currentDateStr));
     
-    // Elegimos empleados al azar
-    const shuffled = [...employees].sort(() => 0.5 - Math.random());
-    const selectedEmps = shuffled.slice(0, incidentCount);
-    
-    selectedEmps.forEach(emp => {
-      const rand = Math.random();
-      let type, time;
+    employees.forEach(emp => {
+      const empRecord = dateRecords.find(r => r.employeeId === emp.id);
       
-      if (rand < 0.3) {
-        type = 'absence'; // 30% Ausencia
-        time = '—';
-      } else if (rand < 0.8) {
-        type = 'tardiness'; // 50% Tardanza
-        // Hora aleatoria entre 08:16 y 09:30
-        const h = 8;
-        const m = Math.floor(Math.random() * 45) + 16;
-        time = `0${h}:${String(m).padStart(2, '0')} AM`;
-      } else {
-        type = 'permission'; // 20% Permiso
-        time = '—';
+      if (!empRecord) {
+        // Only mark absence if it's past or today
+        const now = new Date();
+        const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        if (dateObj <= startOfToday) {
+          records.push({
+            id: `abs-${currentDateStr}-${emp.id}`,
+            date: currentDateStr,
+            employee: emp,
+            type: 'absence',
+            time: '—',
+            status: 'Falta'
+          });
+        }
+      } else if (empRecord.isLate) {
+        records.push({
+          id: empRecord.id,
+          date: currentDateStr,
+          employee: emp,
+          type: 'tardiness',
+          time: new Date(empRecord.entrada).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+          status: 'Llegada'
+        });
       }
-      
-      records.push({
-        id: `mock-${currentDateStr}-${emp.id}`,
-        date: currentDateStr,
-        employee: emp,
-        type,
-        time,
-        status: type === 'absence' ? 'Falta' : (type === 'tardiness' ? 'Llegada' : 'Aprobado')
-      });
+      // If present and not late, we could add 'present', but the calendar logic mainly looks for absences/tardiness
     });
   }
   return records;
@@ -65,6 +58,7 @@ const generateMockData = (year, month, employees) => {
 // --- Componente Principal ---
 const CalendarPage = () => {
   const [employees, setEmployees] = useState([]);
+  const [attendanceRecords, setAttendanceRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   
   // View states
@@ -85,34 +79,43 @@ const CalendarPage = () => {
   const [modalData, setModalData] = useState(null); // null = closed, { dateStr, ... }
   const [modalLoading, setModalLoading] = useState(false);
 
-  // Fetch empleados para usarlos en el mock generator
   useEffect(() => {
-    const fetchEmployees = async () => {
+    const fetchData = async () => {
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/v1/employees`);
-        if (res.ok) {
-          const data = await res.json();
+        const token = localStorage.getItem('token');
+        const headers = { 'Authorization': `Bearer ${token}` };
+        
+        const [empRes, attRes] = await Promise.all([
+          fetch(`${import.meta.env.VITE_API_URL}/api/v1/employees`, { headers }),
+          fetch(`${import.meta.env.VITE_API_URL}/api/v1/attendance`, { headers })
+        ]);
+        
+        if (empRes.ok) {
+          const data = await empRes.json();
           setEmployees(data);
         }
+        if (attRes.ok) {
+          const data = await attRes.json();
+          setAttendanceRecords(data);
+        }
       } catch (err) {
-        console.error('Error fetching employees:', err);
+        console.error('Error fetching data:', err);
       } finally {
         setLoading(false);
       }
     };
-    fetchEmployees();
+    fetchData();
   }, []);
 
-  // Generar Mock Data para el mes actual y el mes anterior (para tendencias)
   const currentMonthData = useMemo(() => {
-    return generateMockData(selectedYear, selectedMonth, employees);
-  }, [selectedYear, selectedMonth, employees]);
+    return processRealData(selectedYear, selectedMonth, employees, attendanceRecords);
+  }, [selectedYear, selectedMonth, employees, attendanceRecords]);
   
   const prevMonthData = useMemo(() => {
     const prevM = selectedMonth === 0 ? 11 : selectedMonth - 1;
     const prevY = selectedMonth === 0 ? selectedYear - 1 : selectedYear;
-    return generateMockData(prevY, prevM, employees);
-  }, [selectedYear, selectedMonth, employees]);
+    return processRealData(prevY, prevM, employees, attendanceRecords);
+  }, [selectedYear, selectedMonth, employees, attendanceRecords]);
 
   // --- Lógica de Tendencias y Estadísticas (Mes entero) ---
   const stats = useMemo(() => {
@@ -124,14 +127,35 @@ const CalendarPage = () => {
     const prevTardiness = prevMonthData.filter(r => r.type === 'tardiness').length;
     const diffTardiness = prevTardiness === 0 ? 0 : Math.round(((currTardiness - prevTardiness) / prevTardiness) * 100);
 
-    // Asistencia perfecta (estimado: empleados sin faltas ni tardanzas)
-    // Para simplificar, calculamos % de días*empleado limpios
-    const totalPossibleDays = employees.length * 20; // asumiendo 20 dias habiles
+    // Helper para contar los días laborables que han pasado (para el cálculo de perfección)
+    const getPassedWorkingDays = (y, m) => {
+      const now = new Date();
+      const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const daysInM = new Date(y, m + 1, 0).getDate();
+      let passed = 0;
+      for (let i = 1; i <= daysInM; i++) {
+        const d = new Date(y, m, i);
+        if (d > startOfToday) break; // Solo contamos hasta hoy
+        const dow = d.getDay();
+        if (dow === 0 || dow === 6) continue;
+        const dateStr = `${y}-${String(m + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
+        if (holidays.some(h => h.date === dateStr)) continue;
+        passed++;
+      }
+      return passed;
+    };
+
+    const prevM = selectedMonth === 0 ? 11 : selectedMonth - 1;
+    const prevY = selectedMonth === 0 ? selectedYear - 1 : selectedYear;
+
+    const currTotalDays = getPassedWorkingDays(selectedYear, selectedMonth) * employees.length;
+    const prevTotalDays = getPassedWorkingDays(prevY, prevM) * employees.length;
+
     const currIncidents = currAbsences + currTardiness;
     const prevIncidents = prevAbsences + prevTardiness;
     
-    const currPerfect = Math.max(0, Math.round(((totalPossibleDays - currIncidents) / totalPossibleDays) * 100));
-    const prevPerfect = Math.max(0, Math.round(((totalPossibleDays - prevIncidents) / totalPossibleDays) * 100));
+    const currPerfect = currTotalDays === 0 ? 0 : Math.max(0, Math.round(((currTotalDays - currIncidents) / currTotalDays) * 100));
+    const prevPerfect = prevTotalDays === 0 ? 0 : Math.max(0, Math.round(((prevTotalDays - prevIncidents) / prevTotalDays) * 100));
     const diffPerfect = currPerfect - prevPerfect;
 
     return {
@@ -139,7 +163,7 @@ const CalendarPage = () => {
       currTardiness, diffTardiness,
       currPerfect, diffPerfect
     };
-  }, [currentMonthData, prevMonthData, employees.length]);
+  }, [currentMonthData, prevMonthData, employees.length, selectedYear, selectedMonth]);
 
   // --- Lógica del Calendario (Vista Mes) ---
   const calendarDays = useMemo(() => {

@@ -130,6 +130,11 @@ const DevicesPage = () => {
 
   return (
     <div className="fade-in" style={{ paddingBottom: '2rem' }}>
+      {/* Banner Temporal */}
+      <div style={{ background: 'rgba(249, 115, 22, 0.1)', border: '1px solid rgba(249, 115, 22, 0.3)', color: '#f97316', padding: '1rem', borderRadius: '8px', marginBottom: '1.5rem', textAlign: 'center', fontWeight: 'bold' }}>
+        Desarrollo para la segunda etapa
+      </div>
+
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem' }}>
         <div>

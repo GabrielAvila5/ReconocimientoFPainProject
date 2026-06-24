@@ -21,10 +21,13 @@ const AttendancePage = () => {
       setLoading(true);
       setError(null);
       
+      const token = localStorage.getItem('token');
+      const headers = { 'Authorization': `Bearer ${token}` };
+
       const [attRes, empRes, setRes] = await Promise.all([
-        fetch(`${import.meta.env.VITE_API_URL}/api/v1/attendance?date=${selectedDate}`),
-        fetch(`${import.meta.env.VITE_API_URL}/api/v1/employees`),
-        fetch(`${import.meta.env.VITE_API_URL}/api/v1/settings/public`).catch(() => null)
+        fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:4000'}/api/v1/attendance?date=${selectedDate}`, { headers }),
+        fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:4000'}/api/v1/employees`, { headers }),
+        fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:4000'}/api/v1/settings/public`, { headers }).catch(() => null)
       ]);
       
       if (!attRes.ok || !empRes.ok) {
