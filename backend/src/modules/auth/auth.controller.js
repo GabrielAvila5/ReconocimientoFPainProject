@@ -27,9 +27,10 @@ const login = async (req, res) => {
     }
 
     // Generar JWT
+    const secret = process.env.JWT_SECRET || 'HostingerFallbackSecretKey2026!';
     const token = jwt.sign(
       { id: user.id, email: user.email, role: user.role },
-      process.env.JWT_SECRET,
+      secret,
       { expiresIn: '12h' }
     );
 
@@ -114,9 +115,10 @@ const setupFirstAdmin = async (req, res) => {
     });
 
     // Generar JWT y loguear automáticamente
+    const secret = process.env.JWT_SECRET || 'HostingerFallbackSecretKey2026!';
     const token = jwt.sign(
       { id: user.id, email: user.email, role: user.role },
-      process.env.JWT_SECRET,
+      secret,
       { expiresIn: '12h' }
     );
 
