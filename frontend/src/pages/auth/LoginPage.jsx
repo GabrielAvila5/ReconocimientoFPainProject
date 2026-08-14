@@ -1,31 +1,100 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
+import { LogIn, Lock, Mail, AlertCircle } from 'lucide-react';
 
 const LoginPage = () => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  
+  const { login } = useAuth();
   const navigate = useNavigate();
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
-    // TODO: Implement actual authentication
-    navigate('/dashboard');
+    setError('');
+    setIsLoading(true);
+
+    try {
+      await login(email, password);
+      navigate('/dashboard');
+    } catch (err) {
+      setError(err.response?.data?.error || 'Error al iniciar sesión. Verifica tus credenciales.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
-    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', backgroundColor: '#f1f5f9' }}>
-      <form onSubmit={handleLogin} style={{ padding: '2rem', background: 'white', borderRadius: '8px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', width: '300px' }}>
-        <h2 style={{ textAlign: 'center', marginBottom: '1.5rem' }}>Admin Login</h2>
-        <div style={{ marginBottom: '1rem' }}>
-          <label style={{ display: 'block', marginBottom: '0.5rem' }}>Email</label>
-          <input type="email" style={{ width: '100%', padding: '0.5rem', boxSizing: 'border-box' }} required />
+    <div className="auth-container">
+      <div className="auth-card page-glow">
+        <div className="auth-header" style={{ position: 'relative', zIndex: 1 }}>
+          <div className="auth-icon-wrapper">
+            <Lock size={32} />
+          </div>
+          <h2 className="auth-title">Acceso Restringido</h2>
+          <p className="auth-subtitle">Panel de Administración Facial</p>
         </div>
-        <div style={{ marginBottom: '1rem' }}>
-          <label style={{ display: 'block', marginBottom: '0.5rem' }}>Password</label>
-          <input type="password" style={{ width: '100%', padding: '0.5rem', boxSizing: 'border-box' }} required />
+
+        {error && (
+          <div className="auth-error" style={{ margin: '0 2rem 1.5rem', position: 'relative', zIndex: 1 }}>
+            <AlertCircle size={20} style={{ flexShrink: 0, marginTop: '2px' }} />
+            <p>{error}</p>
+          </div>
+        )}
+
+        <form onSubmit={handleLogin} className="auth-form" style={{ position: 'relative', zIndex: 1 }}>
+          <div className="auth-input-group">
+            <label className="auth-label">Correo Electrónico</label>
+            <div className="auth-input-wrapper">
+              <Mail size={18} className="auth-input-icon" />
+              <input 
+                type="email" 
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="auth-input"
+                placeholder="admin@empresa.com"
+                required 
+              />
+            </div>
+          </div>
+
+          <div className="auth-input-group">
+            <label className="auth-label">Contraseña</label>
+            <div className="auth-input-wrapper">
+              <Lock size={18} className="auth-input-icon" />
+              <input 
+                type="password" 
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="auth-input"
+                placeholder="••••••••"
+                required 
+              />
+            </div>
+          </div>
+
+          <button 
+            type="submit" 
+            disabled={isLoading}
+            className="auth-btn"
+            style={{ marginTop: '1rem' }}
+          >
+            {isLoading ? 'Autenticando...' : (
+              <>
+                <span>Iniciar Sesión</span>
+                <LogIn size={18} />
+              </>
+            )}
+          </button>
+        </form>
+
+        <div className="auth-footer" style={{ position: 'relative', zIndex: 1 }}>
+          <p>Módulo de Administración Segura &copy; {new Date().getFullYear()}</p>
         </div>
-        <button type="submit" style={{ width: '100%', padding: '0.75rem', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
-          Entrar
-        </button>
-      </form>
+      </div>
     </div>
   );
 };

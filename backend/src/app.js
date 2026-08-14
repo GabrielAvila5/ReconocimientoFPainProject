@@ -3,6 +3,7 @@ const cors = require('cors');
 const http = require('http');
 const { Server } = require('socket.io');
 const helmet = require('helmet');
+const cookieParser = require('cookie-parser');
 
 // Importar rutas
 const authRouter = require('./modules/auth/auth.router');
@@ -22,8 +23,9 @@ const frontendUrl = process.env.FRONTEND_URL || process.env.VITE_API_URL || 'htt
 
 const io = new Server(server, {
   cors: {
-    origin: process.env.NODE_ENV === 'production' ? '*' : frontendUrl,
-    methods: ['GET', 'POST', 'PUT', 'DELETE']
+    origin: process.env.NODE_ENV === 'production' ? true : [frontendUrl, 'http://localhost:8080', 'http://localhost'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    credentials: true
   }
 });
 
@@ -39,8 +41,10 @@ io.on('connection', (socket) => {
 });
 
 app.use(cors({ 
-  origin: process.env.NODE_ENV === 'production' ? '*' : frontendUrl 
+  origin: process.env.NODE_ENV === 'production' ? true : [frontendUrl, 'http://localhost:8080', 'http://localhost'],
+  credentials: true 
 }));
+app.use(cookieParser());
 app.use(express.json());
 
 // Montar rutas
@@ -55,6 +59,8 @@ const shiftsRouter = require('./modules/shifts/shifts.router');
 app.use('/api/v1/shifts', shiftsRouter);
 const departmentsRouter = require('./modules/departments/departments.router');
 app.use('/api/v1/departments', departmentsRouter);
+const adminsRouter = require('./modules/admins/admins.router');
+app.use('/api/v1/admins', adminsRouter);
 
 // Manejo de errores 404 para la API
 app.use('/api', (req, res) => {

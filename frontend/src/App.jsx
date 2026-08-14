@@ -1,8 +1,10 @@
-import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, Outlet, useNavigate } from 'react-router-dom';
+import api from './utils/api';
 
 // Providers
 import { NotificationProvider } from './contexts/NotificationContext';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 
 // Layouts
 import KioskLayout from './layouts/KioskLayout';
@@ -24,17 +26,58 @@ import SettingsPage from './pages/dashboard/SettingsPage';
 
 // Pages - Auth
 import LoginPage from './pages/auth/LoginPage';
+import SetupPage from './pages/auth/SetupPage';
 
 // Rutas protegidas
 const ProtectedRoute = ({ children }) => {
-  const isAuthenticated = true; // TODO: Implement Auth context
+  const { isAuthenticated } = useAuth();
   return isAuthenticated ? children : <Navigate to="/login" replace />;
+};
+
+// Enrutador inteligente para la raíz
+const SmartRoot = () => {
+  const [loading, setLoading] = useState(true);
+  const [needsSetup, setNeedsSetup] = useState(false);
+  const { isAuthenticated } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const checkSetup = async () => {
+      try {
+        const res = await api.get('/auth/setup-status');
+        if (res.data.needsSetup) {
+          setNeedsSetup(true);
+        } else if (isAuthenticated) {
+          navigate('/dashboard', { replace: true });
+        } else {
+          navigate('/login', { replace: true });
+        }
+      } catch (error) {
+        console.error('Error checking setup status', error);
+        navigate('/login', { replace: true }); // Fallback
+      } finally {
+        setLoading(false);
+      }
+    };
+    checkSetup();
+  }, [isAuthenticated, navigate]);
+
+  if (loading) {
+    return <div className="min-h-screen flex items-center justify-center bg-[#0a0a0b] text-white">Cargando...</div>;
+  }
+
+  if (needsSetup) {
+    return <Navigate to="/setup" replace />;
+  }
+
+  return null;
 };
 
 function App() {
   return (
-    <NotificationProvider>
-      <BrowserRouter>
+    <AuthProvider>
+      <NotificationProvider>
+        <BrowserRouter>
         <Routes>
           {/* KIOSK MODULE (Tablet) */}
           <Route path="/kiosk" element={<KioskLayout />}>
@@ -60,14 +103,17 @@ function App() {
             <Route path="settings" element={<SettingsPage />} />
           </Route>
 
-          {/* LOGIN */}
+          {/* LOGIN & SETUP */}
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/setup" element={<SetupPage />} />
           
-          {/* Redirect Root */}
-          <Route path="*" element={<Navigate to="/kiosk" replace />} />
+          {/* ROOT & FALLBACK */}
+          <Route path="/" element={<SmartRoot />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
     </NotificationProvider>
+    </AuthProvider>
   );
 }
 

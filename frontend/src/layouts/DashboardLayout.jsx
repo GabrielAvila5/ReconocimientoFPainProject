@@ -3,11 +3,13 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, Users, Clock, Calendar, FileText, Monitor, Bell, Settings, LogOut, Maximize, Menu, X } from 'lucide-react';
 import { Toaster } from 'sonner';
 import { useNotifications } from '../contexts/NotificationContext';
+import { useAuth } from '../contexts/AuthContext';
 import NotificationDropdown from '../components/NotificationDropdown';
 
 const DashboardLayout = () => {
   const navigate = useNavigate();
   const { unreadCount } = useNotifications();
+  const { user, logout } = useAuth();
   const [showNotifications, setShowNotifications] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [bellAnim, setBellAnim] = useState(false);
@@ -177,14 +179,37 @@ const DashboardLayout = () => {
         </nav>
 
         {/* User Profile Footer */}
-        <div style={{ padding: '1.5rem', borderTop: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '1rem', cursor: 'pointer' }}>
+        <div style={{ padding: '1.5rem', borderTop: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '1rem' }}>
           <div style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: 'var(--accent-amber)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', color: 'var(--bg-main)', flexShrink: 0 }}>
-            JD
+            {user?.name ? user.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'U'}
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <h4 style={{ fontSize: '0.9rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Juan Domínguez</h4>
-            <p className="text-xs text-muted">Administrador</p>
+            <h4 style={{ fontSize: '0.9rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user?.name || 'Usuario'}</h4>
+            <p className="text-xs text-muted">{user?.role === 'SUPER_ADMIN' ? 'Super Administrador' : 'Administrador'}</p>
           </div>
+          <button 
+            onClick={async () => {
+              await logout();
+              navigate('/login');
+            }}
+            title="Cerrar sesión"
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: 'var(--text-muted)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '0.5rem',
+              borderRadius: '8px',
+              transition: 'all 0.2s ease'
+            }}
+            onMouseOver={(e) => { e.currentTarget.style.color = 'var(--text-main)'; e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.05)'; }}
+            onMouseOut={(e) => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.backgroundColor = 'transparent'; }}
+          >
+            <LogOut size={18} />
+          </button>
         </div>
       </aside>
 

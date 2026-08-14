@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Save, AlertCircle, RefreshCw, Lock, AlertTriangle, X, Clock } from 'lucide-react';
 import { toast } from 'sonner';
+import AdminManager from '../../components/AdminManager';
 
 const TAB_FIELDS = {
   general: ['companyName', 'timezone', 'maintenanceMode', 'defaultExportFormat'],
@@ -549,22 +550,8 @@ const SettingsPage = () => {
         )}
 
         {activeTab === 'seguridad' && (
-          <div className="fade-in">
-            {/* TODO: roles (Admin, RRHH, Médico, Supervisor) y 2FA */}
-            <div style={{ 
-              background: 'rgba(249,115,22,0.08)', 
-              border: '1px solid #f97316', 
-              borderRadius: '12px', 
-              padding: '3rem 2rem', 
-              textAlign: 'center',
-              marginTop: '2rem'
-            }}>
-              <Lock size={48} style={{ color: '#f97316', margin: '0 auto 1.5rem', opacity: 0.9 }} />
-              <h3 style={{ color: '#f97316', margin: '0 0 1rem 0', fontSize: '1.4rem' }}>Módulo de seguridad — Próximamente</h3>
-              <p style={{ color: '#e4e4e7', margin: 0, maxWidth: '400px', marginLeft: 'auto', marginRight: 'auto', lineHeight: '1.6' }}>
-                La gestión de roles de usuario y autenticación de dos factores (2FA) estará disponible en una versión futura.
-              </p>
-            </div>
+          <div className="fade-in mt-4">
+            <AdminManager />
           </div>
         )}
 
