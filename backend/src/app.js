@@ -16,6 +16,7 @@ const app = express();
 const server = http.createServer(app);
 
 // Seguridad básica de Express
+app.set('trust proxy', 1); // Confiar en el proxy de Hostinger para X-Forwarded-For
 app.disable('x-powered-by');
 app.use(helmet());
 
