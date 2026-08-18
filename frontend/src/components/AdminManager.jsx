@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { Trash2, UserPlus, AlertTriangle, X, Shield, Plus, Clock } from 'lucide-react';
+import { Trash2, UserPlus, AlertTriangle, X, Shield, Plus, Clock, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 
 const tableStyle = {
@@ -32,7 +32,9 @@ const AdminManager = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
   
-  const [formData, setFormData] = useState({ name: '', email: '', password: '' });
+  const [formData, setFormData] = useState({ name: '', email: '', password: '', confirmPassword: '' });
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [formLoading, setFormLoading] = useState(false);
 
   useEffect(() => {
@@ -47,8 +49,8 @@ const AdminManager = () => {
     try {
       setLoading(true);
       const [adminsRes, logsRes] = await Promise.all([
-        fetch(`${import.meta.env.VITE_API_URL}/api/v1/admins`),
-        fetch(`${import.meta.env.VITE_API_URL}/api/v1/admins/audit-log`)
+        fetch(`${import.meta.env.VITE_API_URL}/api/v1/admins`, { credentials: 'include' }),
+        fetch(`${import.meta.env.VITE_API_URL}/api/v1/admins/audit-log`, { credentials: 'include' })
       ]);
       
       if (adminsRes.ok) setAdmins(await adminsRes.json());
@@ -63,12 +65,19 @@ const AdminManager = () => {
 
   const handleAddAdmin = async (e) => {
     e.preventDefault();
+    
+    if (formData.password !== formData.confirmPassword) {
+      return toast.error('Las contraseñas no coinciden');
+    }
+    
     setFormLoading(true);
     try {
+      const { confirmPassword, ...apiData } = formData;
       const res = await fetch(`${import.meta.env.VITE_API_URL}/api/v1/admins`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+        credentials: 'include',
+        body: JSON.stringify(apiData)
       });
       
       const data = await res.json();
@@ -79,7 +88,7 @@ const AdminManager = () => {
       
       toast.success('Administrador creado exitosamente');
       setShowAddModal(false);
-      setFormData({ name: '', email: '', password: '' });
+      setFormData({ name: '', email: '', password: '', confirmPassword: '' });
       fetchData();
     } catch (error) {
       toast.error(error.message);
@@ -93,7 +102,8 @@ const AdminManager = () => {
     
     try {
       const res = await fetch(`${import.meta.env.VITE_API_URL}/api/v1/admins/${showDeleteConfirm.id}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        credentials: 'include'
       });
       
       if (!res.ok) {
@@ -303,18 +313,77 @@ const AdminManager = () => {
                   required
                 />
               </div>
-              <div className="form-group" style={{ marginBottom: '1.5rem' }}>
+              <div className="form-group" style={{ marginBottom: '1rem' }}>
                 <label className="form-label" style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-muted)', fontSize: '0.9rem' }}>Contraseña</label>
-                <input 
-                  type="password" 
-                  className="auth-input" 
-                  style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)', backgroundColor: 'rgba(255,255,255,0.05)', color: 'var(--text-main)' }}
-                  value={formData.password}
-                  onChange={e => setFormData({...formData, password: e.target.value})}
-                  minLength={8}
-                  required
-                />
+                <div style={{ position: 'relative' }}>
+                  <input 
+                    type={showPassword ? "text" : "password"} 
+                    className="auth-input" 
+                    style={{ width: '100%', padding: '0.75rem 2.5rem 0.75rem 0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)', backgroundColor: 'rgba(255,255,255,0.05)', color: 'var(--text-main)' }}
+                    value={formData.password}
+                    onChange={e => setFormData({...formData, password: e.target.value})}
+                    minLength={8}
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    style={{
+                      position: 'absolute',
+                      right: '0.75rem',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      background: 'none',
+                      border: 'none',
+                      color: 'rgba(255, 255, 255, 0.5)',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: 0,
+                      zIndex: 10
+                    }}
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
                 <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Mínimo 8 caracteres</p>
+              </div>
+              
+              <div className="form-group" style={{ marginBottom: '1.5rem' }}>
+                <label className="form-label" style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-muted)', fontSize: '0.9rem' }}>Confirmar Contraseña</label>
+                <div style={{ position: 'relative' }}>
+                  <input 
+                    type={showConfirmPassword ? "text" : "password"} 
+                    className="auth-input" 
+                    style={{ width: '100%', padding: '0.75rem 2.5rem 0.75rem 0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)', backgroundColor: 'rgba(255,255,255,0.05)', color: 'var(--text-main)' }}
+                    value={formData.confirmPassword}
+                    onChange={e => setFormData({...formData, confirmPassword: e.target.value})}
+                    minLength={8}
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    style={{
+                      position: 'absolute',
+                      right: '0.75rem',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      background: 'none',
+                      border: 'none',
+                      color: 'rgba(255, 255, 255, 0.5)',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: 0,
+                      zIndex: 10
+                    }}
+                  >
+                    {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
               </div>
               
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
