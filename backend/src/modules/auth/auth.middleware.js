@@ -12,7 +12,8 @@ const requireAuth = async (req, res, next) => {
     }
 
     // 2. Verificar token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const secret = process.env.JWT_SECRET || 'HostingerFallbackSecretKey2026!';
+    const decoded = jwt.verify(token, secret);
 
     // 3. Verificar que el usuario aún exista en la BD
     const user = await prisma.adminUser.findUnique({
