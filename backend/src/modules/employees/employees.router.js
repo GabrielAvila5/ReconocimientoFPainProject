@@ -94,7 +94,13 @@ router.get('/:id', async (req, res) => {
   try {
     const employee = await prisma.employee.findUnique({
       where: { id: req.params.id },
-      include: { department: true }
+      include: { 
+        department: true,
+        attendances: {
+          orderBy: { date: 'desc' },
+          take: 1
+        }
+      }
     });
     if (!employee) return res.status(404).json({ error: 'No encontrado' });
     res.json(employee);

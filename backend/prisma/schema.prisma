@@ -54,6 +54,7 @@ model AttendanceRecord {
   overtimeMinutes Int?
   isLate          Boolean @default(false)
   lateMinutes     Int?
+  isAutoClosed    Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

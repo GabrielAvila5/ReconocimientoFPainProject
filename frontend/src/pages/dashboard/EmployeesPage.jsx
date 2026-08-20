@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import FaceRegistration from '../../components/FaceRecognition/FaceRegistration';
-import { Search, Filter, Users, Fingerprint, Clock, MoreVertical, Plus, AlertCircle, RefreshCw, Camera, Trash2, Edit } from 'lucide-react';
+import { Search, Filter, Users, Fingerprint, Clock, MoreVertical, Plus, AlertCircle, RefreshCw, Camera, Trash2, Edit, Calendar } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const EmployeesPage = () => {
@@ -14,6 +14,13 @@ const EmployeesPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDepartment, setSelectedDepartment] = useState('');
   const [isFilterOpen, setIsFilterOpen] = useState(false);
+
+  // States for modal
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState(null);
+  const [employeeDetails, setEmployeeDetails] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalLoading, setModalLoading] = useState(false);
+  const [modalError, setModalError] = useState(null);
 
   const fetchEmployees = async () => {
     try {
@@ -64,6 +71,29 @@ const EmployeesPage = () => {
       return matchSearch && matchDepartment;
     });
   }, [employees, searchTerm, selectedDepartment]);
+
+  const handleRowClick = async (empId) => {
+    setSelectedEmployeeId(empId);
+    setIsModalOpen(true);
+    setModalLoading(true);
+    setModalError(null);
+    setEmployeeDetails(null);
+    
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:4000'}/api/v1/employees/${empId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error('Error al obtener detalles del empleado');
+      const data = await res.json();
+      setEmployeeDetails(data);
+    } catch (err) {
+      console.error(err);
+      setModalError(err.message);
+    } finally {
+      setModalLoading(false);
+    }
+  };
 
   // Computed stats
   const totalEmployees = employees.length;
@@ -259,7 +289,7 @@ const EmployeesPage = () => {
                   const getInitials = (f, l) => `${(f||'').charAt(0)}${(l||'').charAt(0)}`.toUpperCase();
 
                   return (
-                    <tr key={emp.id} style={{ borderBottom: '1px solid #333', transition: 'background-color 0.2s' }} className="table-row-hover">
+                    <tr key={emp.id} onClick={() => handleRowClick(emp.id)} style={{ borderBottom: '1px solid #333', transition: 'background-color 0.2s', cursor: 'pointer' }} className="table-row-hover">
                       <td style={tdStyle}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                           <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'rgba(249, 115, 22, 0.2)', color: '#f97316', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
@@ -310,6 +340,98 @@ const EmployeesPage = () => {
           </div>
         </div>
       )}
+
+      {/* Employee Details Modal */}
+      {isModalOpen && (
+        <div className="modal-overlay" onClick={() => setIsModalOpen(false)}>
+          <div className="modal-content page-glow" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+            <div className="modal-header">
+              <h3 style={{ color: 'var(--text-main)', margin: 0 }}>Detalles del Empleado</h3>
+              <button className="btn-icon" onClick={() => setIsModalOpen(false)}>×</button>
+            </div>
+            <div style={{ padding: '1.5rem' }}>
+              {modalLoading ? (
+                <div style={{ textAlign: 'center', padding: '2rem 0' }}>
+                  <RefreshCw className="spin" size={24} style={{ color: '#f97316', margin: '0 auto' }} />
+                  <p style={{ color: '#a1a1aa', marginTop: '1rem' }}>Cargando información...</p>
+                </div>
+              ) : modalError ? (
+                <div style={{ textAlign: 'center', padding: '2rem 0', color: '#ef4444' }}>
+                  <AlertCircle size={32} style={{ margin: '0 auto 1rem' }} />
+                  <p>{modalError}</p>
+                </div>
+              ) : employeeDetails ? (
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem', borderBottom: '1px solid #333', paddingBottom: '1.5rem' }}>
+                    <div style={{ width: '60px', height: '60px', borderRadius: '50%', background: 'rgba(249, 115, 22, 0.2)', color: '#f97316', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '1.5rem' }}>
+                      {`${(employeeDetails.firstName||'').charAt(0)}${(employeeDetails.lastName||'').charAt(0)}`.toUpperCase()}
+                    </div>
+                    <div>
+                      <h4 style={{ margin: 0, fontSize: '1.2rem', color: '#fff' }}>{employeeDetails.firstName} {employeeDetails.lastName}</h4>
+                      <p style={{ margin: '0.2rem 0 0 0', color: '#a1a1aa', fontSize: '0.9rem' }}>{employeeDetails.email || employeeDetails.identifier}</p>
+                      <p style={{ margin: '0.2rem 0 0 0', color: '#e4e4e7', fontSize: '0.9rem' }}>{employeeDetails.department?.name || 'Sin departamento'} • {employeeDetails.position || 'Sin cargo'}</p>
+                    </div>
+                  </div>
+                  
+                  <div style={{ marginBottom: '1.5rem' }}>
+                    <h5 style={{ margin: '0 0 0.5rem 0', color: '#a1a1aa', fontSize: '0.9rem' }}>Estado Biométrico</h5>
+                    {employeeDetails.faceDescriptor && employeeDetails.faceDescriptor !== '[]' && employeeDetails.faceDescriptor.length > 10 ? (
+                      <span style={{ padding: '0.3rem 0.8rem', background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', borderRadius: '999px', fontSize: '0.8rem', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
+                        Enrolado el {new Date(employeeDetails.enrolledAt).toLocaleDateString()}
+                      </span>
+                    ) : (
+                      <span style={{ padding: '0.3rem 0.8rem', background: 'rgba(234, 179, 8, 0.1)', color: '#eab308', borderRadius: '999px', fontSize: '0.8rem', border: '1px solid rgba(234, 179, 8, 0.2)' }}>
+                        Pendiente de enrolamiento
+                      </span>
+                    )}
+                  </div>
+                  
+                  <div>
+                    <h5 style={{ margin: '0 0 0.75rem 0', color: '#a1a1aa', fontSize: '0.9rem' }}>Último Registro de Asistencia</h5>
+                    {employeeDetails.attendances && employeeDetails.attendances.length > 0 ? (
+                      <div style={{ background: '#18181b', padding: '1rem', borderRadius: '8px', border: '1px solid #333' }}>
+                        <p style={{ margin: '0 0 0.5rem 0', color: '#fff', fontSize: '0.95rem' }}>
+                          <Calendar size={14} style={{ display: 'inline', marginRight: '6px', color: '#a1a1aa', verticalAlign: 'middle' }} /> 
+                          {new Date(employeeDetails.attendances[0].date).toLocaleDateString()}
+                        </p>
+                        <div style={{ display: 'flex', gap: '1.5rem', marginTop: '0.5rem' }}>
+                          <div>
+                            <p style={{ margin: 0, fontSize: '0.8rem', color: '#a1a1aa' }}>Entrada</p>
+                            <p style={{ margin: '0.2rem 0 0 0', color: '#fff', fontWeight: 500 }}>
+                              {employeeDetails.attendances[0].entrada ? new Date(employeeDetails.attendances[0].entrada).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '—'}
+                            </p>
+                          </div>
+                          <div>
+                            <p style={{ margin: 0, fontSize: '0.8rem', color: '#a1a1aa' }}>Salida</p>
+                            <p style={{ margin: '0.2rem 0 0 0', color: '#fff', fontWeight: 500 }}>
+                              {employeeDetails.attendances[0].salida ? new Date(employeeDetails.attendances[0].salida).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '—'}
+                              {employeeDetails.attendances[0].isAutoClosed && (
+                                <span title="Cierre automático por el sistema" style={{ marginLeft: '4px', color: '#f97316' }}>
+                                  <AlertCircle size={12} style={{ display: 'inline', verticalAlign: 'middle' }} />
+                                </span>
+                              )}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ background: '#18181b', padding: '1.5rem 1rem', borderRadius: '8px', border: '1px solid #333', textAlign: 'center' }}>
+                        <Clock size={24} style={{ color: '#52525b', margin: '0 auto 0.5rem' }} />
+                        <p style={{ margin: 0, color: '#a1a1aa', fontSize: '0.9rem' }}>El empleado aún no tiene registros de asistencia.</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+            {employeeDetails && (
+              <div style={{ padding: '1rem 1.5rem', borderTop: '1px solid #3f3f46', display: 'flex', justifyContent: 'flex-end' }}>
+                <button style={btnSecondary} onClick={() => setIsModalOpen(false)}>Cerrar</button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -321,7 +443,8 @@ const Skeleton = ({ width, height, borderRadius = '4px', style = {} }) => (
 );
 
 const ActionMenu = ({ hasBiometric, employee, navigate, onRefresh }) => {
-  const handleDeleteEmployee = async () => {
+  const handleDeleteEmployee = async (e) => {
+    e.stopPropagation();
     if (window.confirm(`¿Eliminar permanentemente al empleado ${employee.firstName} ${employee.lastName}?\nEsta acción no se puede deshacer.`)) {
       try {
         const token = localStorage.getItem('token') || 'dev-token';
@@ -341,7 +464,8 @@ const ActionMenu = ({ hasBiometric, employee, navigate, onRefresh }) => {
     }
   };
 
-  const handleEditEmployee = () => {
+  const handleEditEmployee = (e) => {
+    e.stopPropagation();
     // Por ahora mostramos una alerta si no hay ruta de edición implementada, o puedes navegar a otra ruta.
     alert('Función de edición en desarrollo');
   };
@@ -349,7 +473,7 @@ const ActionMenu = ({ hasBiometric, employee, navigate, onRefresh }) => {
   return (
     <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
       <button 
-        onClick={() => navigate(`/kiosk/enroll/${employee.id}`)}
+        onClick={(e) => { e.stopPropagation(); navigate(`/kiosk/enroll/${employee.id}`); }}
         title={hasBiometric ? "Re-enrolar" : "Enrolar"}
         style={{ background: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.2)', color: '#3b82f6', cursor: 'pointer', padding: '0.4rem', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
       >

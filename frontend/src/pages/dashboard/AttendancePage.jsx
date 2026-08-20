@@ -95,6 +95,7 @@ const AttendancePage = () => {
         employee,
         horaMarcaje: entradaTime || '—',
         horaSalida: salidaTime || '—',
+        isAutoClosed: record.isAutoClosed || false,
         tipo: tipoStr,
         puntualidad,
         departamento: employee.department?.name || 'Sin departamento',
@@ -110,6 +111,7 @@ const AttendancePage = () => {
           employee: emp,
           horaMarcaje: '—',
           horaSalida: '—',
+          isAutoClosed: false,
           tipo: '—',
           puntualidad: 'Falta',
           departamento: emp.department?.name || 'Sin departamento',
@@ -329,6 +331,7 @@ const AttendancePage = () => {
               <tr style={{ borderBottom: '1px solid #333' }}>
                 <th style={thStyle}>Empleado</th>
                 <th style={thStyle}>Hora de Entrada</th>
+                <th style={thStyle}>Hora de Salida</th>
                 <th style={thStyle}>Tipo</th>
                 <th style={thStyle}>Puntualidad</th>
                 <th style={thStyle}>Departamento</th>
@@ -339,6 +342,7 @@ const AttendancePage = () => {
               {[1, 2, 3, 4].map(i => (
                 <tr key={i} style={{ borderBottom: '1px solid #333' }}>
                   <td style={tdStyle}><Skeleton height="40px" width="150px" /></td>
+                  <td style={tdStyle}><Skeleton height="20px" width="80px" /></td>
                   <td style={tdStyle}><Skeleton height="20px" width="80px" /></td>
                   <td style={tdStyle}><Skeleton height="20px" width="70px" /></td>
                   <td style={tdStyle}><Skeleton height="24px" width="60px" borderRadius="12px" /></td>
@@ -357,6 +361,7 @@ const AttendancePage = () => {
               <tr style={{ borderBottom: '1px solid #333', background: '#18181b' }}>
                 <th style={thStyle}>Empleado</th>
                 <th style={thStyle}>Hora de Entrada</th>
+                <th style={thStyle}>Hora de Salida</th>
                 <th style={thStyle}>Tipo</th>
                 <th style={thStyle}>Puntualidad</th>
                 <th style={thStyle}>Departamento</th>
@@ -366,7 +371,7 @@ const AttendancePage = () => {
             <tbody>
               {filteredRecords.length === 0 ? (
                 <tr>
-                  <td colSpan="6" style={{ padding: '3rem', textAlign: 'center', color: '#a1a1aa' }}>
+                  <td colSpan="7" style={{ padding: '3rem', textAlign: 'center', color: '#a1a1aa' }}>
                     No se encontraron registros para esta fecha o filtros.
                   </td>
                 </tr>
@@ -406,6 +411,15 @@ const AttendancePage = () => {
                       <td style={{ ...tdStyle, color: '#a1a1aa' }}>
                         {record.horaMarcaje !== '—' && <Clock size={14} style={{ display: 'inline', marginRight: '4px', verticalAlign: 'middle' }}/>}
                         {record.horaMarcaje}
+                      </td>
+                      <td style={{ ...tdStyle, color: '#a1a1aa' }}>
+                        {record.horaSalida !== '—' && <Clock size={14} style={{ display: 'inline', marginRight: '4px', verticalAlign: 'middle' }}/>}
+                        {record.horaSalida}
+                        {record.isAutoClosed && (
+                          <span title="Cierre automático por el sistema" style={{ marginLeft: '6px', color: '#f97316' }}>
+                            <AlertCircle size={14} style={{ display: 'inline', verticalAlign: 'middle' }} />
+                          </span>
+                        )}
                       </td>
                       <td style={{ ...tdStyle, color: tipoColor, fontWeight: record.tipo === 'Sin salida' ? 500 : 'normal' }}>
                         {record.tipo}
