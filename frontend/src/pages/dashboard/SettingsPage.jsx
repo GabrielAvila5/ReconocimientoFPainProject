@@ -2,8 +2,10 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Save, AlertCircle, RefreshCw, Lock, AlertTriangle, X, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import AdminManager from '../../components/AdminManager';
+import ChangePassword from '../../components/ChangePassword';
 
 const TAB_FIELDS = {
+  perfil: [],
   general: ['companyName', 'timezone', 'maintenanceMode', 'defaultExportFormat'],
   asistencia: ['workdayStartHour', 'workdayStartMinute', 'workdayEndHour', 'workdayEndMinute', 'latenessToleranceMin', 'breakStartTime', 'breakEndTime'],
   reconocimiento: ['faceConfidenceThreshold', 'captureMode'],
@@ -555,8 +557,14 @@ const SettingsPage = () => {
           </div>
         )}
 
+        {activeTab === 'perfil' && (
+          <div className="fade-in mt-4">
+            <ChangePassword />
+          </div>
+        )}
+
         {/* Action Bar (Solo para tabs que se pueden guardar) */}
-        {activeTab !== 'seguridad' && (
+        {activeTab !== 'seguridad' && activeTab !== 'perfil' && (
           <div style={{ marginTop: '3rem', paddingTop: '1.5rem', borderTop: '1px solid #333', display: 'flex', justifyContent: 'flex-end' }}>
             <button 
               onClick={handleSave} 
@@ -579,6 +587,7 @@ const SettingsPage = () => {
     { id: 'notificaciones', label: 'Notificaciones' },
     { id: 'privacidad', label: 'Privacidad' },
     { id: 'seguridad', label: 'Seguridad' },
+    { id: 'perfil', label: 'Mi Perfil' },
   ];
 
   return (

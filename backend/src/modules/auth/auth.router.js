@@ -16,5 +16,6 @@ router.post('/logout', authController.logout);
 router.get('/me', requireAuth, authController.getMe);
 router.get('/setup-status', authController.getSetupStatus);
 router.post('/setup', loginLimiter, authController.setupFirstAdmin);
+router.put('/change-password', requireAuth, authController.changePassword);
 
 module.exports = router;
