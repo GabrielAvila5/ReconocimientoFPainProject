@@ -250,7 +250,21 @@ router.post('/register', requireApiKey, async (req, res) => {
       });
 
       const employee = await prisma.employee.findUnique({ where: { id: employeeId } });
-      const msg = `${employee.firstName} ${employee.lastName} registró ${overtime} minutos extra.`;
+      
+      const formatOvertime = (totalMinutes) => {
+        const hours = Math.floor(totalMinutes / 60);
+        const minutes = totalMinutes % 60;
+        
+        if (hours > 0 && minutes > 0) {
+          return `${hours} hora${hours > 1 ? 's' : ''} y ${minutes} minuto${minutes > 1 ? 's' : ''}`;
+        } else if (hours > 0) {
+          return `${hours} hora${hours > 1 ? 's' : ''}`;
+        } else {
+          return `${minutes} minuto${minutes !== 1 ? 's' : ''}`;
+        }
+      };
+      
+      const msg = `${employee.firstName} ${employee.lastName} registró ${formatOvertime(overtime)} extra.`;
       
       await prisma.notification.create({
         data: {
