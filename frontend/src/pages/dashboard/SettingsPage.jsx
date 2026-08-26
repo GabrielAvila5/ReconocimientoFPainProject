@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Save, AlertCircle, RefreshCw, Lock, AlertTriangle, X, Clock } from 'lucide-react';
+import { Save, AlertCircle, RefreshCw, Lock, AlertTriangle, X, Clock, Plus, Trash2, UserPlus } from 'lucide-react';
 import { toast } from 'sonner';
+import api from '../../utils/api';
 import AdminManager from '../../components/AdminManager';
 import ChangePassword from '../../components/ChangePassword';
+import EmployeeSearchSelect from '../../components/EmployeeSearchSelect';
 
 const TAB_FIELDS = {
   perfil: [],
@@ -47,23 +49,21 @@ const SettingsPage = () => {
   const [editingDepartment, setEditingDepartment] = useState(null);
   const [deptLoading, setDeptLoading] = useState(false);
 
+  const [employees, setEmployees] = useState([]);
+  const [editingEmployee, setEditingEmployee] = useState(null);
+  const [empLoading, setEmpLoading] = useState(false);
+  const [selectedEmpForShift, setSelectedEmpForShift] = useState(null);
+  const [isEmpModalOpen, setIsEmpModalOpen] = useState(false);
+
   const fetchSettings = async () => {
     try {
       setLoading(true);
       setError(null);
-      // Asumiendo que el token de admin se guarda en localStorage o similar, 
-      // si usamos requireJwt en backend. (Para pruebas puede estar hardcodeado o deshabilitado)
-      const token = localStorage.getItem('token') || 'dev-token';
+      const res = await api.get('/settings');
       
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/v1/settings`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
+      if (res.status !== 200) throw new Error('Error al obtener configuraciones');
       
-      if (!res.ok) throw new Error('Error al obtener configuraciones');
-      
-      const data = await res.json();
+      const data = res.data;
       setSettings(data);
       setOriginalSettings(data);
     } catch (err) {
@@ -77,45 +77,61 @@ const SettingsPage = () => {
   useEffect(() => {
     fetchSettings();
     fetchDepartments();
+    fetchEmployees();
   }, []);
 
   const fetchDepartments = async () => {
     try {
-      const token = localStorage.getItem('token') || 'dev-token';
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/v1/departments`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setDepartments(data);
-      }
+      const res = await api.get('/departments');
+      setDepartments(res.data);
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const fetchEmployees = async () => {
+    try {
+      const res = await api.get('/employees');
+      setEmployees(res.data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleCreateDepartment = async () => {
+    const name = window.prompt('Ingrese el nombre del nuevo departamento:');
+    if (!name) return;
+    try {
+      await api.post('/departments', { name });
+      toast.success('Departamento creado exitosamente');
+      fetchDepartments();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Error al crear departamento');
+    }
+  };
+
+  const handleDeleteDepartment = async (id) => {
+    if (!window.confirm('¿Está seguro de eliminar este departamento?')) return;
+    try {
+      await api.delete(`/departments/${id}`);
+      toast.success('Departamento eliminado exitosamente');
+      fetchDepartments();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Error al eliminar departamento');
     }
   };
 
   const handleSaveDepartment = async () => {
     try {
       setDeptLoading(true);
-      const token = localStorage.getItem('token') || 'dev-token';
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/v1/departments/${editingDepartment.id}/shift`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          useCustom: editingDepartment.useCustom,
-          startTime: editingDepartment.shift?.startTime || '09:00',
-          endTime: editingDepartment.shift?.endTime || '18:00',
-          tolerance: editingDepartment.shift?.tolerance !== undefined ? editingDepartment.shift.tolerance : 15,
-          breakStartTime: editingDepartment.shift?.breakStartTime || '13:00',
-          breakEndTime: editingDepartment.shift?.breakEndTime || '14:00',
-        })
+      await api.put(`/departments/${editingDepartment.id}/shift`, {
+        useCustom: editingDepartment.useCustom,
+        startTime: editingDepartment.shift?.startTime || '09:00',
+        endTime: editingDepartment.shift?.endTime || '18:00',
+        tolerance: editingDepartment.shift?.tolerance !== undefined ? editingDepartment.shift.tolerance : 15,
+        breakStartTime: editingDepartment.shift?.breakStartTime || '13:00',
+        breakEndTime: editingDepartment.shift?.breakEndTime || '14:00',
       });
-
-      if (!res.ok) throw new Error('Error guardando departamento');
-      
       fetchDepartments();
       setEditingDepartment(null);
       toast.success('Horario del departamento actualizado');
@@ -127,6 +143,39 @@ const SettingsPage = () => {
     }
   };
 
+  const handleSaveEmployee = async () => {
+    try {
+      setEmpLoading(true);
+      await api.put(`/employees/${editingEmployee.id}/shift`, {
+        useCustom: editingEmployee.useCustom,
+        startTime: editingEmployee.shift?.startTime || '09:00',
+        endTime: editingEmployee.shift?.endTime || '18:00',
+        tolerance: editingEmployee.shift?.tolerance !== undefined ? editingEmployee.shift.tolerance : 15,
+        breakStartTime: editingEmployee.shift?.breakStartTime || '13:00',
+        breakEndTime: editingEmployee.shift?.breakEndTime || '14:00',
+      });
+      fetchEmployees();
+      setEditingEmployee(null);
+      toast.success('Horario del empleado actualizado');
+    } catch (err) {
+      console.error(err);
+      toast.error('Error al actualizar horario del empleado');
+    } finally {
+      setEmpLoading(false);
+    }
+  };
+
+  const handleRemoveEmployeeShift = async (id) => {
+    if (!window.confirm('¿Está seguro de desactivar el turno personalizado para este empleado?')) return;
+    try {
+      await api.put(`/employees/${id}/shift`, { useCustom: false });
+      toast.success('Excepción desactivada');
+      fetchEmployees();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Error al desactivar excepción');
+    }
+  };
+
   const handleChange = (field, value) => {
     setSettings(prev => ({ ...prev, [field]: value }));
   };
@@ -134,29 +183,14 @@ const SettingsPage = () => {
   const handleSave = async () => {
     try {
       setSaving(true);
-      const token = localStorage.getItem('token') || 'dev-token';
-      
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/v1/settings`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(settings)
-      });
-      
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || 'Error al guardar');
-      }
-      
-      const data = await res.json();
+      const res = await api.put('/settings', settings);
+      const data = res.data;
       setOriginalSettings(data);
       setSettings(data);
       toast.success('Configuración guardada');
     } catch (err) {
       console.error(err);
-      toast.error(err.message || 'Error al guardar');
+      toast.error(err.response?.data?.error || err.message || 'Error al guardar');
     } finally {
       setSaving(false);
     }
@@ -348,15 +382,20 @@ const SettingsPage = () => {
               </div>
             </div>
 
-            <h3 style={{ margin: '3rem 0 1.5rem 0', color: '#fff', fontSize: '1.2rem', borderTop: '1px solid #333', paddingTop: '2rem' }}>Excepciones por Departamento</h3>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '3rem', marginBottom: '1.5rem', borderTop: '1px solid #333', paddingTop: '2rem' }}>
+              <h3 style={{ margin: 0, color: '#fff', fontSize: '1.2rem' }}>Excepciones por Departamento</h3>
+              <button onClick={handleCreateDepartment} style={{ ...btnPrimary, padding: '0.5rem 1rem', fontSize: '0.85rem' }}>
+                <Plus size={16} /> Nuevo Depto
+              </button>
+            </div>
             
-            <div style={{ overflowX: 'auto' }}>
+            <div style={{ overflowX: 'auto', marginBottom: '3rem' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', background: '#18181b', borderRadius: '8px', overflow: 'hidden' }}>
                 <thead>
                   <tr style={{ background: '#27272a', color: '#a1a1aa', textAlign: 'left', fontSize: '0.9rem' }}>
                     <th style={{ padding: '1rem' }}>Departamento</th>
                     <th style={{ padding: '1rem' }}>Horario Actual</th>
-                    <th style={{ padding: '1rem', textAlign: 'right' }}>Acción</th>
+                    <th style={{ padding: '1rem', textAlign: 'right' }}>Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -382,18 +421,95 @@ const SettingsPage = () => {
                             </span>
                           )}
                         </td>
-                        <td style={{ padding: '1rem', textAlign: 'right' }}>
+                        <td style={{ padding: '1rem', textAlign: 'right', display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
                           <button 
                             onClick={() => setEditingDepartment(JSON.parse(JSON.stringify(dept)))} 
-                            style={{ background: 'transparent', border: '1px solid #3f3f46', color: '#e4e4e7', padding: '0.4rem 1rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.9rem', transition: 'all 0.2s' }}
+                            style={{ background: 'transparent', border: '1px solid #3f3f46', color: '#e4e4e7', padding: '0.4rem 1rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.9rem', transition: 'all 0.2s', fontFamily: 'inherit' }}
                             onMouseOver={e => e.currentTarget.style.borderColor = '#f97316'}
                             onMouseOut={e => e.currentTarget.style.borderColor = '#3f3f46'}
                           >
                             Editar
                           </button>
+                          <button 
+                            onClick={() => handleDeleteDepartment(dept.id)}
+                            style={{ background: 'transparent', border: '1px solid #3f3f46', color: '#ef4444', padding: '0.4rem 0.5rem', borderRadius: '6px', cursor: 'pointer', transition: 'all 0.2s' }}
+                            onMouseOver={e => e.currentTarget.style.borderColor = '#ef4444'}
+                            onMouseOut={e => e.currentTarget.style.borderColor = '#3f3f46'}
+                            title="Eliminar Departamento"
+                          >
+                            <Trash2 size={16} />
+                          </button>
                         </td>
                       </tr>
                     ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderTop: '1px solid #333', paddingTop: '2rem' }}>
+              <h3 style={{ margin: 0, color: '#fff', fontSize: '1.2rem' }}>Excepciones por Empleado</h3>
+              <button onClick={() => setIsEmpModalOpen(true)} style={{ ...btnPrimary, padding: '0.5rem 1rem', fontSize: '0.85rem', background: '#3b82f6' }}>
+                <UserPlus size={16} /> Agregar Excepción
+              </button>
+            </div>
+            
+            <div style={{ overflowX: 'auto', marginBottom: '2rem' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', background: '#18181b', borderRadius: '8px', overflow: 'hidden' }}>
+                <thead>
+                  <tr style={{ background: '#27272a', color: '#a1a1aa', textAlign: 'left', fontSize: '0.9rem' }}>
+                    <th style={{ padding: '1rem' }}>Empleado</th>
+                    <th style={{ padding: '1rem' }}>Horario Actual</th>
+                    <th style={{ padding: '1rem', textAlign: 'right' }}>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {employees.filter(e => e.shifts && e.shifts.length > 0).length === 0 ? (
+                    <tr>
+                      <td colSpan="3" style={{ padding: '2rem', textAlign: 'center', color: '#a1a1aa' }}>No hay empleados con horario personalizado.</td>
+                    </tr>
+                  ) : (
+                    employees.filter(e => e.shifts && e.shifts.length > 0).map(emp => {
+                      const shift = emp.shifts[0].shift;
+                      return (
+                        <tr key={emp.id} style={{ borderTop: '1px solid #333' }}>
+                          <td style={{ padding: '1rem', color: '#fff', fontWeight: 500 }}>
+                            {emp.firstName} {emp.lastName} <span style={{ color: '#a1a1aa', fontSize: '0.85rem', marginLeft: '0.5rem' }}>({emp.identifier})</span>
+                          </td>
+                          <td style={{ padding: '1rem', color: '#a1a1aa' }}>
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
+                              <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#3b82f6' }}></span>
+                              <span style={{ color: '#3b82f6' }}>Personalizado</span>
+                              <span style={{ fontSize: '0.85em', opacity: 0.8 }}>({shift.startTime} - {shift.endTime})</span>
+                            </span>
+                          </td>
+                          <td style={{ padding: '1rem', textAlign: 'right', display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+                            <button 
+                              onClick={() => {
+                                const editable = JSON.parse(JSON.stringify(emp));
+                                editable.useCustom = true;
+                                editable.shift = shift;
+                                setEditingEmployee(editable);
+                              }} 
+                              style={{ background: 'transparent', border: '1px solid #3f3f46', color: '#e4e4e7', padding: '0.4rem 1rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.9rem', transition: 'all 0.2s', fontFamily: 'inherit' }}
+                              onMouseOver={e => e.currentTarget.style.borderColor = '#3b82f6'}
+                              onMouseOut={e => e.currentTarget.style.borderColor = '#3f3f46'}
+                            >
+                              Editar
+                            </button>
+                            <button 
+                              onClick={() => handleRemoveEmployeeShift(emp.id)}
+                              style={{ background: 'transparent', border: '1px solid #3f3f46', color: '#ef4444', padding: '0.4rem 0.5rem', borderRadius: '6px', cursor: 'pointer', transition: 'all 0.2s' }}
+                              onMouseOver={e => e.currentTarget.style.borderColor = '#ef4444'}
+                              onMouseOut={e => e.currentTarget.style.borderColor = '#3f3f46'}
+                              title="Desactivar Excepción"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>
@@ -735,6 +851,146 @@ const SettingsPage = () => {
                 </button>
                 <button onClick={handleSaveDepartment} disabled={deptLoading} style={{ ...btnPrimary, opacity: deptLoading ? 0.7 : 1 }}>
                   {deptLoading ? 'Guardando...' : 'Aplicar'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal de Selección de Empleado para Excepción */}
+        {isEmpModalOpen && (
+          <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+            <div style={{ background: '#18181b', border: '1px solid #333', borderRadius: '12px', width: '100%', maxWidth: '500px', padding: '2rem', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                <h3 style={{ margin: 0, color: '#fff', fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <UserPlus size={20} style={{ color: '#3b82f6' }} />
+                  Agregar Excepción a Empleado
+                </h3>
+                <button onClick={() => { setIsEmpModalOpen(false); setSelectedEmpForShift(null); }} style={{ background: 'transparent', border: 'none', color: '#a1a1aa', cursor: 'pointer' }}>
+                  <X size={24} />
+                </button>
+              </div>
+              <EmployeeSearchSelect 
+                selectedEmp={selectedEmpForShift}
+                onSelect={setSelectedEmpForShift}
+              />
+              <div style={{ marginTop: '2rem', display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
+                <button onClick={() => { setIsEmpModalOpen(false); setSelectedEmpForShift(null); }} style={{ ...btnSecondary }}>
+                  Cancelar
+                </button>
+                <button 
+                  onClick={() => {
+                    if (!selectedEmpForShift) return toast.error('Debe seleccionar un empleado');
+                    setIsEmpModalOpen(false);
+                    // Pass selected emp to editing modal with default values
+                    const editable = JSON.parse(JSON.stringify(selectedEmpForShift));
+                    editable.useCustom = true;
+                    // If employee already had a shift, use it, otherwise default
+                    editable.shift = (editable.shifts && editable.shifts.length > 0) ? editable.shifts[0].shift : { startTime: '09:00', endTime: '18:00', tolerance: 15, breakStartTime: '13:00', breakEndTime: '14:00' };
+                    setEditingEmployee(editable);
+                    setSelectedEmpForShift(null);
+                  }} 
+                  style={{ ...btnPrimary, background: '#3b82f6' }}
+                >
+                  Continuar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal de Edición de Excepción de Empleado */}
+        {editingEmployee && (
+          <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+            <div style={{ background: '#18181b', border: '1px solid #333', borderRadius: '12px', width: '100%', maxWidth: '500px', padding: '2rem', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                <h3 style={{ margin: 0, color: '#fff', fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Clock size={20} style={{ color: '#3b82f6' }} />
+                  Horario: {editingEmployee.firstName} {editingEmployee.lastName}
+                </h3>
+                <button onClick={() => setEditingEmployee(null)} style={{ background: 'transparent', border: 'none', color: '#a1a1aa', cursor: 'pointer' }}>
+                  <X size={24} />
+                </button>
+              </div>
+
+              <div style={{ background: '#27272a', padding: '1rem', borderRadius: '8px', marginBottom: '2rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <label style={{ ...labelStyle, marginBottom: 0 }}>Habilitar excepción</label>
+                  <p style={{ ...helpTextStyle, marginTop: '0.25rem' }}>Ignorar horario de departamento y global</p>
+                </div>
+                <Toggle 
+                  checked={editingEmployee.useCustom} 
+                  onChange={v => setEditingEmployee(prev => ({ 
+                    ...prev, 
+                    useCustom: v,
+                    shift: prev.shift || { startTime: '09:00', endTime: '18:00', tolerance: 15, breakStartTime: '13:00', breakEndTime: '14:00' }
+                  }))} 
+                />
+              </div>
+
+              {editingEmployee.useCustom && editingEmployee.shift && (
+                <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                    <div>
+                      <label style={labelStyle}>Hora Entrada</label>
+                      <input 
+                        type="time" 
+                        value={editingEmployee.shift.startTime} 
+                        onChange={e => setEditingEmployee(prev => ({ ...prev, shift: { ...prev.shift, startTime: e.target.value } }))} 
+                        style={inputStyle} 
+                      />
+                    </div>
+                    <div>
+                      <label style={labelStyle}>Hora Salida</label>
+                      <input 
+                        type="time" 
+                        value={editingEmployee.shift.endTime} 
+                        onChange={e => setEditingEmployee(prev => ({ ...prev, shift: { ...prev.shift, endTime: e.target.value } }))} 
+                        style={inputStyle} 
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                    <div>
+                      <label style={labelStyle}>Inicio Descanso</label>
+                      <input 
+                        type="time" 
+                        value={editingEmployee.shift.breakStartTime || ''} 
+                        onChange={e => setEditingEmployee(prev => ({ ...prev, shift: { ...prev.shift, breakStartTime: e.target.value } }))} 
+                        style={inputStyle} 
+                      />
+                    </div>
+                    <div>
+                      <label style={labelStyle}>Fin Descanso</label>
+                      <input 
+                        type="time" 
+                        value={editingEmployee.shift.breakEndTime || ''} 
+                        onChange={e => setEditingEmployee(prev => ({ ...prev, shift: { ...prev.shift, breakEndTime: e.target.value } }))} 
+                        style={inputStyle} 
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style={labelStyle}>Tolerancia (minutos)</label>
+                    <input 
+                      type="number" 
+                      min="0" max="60"
+                      value={editingEmployee.shift.tolerance} 
+                      onChange={e => setEditingEmployee(prev => ({ ...prev, shift: { ...prev.shift, tolerance: parseInt(e.target.value) || 0 } }))} 
+                      style={inputStyle} 
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div style={{ marginTop: '2rem', display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
+                <button onClick={() => setEditingEmployee(null)} style={{ ...btnSecondary }}>
+                  Cancelar
+                </button>
+                <button onClick={handleSaveEmployee} disabled={empLoading} style={{ ...btnPrimary, background: '#3b82f6', opacity: empLoading ? 0.7 : 1 }}>
+                  {empLoading ? 'Guardando...' : 'Aplicar'}
                 </button>
               </div>
             </div>

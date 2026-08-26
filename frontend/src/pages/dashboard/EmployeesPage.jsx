@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import FaceRegistration from '../../components/FaceRecognition/FaceRegistration';
-import { Search, Filter, Users, Fingerprint, Clock, MoreVertical, Plus, AlertCircle, RefreshCw, Camera, Trash2, Edit, Calendar } from 'lucide-react';
+import { Search, Filter, Users, Fingerprint, Clock, MoreVertical, Plus, AlertCircle, RefreshCw, Camera, Trash2, Edit, Calendar, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const EmployeesPage = () => {
@@ -21,6 +21,10 @@ const EmployeesPage = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalLoading, setModalLoading] = useState(false);
   const [modalError, setModalError] = useState(null);
+  
+  // State for Edit Modal
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [employeeToEdit, setEmployeeToEdit] = useState(null);
 
   const fetchEmployees = async () => {
     try {
@@ -92,6 +96,26 @@ const EmployeesPage = () => {
       setModalError(err.message);
     } finally {
       setModalLoading(false);
+    }
+  };
+
+  const handleCancelEvent = async (eventId) => {
+    if (!window.confirm('¿Estás seguro de cancelar este evento?')) return;
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:4000'}/api/v1/events/${eventId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error('Error al cancelar evento');
+      // Update local state to remove the event from employeeDetails
+      setEmployeeDetails(prev => ({
+        ...prev,
+        eventRequests: prev.eventRequests.filter(evt => evt.id !== eventId)
+      }));
+    } catch (err) {
+      console.error(err);
+      alert(err.message);
     }
   };
 
@@ -329,7 +353,7 @@ const EmployeesPage = () => {
                         </span>
                       </td>
                       <td style={{ ...tdStyle, textAlign: 'center' }}>
-                        <ActionMenu hasBiometric={hasBiometric} employee={emp} navigate={navigate} onRefresh={fetchEmployees} />
+                        <ActionMenu hasBiometric={hasBiometric} employee={emp} navigate={navigate} onRefresh={fetchEmployees} setIsEditModalOpen={setIsEditModalOpen} setEmployeeToEdit={setEmployeeToEdit} />
                       </td>
                     </tr>
                   )
@@ -421,6 +445,41 @@ const EmployeesPage = () => {
                       </div>
                     )}
                   </div>
+                  
+                  {employeeDetails.eventRequests && employeeDetails.eventRequests.length > 0 && (
+                    <div style={{ marginTop: '1.5rem' }}>
+                      <h5 style={{ margin: '0 0 0.75rem 0', color: '#a1a1aa', fontSize: '0.9rem' }}>Eventos Recientes</h5>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        {employeeDetails.eventRequests.map(evt => {
+                          const eventConfig = {
+                            OVERTIME: { label: 'Horas Extra', color: '#3b82f6', bg: 'rgba(59, 130, 246, 0.05)' },
+                            EARLY_EXIT: { label: 'Salida Anticipada', color: '#eab308', bg: 'rgba(234, 179, 8, 0.05)' },
+                            JUSTIFIED_ABSENCE: { label: 'Falta Justificada', color: '#10b981', bg: 'rgba(16, 185, 129, 0.05)' },
+                            VACATION: { label: 'Vacaciones', color: '#8b5cf6', bg: 'rgba(139, 92, 246, 0.05)' },
+                            LATE_ARRIVAL: { label: 'Llegada Tardía', color: '#f97316', bg: 'rgba(249, 115, 22, 0.05)' }
+                          };
+                          const conf = eventConfig[evt.type] || { label: evt.type, color: '#3b82f6', bg: 'rgba(59, 130, 246, 0.05)' };
+
+                          return (
+                            <div key={evt.id} style={{ background: conf.bg, border: `1px solid ${conf.color}33`, padding: '0.75rem', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <div>
+                                <p style={{ margin: 0, color: conf.color, fontWeight: 500, fontSize: '0.9rem' }}>{conf.label}</p>
+                                <p style={{ margin: '0.2rem 0 0 0', color: '#a1a1aa', fontSize: '0.8rem' }}>{new Date(evt.date).toLocaleDateString()}</p>
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <span style={{ padding: '0.2rem 0.5rem', background: conf.bg, color: conf.color, borderRadius: '4px', fontSize: '0.75rem' }}>
+                                  Activo
+                                </span>
+                                <button onClick={() => handleCancelEvent(evt.id)} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '0.2rem' }} title="Eliminar Evento">
+                                  <Trash2 size={16} />
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : null}
             </div>
@@ -432,6 +491,19 @@ const EmployeesPage = () => {
           </div>
         </div>
       )}
+
+      {/* Edit Employee Modal */}
+      {isEditModalOpen && employeeToEdit && (
+        <EditEmployeeModal
+          employee={employeeToEdit}
+          onClose={() => { setIsEditModalOpen(false); setEmployeeToEdit(null); }}
+          onSaved={() => { 
+            setIsEditModalOpen(false); 
+            setEmployeeToEdit(null); 
+            fetchEmployees(); 
+          }}
+        />
+      )}
     </div>
   );
 };
@@ -442,7 +514,7 @@ const Skeleton = ({ width, height, borderRadius = '4px', style = {} }) => (
   <div style={{ width, height, borderRadius, background: 'linear-gradient(90deg, #27272a 25%, #3f3f46 50%, #27272a 75%)', backgroundSize: '200% 100%', animation: 'skeleton-loading 1.5s infinite', ...style }} className="skeleton" />
 );
 
-const ActionMenu = ({ hasBiometric, employee, navigate, onRefresh }) => {
+const ActionMenu = ({ hasBiometric, employee, navigate, onRefresh, setIsEditModalOpen, setEmployeeToEdit }) => {
   const handleDeleteEmployee = async (e) => {
     e.stopPropagation();
     if (window.confirm(`¿Eliminar permanentemente al empleado ${employee.firstName} ${employee.lastName}?\nEsta acción no se puede deshacer.`)) {
@@ -466,8 +538,8 @@ const ActionMenu = ({ hasBiometric, employee, navigate, onRefresh }) => {
 
   const handleEditEmployee = (e) => {
     e.stopPropagation();
-    // Por ahora mostramos una alerta si no hay ruta de edición implementada, o puedes navegar a otra ruta.
-    alert('Función de edición en desarrollo');
+    setEmployeeToEdit(employee);
+    setIsEditModalOpen(true);
   };
 
   return (
@@ -583,6 +655,105 @@ const thStyle = {
 const tdStyle = {
   padding: '1rem 1.5rem',
   color: '#e4e4e7'
+};
+
+const labelStyle = {
+  display: 'block',
+  marginBottom: '0.5rem',
+  color: '#a1a1aa',
+  fontSize: '0.9rem'
+};
+
+// --- Edit Employee Modal Component ---
+const EditEmployeeModal = ({ employee, onClose, onSaved }) => {
+  const [formData, setFormData] = useState({
+    firstName: employee.firstName || '',
+    lastName: employee.lastName || '',
+    identifier: employee.identifier || '',
+    email: employee.email || '',
+    department: employee.department?.name || '',
+    position: employee.position || '',
+    isActive: employee.isActive
+  });
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:4000'}/api/v1/employees/${employee.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(formData)
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Error al actualizar empleado');
+      }
+      onSaved();
+    } catch (err) {
+      console.error(err);
+      alert(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose} style={{ zIndex: 100 }}>
+      <div className="modal-content page-glow" onClick={e => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+        <div className="modal-header">
+          <h3 style={{ color: '#fff', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <Edit size={20} /> Editar Empleado
+          </h3>
+          <button className="btn-icon" onClick={onClose}><X size={20} /></button>
+        </div>
+        
+        <form onSubmit={handleSubmit} style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            <div>
+              <label style={labelStyle}>Nombre(s)</label>
+              <input type="text" value={formData.firstName} onChange={e => setFormData({...formData, firstName: e.target.value})} style={inputStyle} required />
+            </div>
+            <div>
+              <label style={labelStyle}>Apellidos</label>
+              <input type="text" value={formData.lastName} onChange={e => setFormData({...formData, lastName: e.target.value})} style={inputStyle} required />
+            </div>
+          </div>
+          <div>
+            <label style={labelStyle}>Identificador (DNI / Matrícula)</label>
+            <input type="text" value={formData.identifier} onChange={e => setFormData({...formData, identifier: e.target.value})} style={inputStyle} required />
+          </div>
+          <div>
+            <label style={labelStyle}>Correo Electrónico (Opcional)</label>
+            <input type="email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} style={inputStyle} />
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            <div>
+              <label style={labelStyle}>Departamento (Opcional)</label>
+              <input type="text" value={formData.department} onChange={e => setFormData({...formData, department: e.target.value})} style={inputStyle} placeholder="Ej. TI" />
+            </div>
+            <div>
+              <label style={labelStyle}>Cargo (Opcional)</label>
+              <input type="text" value={formData.position} onChange={e => setFormData({...formData, position: e.target.value})} style={inputStyle} placeholder="Ej. Desarrollador" />
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem' }}>
+            <input type="checkbox" id="isActive" checked={formData.isActive} onChange={e => setFormData({...formData, isActive: e.target.checked})} />
+            <label htmlFor="isActive" style={{ color: '#e4e4e7', cursor: 'pointer' }}>Empleado Activo</label>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid #3f3f46' }}>
+            <button type="button" onClick={onClose} style={btnSecondary}>Cancelar</button>
+            <button type="submit" style={btnPrimary} disabled={loading}>{loading ? 'Guardando...' : 'Guardar Cambios'}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
 };
 
 export default EmployeesPage;

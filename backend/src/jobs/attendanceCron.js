@@ -70,7 +70,25 @@ const processAutoCheckout = async () => {
         expectedEnd.setDate(expectedEnd.getDate() + 1);
       }
 
-      // 5. Comparar si ya pasó el tiempo de salida esperado
+      // 5. Verificar si hay un evento OVERTIME activo para extender la hora
+      const startOfRecordDay = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate());
+      
+      const overtimeEvent = await prisma.eventRequest.findFirst({
+        where: {
+          employeeId: record.employeeId,
+          date: startOfRecordDay,
+          type: 'OVERTIME',
+          status: 'ACTIVE'
+        },
+        orderBy: { createdAt: 'desc' }
+      });
+
+      if (overtimeEvent && overtimeEvent.endTime) {
+        // Usar la hora final autorizada en lugar del turno normal
+        expectedEnd = new Date(overtimeEvent.endTime);
+      }
+
+      // 6. Comparar si ya pasó el tiempo de salida esperado
       // Agregamos un colchón de 4 horas después del fin de turno para darles chance a marcar horas extras o salida tardía.
       // Si ya pasó ese colchón y no checaron salida, entonces el sistema asume que se les olvidó y los cierra a su hora oficial.
       const bufferMs = 4 * 60 * 60 * 1000; // 4 horas

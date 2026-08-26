@@ -44,7 +44,12 @@ router.use(requireJwt);
 router.get('/', async (req, res) => {
   try {
     const employees = await prisma.employee.findMany({
-      include: { department: true }
+      include: { 
+        department: true,
+        shifts: {
+          include: { shift: true }
+        }
+      }
     });
     res.json(employees);
   } catch (error) {
@@ -96,9 +101,17 @@ router.get('/:id', async (req, res) => {
       where: { id: req.params.id },
       include: { 
         department: true,
+        shifts: {
+          include: { shift: true }
+        },
         attendances: {
           orderBy: { date: 'desc' },
           take: 1
+        },
+        eventRequests: {
+          where: { status: 'ACTIVE' },
+          orderBy: { date: 'desc' },
+          take: 5
         }
       }
     });
@@ -106,6 +119,59 @@ router.get('/:id', async (req, res) => {
     res.json(employee);
   } catch (error) {
     res.status(500).json({ error: 'Error al obtener empleado' });
+  }
+});
+
+// Editar empleado básico (sin biometría)
+router.put('/:id', async (req, res) => {
+  try {
+    const { firstName, lastName, identifier, email, department, position, isActive } = req.body;
+    
+    // Preparar data (departamento es opcional)
+    let data = {
+      firstName,
+      lastName,
+      identifier,
+      email,
+      position
+    };
+
+    if (isActive !== undefined) {
+      data.isActive = isActive;
+    }
+
+    if (department) {
+      data.department = {
+        connectOrCreate: {
+          where: { name: department },
+          create: { name: department }
+        }
+      };
+    } else {
+      data.department = {
+        disconnect: true
+      };
+    }
+
+    const employee = await prisma.employee.update({
+      where: { id: req.params.id },
+      data
+    });
+
+    res.json(employee);
+  } catch (error) {
+    console.error(error);
+    if (error.code === 'P2002') {
+      const target = error.meta?.target || '';
+      if (target.includes('email')) {
+        return res.status(400).json({ error: 'El correo electrónico ya está registrado por otro empleado.' });
+      }
+      if (target.includes('identifier')) {
+        return res.status(400).json({ error: 'El identificador (DNI) ya está registrado.' });
+      }
+      return res.status(400).json({ error: 'Un dato único ya se encuentra registrado (ej. correo o DNI).' });
+    }
+    res.status(500).json({ error: 'Error al actualizar empleado', details: error.message });
   }
 });
 
@@ -237,6 +303,92 @@ router.delete('/:id', async (req, res) => {
   } catch (error) {
     console.error('Error eliminando empleado:', error);
     res.status(500).json({ error: 'Error al eliminar empleado. Es posible que tenga otros registros asociados.' });
+  }
+});
+
+// PUT /api/v1/employees/:id/shift
+router.put('/:id/shift', async (req, res) => {
+  try {
+    const employeeId = req.params.id;
+    const { useCustom, startTime, endTime, tolerance, breakStartTime, breakEndTime } = req.body;
+
+    const employee = await prisma.employee.findUnique({
+      where: { id: employeeId },
+      include: { shifts: { include: { shift: true } } }
+    });
+
+    if (!employee) return res.status(404).json({ error: 'Empleado no encontrado' });
+
+    const currentEmpShift = employee.shifts[0];
+
+    if (!useCustom) {
+      // Si no usa personalizado, borramos el vínculo
+      if (currentEmpShift) {
+        await prisma.employeeShift.delete({
+          where: { id: currentEmpShift.id }
+        });
+      }
+      
+      // Auditoría
+      await prisma.adminAuditLog.create({
+        data: {
+          action: 'REMOVE_EMPLOYEE_SHIFT',
+          performedById: req.user.id,
+          performedByName: req.user.name || req.user.email || 'Admin',
+          targetName: `${employee.firstName} ${employee.lastName}`,
+          targetEmail: employee.identifier
+        }
+      });
+      
+      return res.json({ success: true, message: 'Horario personalizado desactivado' });
+    }
+
+    // Si usa personalizado, creamos o actualizamos
+    const shiftName = `Turno - ${employee.identifier}`;
+
+    let shiftRecord;
+    
+    // Primero, buscar si ya existe el turno con ese nombre
+    const existingShift = await prisma.shift.findUnique({ where: { name: shiftName } });
+
+    if (existingShift) {
+      shiftRecord = await prisma.shift.update({
+        where: { id: existingShift.id },
+        data: { startTime, endTime, tolerance, breakStartTime, breakEndTime }
+      });
+    } else {
+      shiftRecord = await prisma.shift.create({
+        data: { name: shiftName, startTime, endTime, tolerance, breakStartTime, breakEndTime }
+      });
+    }
+
+    // Asegurar el vínculo
+    if (!currentEmpShift) {
+      await prisma.employeeShift.create({
+        data: { employeeId, shiftId: shiftRecord.id }
+      });
+    } else if (currentEmpShift.shiftId !== shiftRecord.id) {
+      await prisma.employeeShift.update({
+        where: { id: currentEmpShift.id },
+        data: { shiftId: shiftRecord.id }
+      });
+    }
+
+    // Auditoría
+    await prisma.adminAuditLog.create({
+      data: {
+        action: 'ASSIGN_EMPLOYEE_SHIFT',
+        performedById: req.user.id,
+        performedByName: req.user.name || req.user.email || 'Admin',
+        targetName: `${employee.firstName} ${employee.lastName}`,
+        targetEmail: employee.identifier
+      }
+    });
+
+    res.json({ success: true, shift: shiftRecord });
+  } catch (error) {
+    console.error('Error updating employee shift:', error);
+    res.status(500).json({ error: 'Error del servidor al actualizar el turno del empleado' });
   }
 });
 

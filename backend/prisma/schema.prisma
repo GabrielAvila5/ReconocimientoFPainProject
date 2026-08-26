@@ -30,6 +30,8 @@ model Employee {
   isActive       Boolean            @default(true)
   attendances    AttendanceRecord[]
   shifts         EmployeeShift[]
+  notifications  Notification[]
+  eventRequests  EventRequest[]
   createdAt      DateTime           @default(now())
   updatedAt      DateTime           @updatedAt
 
@@ -110,16 +112,18 @@ enum AdminRole {
 }
 
 model AdminUser {
-  id            String      @id @default(uuid())
-  email         String      @unique
-  password      String // Hash
+  id            String          @id @default(uuid())
   name          String
-  role          AdminRole   @default(ADMIN)
-  createdBy     String?
-  createdByUser AdminUser?  @relation("CreatedAdmins", fields: [createdBy], references: [id])
-  createdAdmins AdminUser[] @relation("CreatedAdmins")
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  email         String          @unique
+  password      String
+  role          AdminRole       @default(ADMIN)
+  createdBy     String?         // ID del Super Admin que lo creó
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  createdByUser AdminUser?      @relation("AdminCreator", fields: [createdBy], references: [id], onDelete: SetNull)
+  createdUsers  AdminUser[]     @relation("AdminCreator")
+  eventRequests EventRequest[]
 }
 
 model AdminAuditLog {
@@ -141,6 +145,8 @@ model Notification {
   entityId  String? // ID del recurso relacionado (para deep linking)
   isRead    Boolean          @default(false)
   createdAt DateTime         @default(now())
+  employee  Employee?        @relation(fields: [employeeId], references: [id])
+  employeeId String?
 }
 
 enum NotificationType {
@@ -148,6 +154,39 @@ enum NotificationType {
   WARNING
   ERROR
   SUCCESS
+}
+
+enum EventType {
+  OVERTIME
+  EARLY_EXIT
+  JUSTIFIED_ABSENCE
+  VACATION
+  LATE_ARRIVAL
+}
+
+enum EventStatus {
+  ACTIVE
+  CANCELLED
+}
+
+model EventRequest {
+  id             String      @id @default(uuid())
+  employeeId     String
+  employee       Employee    @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  type           EventType   
+  status         EventStatus @default(ACTIVE) 
+  date           DateTime    @db.Date
+  dateTo         DateTime?   @db.Date // Para VACATION
+  startTime      DateTime?   // Para OVERTIME / EARLY_EXIT
+  endTime        DateTime?   // Para OVERTIME
+  minutes        Int?        
+  reason         String      @db.Text
+  registeredById String
+  registeredBy   AdminUser   @relation(fields: [registeredById], references: [id], onDelete: Restrict)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  @@index([employeeId, date, type])
 }
 
 model SystemSettings {

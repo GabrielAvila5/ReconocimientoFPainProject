@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, Clock, Calendar, FileText, Monitor, Bell, Settings, LogOut, Maximize, Menu, X } from 'lucide-react';
+import { LayoutDashboard, Users, Clock, Calendar, FileText, Monitor, Bell, Settings, LogOut, Maximize, Menu, X, ClipboardList } from 'lucide-react';
 import { Toaster } from 'sonner';
 import { useNotifications } from '../contexts/NotificationContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -71,6 +71,7 @@ const DashboardLayout = () => {
     { name: 'Asistencia', path: '/dashboard/attendance', icon: <Clock size={18} /> },
     { name: 'Calendario', path: '/dashboard/calendar', icon: <Calendar size={18} /> },
     { name: 'Reportes', path: '/dashboard/reports', icon: <FileText size={18} />, badge: reportsCount > 0 ? reportsCount : undefined },
+    { name: 'Eventos', path: '/dashboard/events', icon: <ClipboardList size={18} /> },
   ];
 
   const navItemsSistema = [

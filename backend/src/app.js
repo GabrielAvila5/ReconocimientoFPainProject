@@ -62,6 +62,8 @@ const departmentsRouter = require('./modules/departments/departments.router');
 app.use('/api/v1/departments', departmentsRouter);
 const adminsRouter = require('./modules/admins/admins.router');
 app.use('/api/v1/admins', adminsRouter);
+const eventsRouter = require('./modules/events/events.router');
+app.use('/api/v1/events', eventsRouter);
 
 // Manejo de errores 404 para la API
 app.use('/api', (req, res) => {

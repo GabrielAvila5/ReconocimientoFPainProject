@@ -9,7 +9,7 @@ const PREDEFINED_REASONS = [
   'Otro'
 ];
 
-const EarlyExitModal = ({ onConfirm, onCancel }) => {
+const EarlyExitModal = ({ timeRemainingStr, onConfirm, onCancel }) => {
   const [selectedReason, setSelectedReason] = useState('');
   const [customReason, setCustomReason] = useState('');
 
@@ -61,9 +61,15 @@ const EarlyExitModal = ({ onConfirm, onCancel }) => {
           <X size={32} />
         </button>
         
-        <h2 style={{ fontSize: '1.8rem', fontWeight: 'bold', textAlign: 'center', marginBottom: '2rem', color: '#fff' }}>Salida Anticipada</h2>
+        <h2 style={{ fontSize: '1.8rem', fontWeight: 'bold', textAlign: 'center', marginBottom: '0.5rem', color: '#fff' }}>Salida Anticipada</h2>
         
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '2rem' }}>
+        {timeRemainingStr && (
+          <p style={{ textAlign: 'center', color: '#fca5a5', marginBottom: '1.5rem', fontSize: '1.1rem', fontWeight: '500' }}>
+            ⚠️ {timeRemainingStr} para que termine tu jornada
+          </p>
+        )}
+        
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '2rem', marginTop: !timeRemainingStr ? '1.5rem' : '0' }}>
           {PREDEFINED_REASONS.map(reason => (
             <button
               key={reason}

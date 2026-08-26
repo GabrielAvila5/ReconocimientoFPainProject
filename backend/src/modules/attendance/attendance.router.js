@@ -8,9 +8,8 @@ const { emitNotification } = require('../../app'); // Importar para WebSockets
 
 // Helper para obtener inicio del día
 const getStartOfDay = () => {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d;
+  const now = new Date();
+  return new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
 };
 
 // ============================================
@@ -75,7 +74,7 @@ router.get('/context/:employeeId', requireApiKey, async (req, res) => {
     const todayRecord = await prisma.attendanceRecord.findFirst({
       where: {
         employeeId,
-        date: { gte: startOfDay }
+        date: startOfDay
       }
     });
 
@@ -115,6 +114,9 @@ router.get('/context/:employeeId', requireApiKey, async (req, res) => {
       hasEntrada: !!(todayRecord && todayRecord.entrada),
       hasReceso: !!(todayRecord && todayRecord.recesoInicio && !todayRecord.recesoFin),
       hasSalida: !!(todayRecord && todayRecord.salida),
+      hasHorasExtra: !!(todayRecord && todayRecord.overtimeMinutes > 0),
+      salidaTime: todayRecord ? todayRecord.salida : null,
+      overtimeMinutes: todayRecord ? todayRecord.overtimeMinutes : 0,
       availableShifts,
       currentShiftId: todayRecord ? todayRecord.shiftId : null
     });
@@ -136,7 +138,7 @@ router.post('/register', requireApiKey, async (req, res) => {
 
     const startOfDay = getStartOfDay();
     let record = await prisma.attendanceRecord.findFirst({
-      where: { employeeId, date: { gte: startOfDay } }
+      where: { employeeId, date: startOfDay }
     });
 
     const now = new Date();
@@ -165,8 +167,18 @@ router.post('/register', requireApiKey, async (req, res) => {
 
       if (targetShift) {
         const [hour, minute] = targetShift.startTime.split(':').map(Number);
-        const expectedTime = new Date();
+        let expectedTime = new Date();
         expectedTime.setHours(hour, minute, 0, 0);
+
+        // Check for LATE_ARRIVAL event
+        const lateEvent = await prisma.eventRequest.findFirst({
+          where: { employeeId, date: startOfDay, type: 'LATE_ARRIVAL', status: 'ACTIVE' },
+          orderBy: { createdAt: 'desc' }
+        });
+
+        if (lateEvent && lateEvent.startTime) {
+          expectedTime = new Date(lateEvent.startTime);
+        }
 
         const tolerance = targetShift.tolerance !== null ? targetShift.tolerance : settings.latenessToleranceMin;
         const diffMs = now.getTime() - expectedTime.getTime();
@@ -182,7 +194,7 @@ router.post('/register', requireApiKey, async (req, res) => {
         record = await prisma.attendanceRecord.create({
           data: {
             employeeId,
-            date: now,
+            date: startOfDay,
             entrada: now,
             shiftId: resolvedShiftId,
             isLate,
@@ -215,6 +227,9 @@ router.post('/register', requireApiKey, async (req, res) => {
         data: { recesoFin: now }
       });
     } else if (action === 'salidaAnticipada') {
+      // Bloquear acceso vía kiosk
+      return res.status(403).json({ error: 'Registro manual desactivado. Acuda a un administrador.' });
+
       if (!record) return res.status(400).json({ error: 'No hay registro de entrada' });
       record = await prisma.attendanceRecord.update({
         where: { id: record.id },
@@ -243,7 +258,11 @@ router.post('/register', requireApiKey, async (req, res) => {
       });
 
     } else if (action === 'horasExtra') {
+      // Bloquear acceso vía kiosk
+      return res.status(403).json({ error: 'Registro manual desactivado. Acuda a un administrador.' });
+
       if (!record) return res.status(400).json({ error: 'No hay registro de entrada' });
+      if (!record.salida) return res.status(400).json({ error: 'Debe registrar salida antes de agregar horas extra' });
       record = await prisma.attendanceRecord.update({
         where: { id: record.id },
         data: { overtimeMinutes: overtime || 0 }
@@ -334,7 +353,18 @@ router.get('/', requireJwt, async (req, res) => {
       },
       orderBy: { createdAt: 'desc' }
     });
-    res.json(records);
+
+    let eventWhereClause = { status: 'ACTIVE' };
+    if (date) {
+      const startOfDay = new Date(`${date}T00:00:00.000Z`);
+      eventWhereClause.date = startOfDay;
+    }
+    
+    const events = await prisma.eventRequest.findMany({
+      where: eventWhereClause
+    });
+
+    res.json({ records, events });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Error al obtener registros' });

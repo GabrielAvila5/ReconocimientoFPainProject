@@ -8,6 +8,7 @@ const AttendancePage = () => {
   const [selectedDate, setSelectedDate] = useState(getTodayString());
   
   const [attendance, setAttendance] = useState([]);
+  const [activeEvents, setActiveEvents] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -43,7 +44,13 @@ const AttendancePage = () => {
       // TODO: fallback a defaults
       setSettings(setData || { workdayStartHour: 8, workdayStartMinute: 0, latenessToleranceMin: 15 });
       
-      setAttendance(attData);
+      if (attData.records) {
+        setAttendance(attData.records);
+        setActiveEvents(attData.events || []);
+      } else {
+        setAttendance(attData);
+        setActiveEvents([]);
+      }
       setEmployees(empData);
     } catch (err) {
       console.error(err);
@@ -106,14 +113,28 @@ const AttendancePage = () => {
     // Agregar "Faltas" (empleados activos sin registro)
     employees.forEach(emp => {
       if (emp.isActive && !recordedEmployeeIds.has(emp.id)) {
+        // Revisar si tiene evento justificado hoy
+        const empEvent = activeEvents.find(e => 
+          e.employeeId === emp.id && 
+          (e.type === 'VACATION' || e.type === 'JUSTIFIED_ABSENCE')
+        );
+        
+        let label = 'Falta';
+        let badgeType = '—';
+        
+        if (empEvent) {
+          label = empEvent.type === 'VACATION' ? 'Vacaciones' : 'Falta Justificada';
+          badgeType = 'Permiso';
+        }
+
         records.push({
           id: `falta-${emp.id}`,
           employee: emp,
           horaMarcaje: '—',
           horaSalida: '—',
           isAutoClosed: false,
-          tipo: '—',
-          puntualidad: 'Falta',
+          tipo: badgeType,
+          puntualidad: label,
           departamento: emp.department?.name || 'Sin departamento',
           metodo: '—',
         });
@@ -388,6 +409,9 @@ const AttendancePage = () => {
                   } else if (record.puntualidad === 'Falta') {
                     badgeColor = '#ef4444';
                     badgeBg = 'rgba(239, 68, 68, 0.1)';
+                  } else if (record.puntualidad === 'Vacaciones' || record.puntualidad === 'Falta Justificada') {
+                    badgeColor = '#3b82f6';
+                    badgeBg = 'rgba(59, 130, 246, 0.1)';
                   }
 
                   // Colores de Tipo

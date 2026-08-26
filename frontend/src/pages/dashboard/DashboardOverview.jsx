@@ -6,6 +6,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pi
 const DashboardOverview = () => {
   const [loading, setLoading] = useState(true);
   const [attendanceRecords, setAttendanceRecords] = useState([]);
+  const [activeEvents, setActiveEvents] = useState([]);
   const [employeesCount, setEmployeesCount] = useState(0);
 
   const [dismissedAlerts, setDismissedAlerts] = useState(() => {
@@ -79,7 +80,12 @@ const DashboardOverview = () => {
 
         if (attRes.ok) {
           const data = await attRes.json();
-          setAttendanceRecords(data);
+          if (data.records) {
+            setAttendanceRecords(data.records);
+            setActiveEvents(data.events || []);
+          } else {
+            setAttendanceRecords(data);
+          }
         }
         if (empRes.ok) {
           const empData = await empRes.json();
@@ -101,7 +107,14 @@ const DashboardOverview = () => {
   
   const aTiempoCount = todayRecords.filter(r => !r.isLate).length;
   const retardosCount = todayRecords.filter(r => r.isLate).length;
-  const ausenciasCount = Math.max(0, employeesCount - todayRecords.length); // estimacion
+  
+  // Faltas: empleados totales - asitencias hoy - empleados con VACATION o JUSTIFIED_ABSENCE hoy
+  const eventosJustificadosHoy = activeEvents.filter(e => 
+    e.date && e.date.startsWith(todayStr) && 
+    (e.type === 'VACATION' || e.type === 'JUSTIFIED_ABSENCE')
+  ).length;
+  
+  const ausenciasCount = Math.max(0, employeesCount - todayRecords.length - eventosJustificadosHoy);
   const asistenciasHoy = todayRecords.length;
 
   // Tendencia Semanal (Dinámica según registros reales)
@@ -135,11 +148,15 @@ const DashboardOverview = () => {
   const barData = computeWeeklyTrend();
 
   // Distribucion de Hoy
-  const pieData = [
-    { name: 'A tiempo', value: aTiempoCount || 1, color: '#f97316' }, 
-    { name: 'Retardo', value: retardosCount || 0, color: '#eab308' },  
-    { name: 'Falta', value: ausenciasCount || 0, color: '#b45309' },     
-  ];
+  let pieData = [
+    { name: 'A tiempo', value: aTiempoCount, color: '#10b981' }, 
+    { name: 'Retardo', value: retardosCount, color: '#eab308' },  
+    { name: 'Falta', value: ausenciasCount, color: '#ef4444' },     
+  ].filter(item => item.value > 0);
+
+  if (pieData.length === 0) {
+    pieData = [{ name: 'Sin datos', value: 1, color: '#3f3f46' }];
+  }
 
   // Actividad (Mapeado de registros reales)
   const recentActivity = attendanceRecords.slice(0, 10).map((r, index) => {

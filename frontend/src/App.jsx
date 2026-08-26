@@ -20,6 +20,7 @@ import EmployeesPage from './pages/dashboard/EmployeesPage';
 import AttendancePage from './pages/dashboard/AttendancePage';
 import CalendarPage from './pages/dashboard/CalendarPage';
 import ReportsPage from './pages/dashboard/ReportsPage';
+import EventsPage from './pages/dashboard/EventsPage';
 import DevicesPage from './pages/dashboard/DevicesPage';
 import NotificationsPage from './pages/dashboard/NotificationsPage';
 import SettingsPage from './pages/dashboard/SettingsPage';
@@ -98,6 +99,7 @@ function App() {
             <Route path="attendance" element={<AttendancePage />} />
             <Route path="calendar" element={<CalendarPage />} />
             <Route path="reports" element={<ReportsPage />} />
+            <Route path="events" element={<EventsPage />} />
             <Route path="devices" element={<DevicesPage />} />
             <Route path="notifications" element={<NotificationsPage />} />
             <Route path="settings" element={<SettingsPage />} />

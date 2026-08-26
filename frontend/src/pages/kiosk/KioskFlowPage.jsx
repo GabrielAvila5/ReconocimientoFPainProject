@@ -95,10 +95,15 @@ const KioskFlowPage = () => {
     setStage(STAGES.SELECT_ACTION);
   };
 
-  const handleActionSelected = (action) => {
+  const handleActionSelected = (action, extraData) => {
+    if (action === 'completado') {
+      resetFlow();
+      return;
+    }
+    
     if (action === 'salidaAnticipada') {
       setActiveModal('earlyExit');
-      setActionPayload({ action });
+      setActionPayload({ action, timeRemainingStr: extraData });
     } else if (action === 'horasExtra') {
       setActiveModal('overtime');
       setActionPayload({ action });
@@ -258,6 +263,7 @@ const KioskFlowPage = () => {
       )}
       {activeModal === 'earlyExit' && (
         <EarlyExitModal 
+          timeRemainingStr={actionPayload?.timeRemainingStr}
           onConfirm={(reason) => executeRegister({ ...actionPayload, reason })}
           onCancel={() => setActiveModal(null)}
         />

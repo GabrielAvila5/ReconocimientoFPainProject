@@ -3,7 +3,7 @@ import { Calendar as CalendarIcon, Download, Filter, ChevronLeft, ChevronRight, 
 import { holidays } from '../../utils/holidays';
 
 // --- Utils: Real Data Processor ---
-const processRealData = (year, month, employees, allRecords) => {
+const processRealData = (year, month, employees, allRecords, allEvents = []) => {
   const records = [];
   if (!employees || employees.length === 0 || !allRecords) return records;
   
@@ -26,18 +26,44 @@ const processRealData = (year, month, employees, allRecords) => {
       const empRecord = dateRecords.find(r => r.employeeId === emp.id);
       
       if (!empRecord) {
-        // Only mark absence if it's past or today
-        const now = new Date();
-        const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        if (dateObj <= startOfToday) {
+        // Check for active justified absence or vacation
+        const event = allEvents.find(evt => {
+          if (evt.employeeId !== emp.id) return false;
+          if (evt.type !== 'VACATION' && evt.type !== 'JUSTIFIED_ABSENCE') return false;
+          
+          const evtStart = new Date(evt.date);
+          // If vacation has dateTo, check range
+          if (evt.type === 'VACATION' && evt.dateTo) {
+            const evtEnd = new Date(evt.dateTo);
+            return dateObj >= evtStart && dateObj <= evtEnd;
+          }
+          // Otherwise check single day
+          return evtStart.toISOString().split('T')[0] === currentDateStr;
+        });
+
+        if (event) {
           records.push({
-            id: `abs-${currentDateStr}-${emp.id}`,
+            id: `perm-${currentDateStr}-${emp.id}`,
             date: currentDateStr,
             employee: emp,
-            type: 'absence',
+            type: 'permission',
             time: '—',
-            status: 'Falta'
+            status: 'Permiso'
           });
+        } else {
+          // Only mark absence if it's past or today
+          const now = new Date();
+          const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          if (dateObj <= startOfToday) {
+            records.push({
+              id: `abs-${currentDateStr}-${emp.id}`,
+              date: currentDateStr,
+              employee: emp,
+              type: 'absence',
+              time: '—',
+              status: 'Falta'
+            });
+          }
         }
       } else if (empRecord.isLate) {
         records.push({
@@ -59,6 +85,7 @@ const processRealData = (year, month, employees, allRecords) => {
 const CalendarPage = () => {
   const [employees, setEmployees] = useState([]);
   const [attendanceRecords, setAttendanceRecords] = useState([]);
+  const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   
   // View states
@@ -96,7 +123,12 @@ const CalendarPage = () => {
         }
         if (attRes.ok) {
           const data = await attRes.json();
-          setAttendanceRecords(data);
+          if (Array.isArray(data)) {
+            setAttendanceRecords(data);
+          } else {
+            setAttendanceRecords(data.records || []);
+            setEvents(data.events || []);
+          }
         }
       } catch (err) {
         console.error('Error fetching data:', err);
@@ -108,14 +140,14 @@ const CalendarPage = () => {
   }, []);
 
   const currentMonthData = useMemo(() => {
-    return processRealData(selectedYear, selectedMonth, employees, attendanceRecords);
-  }, [selectedYear, selectedMonth, employees, attendanceRecords]);
+    return processRealData(selectedYear, selectedMonth, employees, attendanceRecords, events);
+  }, [selectedYear, selectedMonth, employees, attendanceRecords, events]);
   
   const prevMonthData = useMemo(() => {
     const prevM = selectedMonth === 0 ? 11 : selectedMonth - 1;
     const prevY = selectedMonth === 0 ? selectedYear - 1 : selectedYear;
-    return processRealData(prevY, prevM, employees, attendanceRecords);
-  }, [selectedYear, selectedMonth, employees, attendanceRecords]);
+    return processRealData(prevY, prevM, employees, attendanceRecords, events);
+  }, [selectedYear, selectedMonth, employees, attendanceRecords, events]);
 
   // --- Lógica de Tendencias y Estadísticas (Mes entero) ---
   const stats = useMemo(() => {

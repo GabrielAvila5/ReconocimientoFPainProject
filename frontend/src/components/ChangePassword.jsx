@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Save, Eye, EyeOff, Lock } from 'lucide-react';
 import { toast } from 'sonner';
+import api from '../utils/api';
 
 const ChangePassword = () => {
   const [formData, setFormData] = useState({
@@ -27,28 +28,15 @@ const ChangePassword = () => {
 
     setLoading(true);
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/v1/auth/change-password`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token') || 'dev-token'}`
-        },
-        body: JSON.stringify({
-          currentPassword: formData.currentPassword,
-          newPassword: formData.newPassword
-        })
+      const res = await api.put('/auth/change-password', {
+        currentPassword: formData.currentPassword,
+        newPassword: formData.newPassword
       });
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || 'Error al cambiar la contraseña');
-      }
-
-      toast.success(data.message || 'Contraseña actualizada exitosamente');
+      toast.success(res.data?.message || 'Contraseña actualizada exitosamente');
       setFormData({ currentPassword: '', newPassword: '', confirmPassword: '' });
     } catch (error) {
-      toast.error(error.message);
+      toast.error(error.response?.data?.error || error.message || 'Error al cambiar la contraseña');
     } finally {
       setLoading(false);
     }
