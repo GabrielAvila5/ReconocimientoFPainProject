@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import CameraScanner from '../../components/FaceRecognition/CameraScanner';
 import ActionSelector from '../../components/kiosk/ActionSelector';
-import OvertimeModal from '../../components/kiosk/OvertimeModal';
-import EarlyExitModal from '../../components/kiosk/EarlyExitModal';
 import { CheckCircle2, UserCircle2, Loader2, ArrowRight } from 'lucide-react';
 
 const STAGES = {
@@ -19,8 +17,6 @@ const KioskFlowPage = () => {
   const [employee, setEmployee] = useState(null);
   const [context, setContext] = useState(null);
   const [selectedShiftId, setSelectedShiftId] = useState(null);
-  const [activeModal, setActiveModal] = useState(null); // 'overtime' | 'earlyExit' | null
-  const [actionPayload, setActionPayload] = useState(null); // Para guardar accion en proceso
   const [successMessage, setSuccessMessage] = useState('');
 
   // Auto-reset timeout
@@ -39,8 +35,6 @@ const KioskFlowPage = () => {
     setEmployee(null);
     setContext(null);
     setSelectedShiftId(null);
-    setActiveModal(null);
-    setActionPayload(null);
   };
 
   const handleEmployeeIdentified = async (empData) => {
@@ -101,20 +95,11 @@ const KioskFlowPage = () => {
       return;
     }
     
-    if (action === 'salidaAnticipada') {
-      setActiveModal('earlyExit');
-      setActionPayload({ action, timeRemainingStr: extraData });
-    } else if (action === 'horasExtra') {
-      setActiveModal('overtime');
-      setActionPayload({ action });
-    } else {
-      executeRegister({ action });
-    }
+    executeRegister({ action });
   };
 
   const executeRegister = async (payload) => {
     setStage(STAGES.PROCESSING);
-    setActiveModal(null);
 
     try {
       const response = await fetch(`${import.meta.env.VITE_API_URL}/api/v1/attendance/register`, {
@@ -139,8 +124,6 @@ const KioskFlowPage = () => {
       if (payload.action === 'salida') msg = '¡Salida registrada, buen descanso!';
       if (payload.action === 'recesoInicio') msg = 'Descanso iniciado. ¡Buen provecho!';
       if (payload.action === 'recesoFin') msg = 'Fin de descanso registrado.';
-      if (payload.action === 'horasExtra') msg = 'Horas extra registradas. Gracias por tu esfuerzo.';
-      if (payload.action === 'salidaAnticipada') msg = 'Salida anticipada registrada.';
 
       setSuccessMessage(msg);
       setStage(STAGES.SUCCESS);
@@ -253,21 +236,6 @@ const KioskFlowPage = () => {
         )}
 
       </main>
-
-      {/* Modals */}
-      {activeModal === 'overtime' && (
-        <OvertimeModal 
-          onConfirm={(mins) => executeRegister({ ...actionPayload, overtime: mins })}
-          onCancel={() => setActiveModal(null)}
-        />
-      )}
-      {activeModal === 'earlyExit' && (
-        <EarlyExitModal 
-          timeRemainingStr={actionPayload?.timeRemainingStr}
-          onConfirm={(reason) => executeRegister({ ...actionPayload, reason })}
-          onCancel={() => setActiveModal(null)}
-        />
-      )}
 
       {/* CSS Animaciones Inline para el Kiosko */}
       <style dangerouslySetInnerHTML={{__html: `
