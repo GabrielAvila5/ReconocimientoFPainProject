@@ -43,6 +43,8 @@ const DashboardLayout = () => {
   useEffect(() => {
     const fetchReportsCount = async () => {
       try {
+        // Disabled since /api/v1/reports doesn't exist anymore and causes 404
+        /*
         const res = await fetch(`${import.meta.env.VITE_API_URL}/api/v1/reports`, {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('token')}` // assuming jwt
@@ -58,6 +60,8 @@ const DashboardLayout = () => {
             setReportsCount(0);
           }
         }
+        */
+
       } catch (e) {
         console.error('Error fetching reports count', e);
       }

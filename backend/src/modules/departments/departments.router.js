@@ -75,6 +75,39 @@ router.post('/', requireJwt, async (req, res) => {
   }
 });
 
+// PUT /api/v1/departments/:id
+router.put('/:id', requireJwt, async (req, res) => {
+  try {
+    const departmentId = parseInt(req.params.id);
+    const { name } = req.body;
+    if (!name) return res.status(400).json({ error: 'El nombre es obligatorio' });
+
+    const department = await prisma.department.update({
+      where: { id: departmentId },
+      data: { name }
+    });
+
+    // Auditoría
+    await prisma.adminAuditLog.create({
+      data: {
+        action: 'UPDATE_DEPARTMENT',
+        performedById: req.user.id,
+        performedByName: req.user.name || req.user.email || 'Admin',
+        targetName: department.name,
+        targetEmail: 'N/A'
+      }
+    });
+
+    res.json(department);
+  } catch (error) {
+    if (error.code === 'P2002') {
+      return res.status(400).json({ error: 'Ya existe un departamento con ese nombre' });
+    }
+    console.error('Error updating department:', error);
+    res.status(500).json({ error: 'Error del servidor al actualizar departamento' });
+  }
+});
+
 // DELETE /api/v1/departments/:id
 router.delete('/:id', requireJwt, async (req, res) => {
   try {

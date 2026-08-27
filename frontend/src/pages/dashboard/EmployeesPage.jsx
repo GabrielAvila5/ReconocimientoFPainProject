@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import FaceRegistration from '../../components/FaceRecognition/FaceRegistration';
+import DepartmentsTab from '../../components/DepartmentsTab';
 import { Search, Filter, Users, Fingerprint, Clock, MoreVertical, Plus, AlertCircle, RefreshCw, Camera, Trash2, Edit, Calendar, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -10,10 +11,12 @@ const EmployeesPage = () => {
   const [error, setError] = useState(null);
   const navigate = useNavigate();
   
-  // States for filtering
+  // States for filtering and tabs
+  const [activeTab, setActiveTab] = useState('empleados');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDepartment, setSelectedDepartment] = useState('');
   const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [departmentsList, setDepartmentsList] = useState([]);
 
   // States for modal
   const [selectedEmployeeId, setSelectedEmployeeId] = useState(null);
@@ -31,14 +34,25 @@ const EmployeesPage = () => {
       setLoading(true);
       setError(null);
       const token = localStorage.getItem('token');
-      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:4000'}/api/v1/employees`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      if (!res.ok) throw new Error('Error de conexión con el backend');
-      const data = await res.json();
+      
+      const [resEmp, resDep] = await Promise.all([
+        fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:4000'}/api/v1/employees`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        }),
+        fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:4000'}/api/v1/departments`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+      ]);
+
+      if (!resEmp.ok) throw new Error('Error de conexión con el backend');
+      
+      const data = await resEmp.json();
       setEmployees(data);
+      
+      if (resDep.ok) {
+        const depData = await resDep.json();
+        setDepartmentsList(depData);
+      }
     } catch (err) {
       console.error(err);
       setError(err.message);
@@ -138,19 +152,41 @@ const EmployeesPage = () => {
   return (
     <div className="fade-in" style={{ paddingBottom: '2rem' }}>
       {/* Header */}
-      <div className="flex-mobile-col" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', gap: '1rem' }}>
+      {/* Header & Tabs */}
+      <div className="flex-mobile-col" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', gap: '1rem' }}>
         <div>
-          <h2 style={{ color: '#fff', margin: 0, fontSize: '1.8rem' }}>Gestión de Empleados</h2>
-          <p style={{ color: '#a1a1aa', margin: '0.5rem 0 0 0', fontSize: '0.95rem' }}>Administra el personal, perfiles y estados de enrolamiento biométrico.</p>
+          <h2 style={{ color: '#fff', margin: 0, fontSize: '1.8rem' }}>Gestión de Personal</h2>
+          <p style={{ color: '#a1a1aa', margin: '0.5rem 0 0 0', fontSize: '0.95rem' }}>Administra empleados, departamentos y enrolamiento biométrico.</p>
         </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', borderBottom: '1px solid #333' }}>
         <button 
-          onClick={() => setShowRegistration(true)}
-          style={{ ...btnPrimary, display: 'flex', alignItems: 'center', gap: '0.5rem' }}
-          className="mobile-w-full justify-center"
+          onClick={() => setActiveTab('empleados')} 
+          style={{ padding: '0.75rem 1rem', background: 'transparent', border: 'none', borderBottom: activeTab === 'empleados' ? '2px solid #f97316' : '2px solid transparent', color: activeTab === 'empleados' ? '#f97316' : '#a1a1aa', cursor: 'pointer', fontWeight: 600, fontSize: '1rem' }}
         >
-          <Plus size={18} /> Agregar Empleado
+          Lista de Empleados
+        </button>
+        <button 
+          onClick={() => setActiveTab('departamentos')} 
+          style={{ padding: '0.75rem 1rem', background: 'transparent', border: 'none', borderBottom: activeTab === 'departamentos' ? '2px solid #f97316' : '2px solid transparent', color: activeTab === 'departamentos' ? '#f97316' : '#a1a1aa', cursor: 'pointer', fontWeight: 600, fontSize: '1rem' }}
+        >
+          Departamentos
         </button>
       </div>
+
+      {activeTab === 'departamentos' ? (
+        <DepartmentsTab onDepartmentChange={fetchEmployees} />
+      ) : (
+        <>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1.5rem' }}>
+            <button 
+              onClick={() => setShowRegistration(true)}
+              style={{ ...btnPrimary, display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+            >
+              <Plus size={18} /> Agregar Empleado
+            </button>
+          </div>
 
       {/* Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
@@ -326,8 +362,14 @@ const EmployeesPage = () => {
                         </div>
                       </td>
                       <td style={tdStyle}>
-                        <div style={{ color: '#e4e4e7' }}>{emp.department?.name || 'Sin departamento'}</div>
-                        <div style={{ color: '#a1a1aa', fontSize: '0.8rem' }}>{emp.position || 'Sin cargo'}</div>
+                        {emp.departmentId ? (
+                          <div style={{ color: '#e4e4e7' }}>{emp.department?.name}</div>
+                        ) : (
+                          <span style={{ padding: '0.2rem 0.5rem', background: 'rgba(249, 115, 22, 0.1)', color: '#f97316', borderRadius: '4px', fontSize: '0.75rem', border: '1px solid rgba(249, 115, 22, 0.2)' }}>
+                            Pendiente (Sin depto)
+                          </span>
+                        )}
+                        <div style={{ color: '#a1a1aa', fontSize: '0.8rem', marginTop: '0.25rem' }}>{emp.position || 'Sin cargo'}</div>
                       </td>
                       <td style={tdStyle}>
                         {hasBiometric ? (
@@ -368,10 +410,15 @@ const EmployeesPage = () => {
       {/* Employee Details Modal */}
       {isModalOpen && (
         <div className="modal-overlay" onClick={() => setIsModalOpen(false)}>
-          <div className="modal-content page-glow" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+          <div className="modal-content page-glow" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px', maxHeight: '90vh', overflowY: 'auto' }}>
             <div className="modal-header">
               <h3 style={{ color: 'var(--text-main)', margin: 0 }}>Detalles del Empleado</h3>
-              <button className="btn-icon" onClick={() => setIsModalOpen(false)}>×</button>
+              <button 
+                onClick={() => setIsModalOpen(false)}
+                style={{ background: 'transparent', border: 'none', color: '#a1a1aa', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              >
+                <X size={24} />
+              </button>
             </div>
             <div style={{ padding: '1.5rem' }}>
               {modalLoading ? (
@@ -416,9 +463,9 @@ const EmployeesPage = () => {
                       <div style={{ background: '#18181b', padding: '1rem', borderRadius: '8px', border: '1px solid #333' }}>
                         <p style={{ margin: '0 0 0.5rem 0', color: '#fff', fontSize: '0.95rem' }}>
                           <Calendar size={14} style={{ display: 'inline', marginRight: '6px', color: '#a1a1aa', verticalAlign: 'middle' }} /> 
-                          {new Date(employeeDetails.attendances[0].date).toLocaleDateString()}
+                          {new Date(employeeDetails.attendances[0].date).toLocaleDateString(undefined, { timeZone: 'UTC' })}
                         </p>
-                        <div style={{ display: 'flex', gap: '1.5rem', marginTop: '0.5rem' }}>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1.5rem', marginTop: '0.5rem' }}>
                           <div>
                             <p style={{ margin: 0, fontSize: '0.8rem', color: '#a1a1aa' }}>Entrada</p>
                             <p style={{ margin: '0.2rem 0 0 0', color: '#fff', fontWeight: 500 }}>
@@ -436,6 +483,49 @@ const EmployeesPage = () => {
                               )}
                             </p>
                           </div>
+                          {(() => {
+                            const currentShift = employeeDetails.shifts?.[0]?.shift || employeeDetails.department?.shifts?.[0]?.shift;
+                            const normalEndTimeStr = currentShift ? currentShift.endTime : '17:00';
+                            const targetDate = employeeDetails.attendances[0].date.split('T')[0];
+                            const overtimeEventsDay = employeeDetails.eventRequests?.filter(e => e.type === 'OVERTIME' && e.date.startsWith(targetDate)) || [];
+                            const totalOvertimeMinutes = overtimeEventsDay.reduce((sum, e) => sum + (e.minutes || 0), 0);
+                            
+                            let expectedEndTime = normalEndTimeStr;
+                            let extraInfo = null;
+
+                            if (totalOvertimeMinutes > 0) {
+                              const [h, m] = normalEndTimeStr.split(':').map(Number);
+                              const dateObj = new Date();
+                              dateObj.setHours(h, m + totalOvertimeMinutes, 0);
+                              expectedEndTime = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                              extraInfo = ' (con horas extra acumuladas)';
+                            }
+
+                            // Convert 24h normalEndTimeStr to 12h for display
+                            const [nh, nm] = normalEndTimeStr.split(':');
+                            const normalDateObj = new Date();
+                            normalDateObj.setHours(parseInt(nh, 10), parseInt(nm, 10), 0);
+                            const displayNormalEndTime = normalDateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+                            return (
+                              <>
+                                <div>
+                                  <p style={{ margin: 0, fontSize: '0.8rem', color: '#a1a1aa' }}>Salida Normal</p>
+                                  <p style={{ margin: '0.2rem 0 0 0', color: '#fff', fontWeight: 500 }}>
+                                    {displayNormalEndTime}
+                                  </p>
+                                </div>
+                                {totalOvertimeMinutes > 0 && (
+                                  <div>
+                                    <p style={{ margin: 0, fontSize: '0.8rem', color: '#3b82f6' }}>Salida Esperada</p>
+                                    <p style={{ margin: '0.2rem 0 0 0', color: '#fff', fontWeight: 500 }} title={extraInfo || ''}>
+                                      {expectedEndTime}
+                                    </p>
+                                  </div>
+                                )}
+                              </>
+                            );
+                          })()}
                         </div>
                       </div>
                     ) : (
@@ -460,12 +550,33 @@ const EmployeesPage = () => {
                           };
                           const conf = eventConfig[evt.type] || { label: evt.type, color: '#3b82f6', bg: 'rgba(59, 130, 246, 0.05)' };
 
+                          let overtimeText = null;
+                          if (evt.type === 'OVERTIME' && evt.minutes) {
+                            const evtDate = evt.date.split('T')[0];
+                            const overtimeEventsForDay = employeeDetails.eventRequests?.filter(e => e.type === 'OVERTIME' && e.date.startsWith(evtDate)) || [];
+                            const totalMinutes = overtimeEventsForDay.reduce((sum, e) => sum + (e.minutes || 0), 0);
+
+                            const currentShift = employeeDetails.shifts?.[0]?.shift || employeeDetails.department?.shifts?.[0]?.shift;
+                            const normalEndTimeStr = currentShift ? currentShift.endTime : '17:00';
+                            const [h, m] = normalEndTimeStr.split(':').map(Number);
+                            const endObj = new Date();
+                            endObj.setHours(h, m + totalMinutes, 0);
+                            const endTimeStr = endObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                            
+                            const hours = (evt.minutes / 60).toFixed(1).replace('.0', '');
+                            const totalHoursStr = (totalMinutes / 60).toFixed(1).replace('.0', '');
+                            overtimeText = `${hours}h (Día: ${totalHoursStr}h, Termina a las ${endTimeStr})`;
+                          }
+
                           return (
                             <div key={evt.id} style={{ background: conf.bg, border: `1px solid ${conf.color}33`, padding: '0.75rem', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <div>
-                                <p style={{ margin: 0, color: conf.color, fontWeight: 500, fontSize: '0.9rem' }}>{conf.label}</p>
-                                <p style={{ margin: '0.2rem 0 0 0', color: '#a1a1aa', fontSize: '0.8rem' }}>{new Date(evt.date).toLocaleDateString()}</p>
-                              </div>
+                                <div>
+                                  <p style={{ margin: 0, color: conf.color, fontWeight: 500, fontSize: '0.9rem' }}>
+                                    {conf.label}
+                                    {overtimeText && <span style={{ fontSize: '0.8rem', marginLeft: '0.5rem', opacity: 0.9 }}>- {overtimeText}</span>}
+                                  </p>
+                                  <p style={{ margin: '0.2rem 0 0 0', color: '#a1a1aa', fontSize: '0.8rem' }}>{new Date(evt.date).toLocaleDateString(undefined, { timeZone: 'UTC' })}</p>
+                                </div>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                 <span style={{ padding: '0.2rem 0.5rem', background: conf.bg, color: conf.color, borderRadius: '4px', fontSize: '0.75rem' }}>
                                   Activo
@@ -493,9 +604,10 @@ const EmployeesPage = () => {
       )}
 
       {/* Edit Employee Modal */}
-      {isEditModalOpen && employeeToEdit && (
-        <EditEmployeeModal
+      {isEditModalOpen && (
+        <EditEmployeeModal 
           employee={employeeToEdit}
+          departmentsList={departmentsList}
           onClose={() => { setIsEditModalOpen(false); setEmployeeToEdit(null); }}
           onSaved={() => { 
             setIsEditModalOpen(false); 
@@ -503,6 +615,8 @@ const EmployeesPage = () => {
             fetchEmployees(); 
           }}
         />
+      )}
+        </>
       )}
     </div>
   );
@@ -665,13 +779,13 @@ const labelStyle = {
 };
 
 // --- Edit Employee Modal Component ---
-const EditEmployeeModal = ({ employee, onClose, onSaved }) => {
+const EditEmployeeModal = ({ employee, departmentsList, onClose, onSaved }) => {
   const [formData, setFormData] = useState({
     firstName: employee.firstName || '',
     lastName: employee.lastName || '',
     identifier: employee.identifier || '',
     email: employee.email || '',
-    department: employee.department?.name || '',
+    departmentId: employee.departmentId || '',
     position: employee.position || '',
     isActive: employee.isActive
   });
@@ -734,8 +848,13 @@ const EditEmployeeModal = ({ employee, onClose, onSaved }) => {
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
             <div>
-              <label style={labelStyle}>Departamento (Opcional)</label>
-              <input type="text" value={formData.department} onChange={e => setFormData({...formData, department: e.target.value})} style={inputStyle} placeholder="Ej. TI" />
+              <label style={labelStyle}>Departamento</label>
+              <select value={formData.departmentId} onChange={e => setFormData({...formData, departmentId: e.target.value})} style={inputStyle} required>
+                <option value="">Seleccione un departamento...</option>
+                {departmentsList.map(d => (
+                  <option key={d.id} value={d.id}>{d.name}</option>
+                ))}
+              </select>
             </div>
             <div>
               <label style={labelStyle}>Cargo (Opcional)</label>

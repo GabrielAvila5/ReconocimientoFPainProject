@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { 
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, 
-  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer 
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer 
 } from 'recharts';
 
 // --- System Colors ---
@@ -22,34 +22,7 @@ const COLORS = {
   textMuted: '#a1a1aa'
 };
 
-// --- Mock Data Generators ---
-const generateAttendanceMock = (days = 60) => {
-  const data = [];
-  const now = new Date();
-  for (let i = days; i >= 0; i--) {
-    const d = new Date(now);
-    d.setDate(d.getDate() - i);
-    const dateStr = d.toISOString().split('T')[0];
-    const isWeekend = d.getDay() === 0 || d.getDay() === 6;
-    
-    // Line chart trends
-    const base = isWeekend ? 0 : 40;
-    const aTiempo = isWeekend ? 0 : base + Math.floor(Math.random() * 10);
-    const tardanzas = isWeekend ? 0 : Math.floor(Math.random() * 8);
-    const ausencias = isWeekend ? 0 : Math.floor(Math.random() * 3);
-    
-    data.push({
-      date: dateStr,
-      aTiempo,
-      tardanzas,
-      ausencias,
-      permisos: isWeekend ? 0 : Math.floor(Math.random() * 2),
-      timestamp: d.getTime()
-    });
-  }
-  return data;
-};
-
+// --- Mock Data Generators (Devices Only) ---
 const generateDeviceMock = (days = 60) => {
   const data = [];
   const now = new Date();
@@ -68,59 +41,6 @@ const generateDeviceMock = (days = 60) => {
     });
   }
   return data;
-};
-
-const generatePeakHoursMock = () => {
-  const data = [];
-  let h = 7;
-  let m = 0;
-  while (h <= 10) {
-    const time = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
-    let base = 5;
-    if (h === 8 && m >= 0 && m <= 30) base = 40; // Peak at 8:00 - 8:30
-    if (h === 7 && m >= 45) base = 25;
-    data.push({
-      time,
-      accesos: base + Math.floor(Math.random() * 15)
-    });
-    m += 15;
-    if (m >= 60) {
-      m = 0;
-      h++;
-    }
-    if (h === 10 && m > 0) break;
-  }
-  return data;
-};
-
-const generateTableMockAttendance = (days = 7) => {
-  const table = [];
-  const depts = ['TI', 'RRHH', 'Operaciones', 'Ventas'];
-  const emps = ['Juan Pérez', 'Ana Gómez', 'Carlos Ruiz', 'María Vega', 'Luis Soto'];
-  const now = new Date();
-  for (let i = 0; i < days * 5; i++) {
-    const d = new Date(now);
-    d.setDate(d.getDate() - Math.floor(Math.random() * days));
-    
-    const h = 7 + Math.floor(Math.random() * 2);
-    const m = Math.floor(Math.random() * 60);
-    const entrada = `0${h}:${String(m).padStart(2,'0')} AM`;
-    const salida = `0${h + 9}:${String(m).padStart(2,'0')} PM`;
-    
-    const isTardy = (h === 8 && m > 15) || h > 8;
-    
-    table.push({
-      id: `att-${i}`,
-      empleado: emps[Math.floor(Math.random() * emps.length)],
-      departamento: depts[Math.floor(Math.random() * depts.length)],
-      fecha: d.toISOString().split('T')[0],
-      entrada,
-      salida,
-      horas: '9.0',
-      puntualidad: isTardy ? 'Tardanza' : 'A tiempo'
-    });
-  }
-  return table;
 };
 
 const generateTableMockDevices = (days = 7) => {
@@ -166,9 +86,10 @@ const CustomTooltip = ({ active, payload, label }) => {
 
 // Helper for Initials
 const getInitials = (name) => {
-  if (!name) return '??';
-  const parts = name.trim().split(' ');
-  return (parts[0][0] + (parts[1] ? parts[1][0] : '')).toUpperCase();
+  if (!name) return '';
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+  return (name[0] || '').toUpperCase();
 };
 
 // --- Component ---
@@ -182,32 +103,104 @@ const ReportsPage = () => {
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
   const [selectedDept, setSelectedDept] = useState('Todos los departamentos');
+  const [selectedStatus, setSelectedStatus] = useState('Todos los estados');
   const [departments, setDepartments] = useState([]);
 
-  // Mock Data States
+  // Real Data States (Asistencia)
+  const [attKpis, setAttKpis] = useState({
+    puntualidadPct: 0,
+    totalTardanzasInjustificadas: 0,
+    totalAusenciasInjustificadas: 0,
+    horasExtraAprobadas: 0,
+    horasPromedio: 0
+  });
   const [attTrendData, setAttTrendData] = useState([]);
-  const [devTrendData, setDevTrendData] = useState([]);
+  const [attDistribution, setAttDistribution] = useState([]);
   const [peakHoursData, setPeakHoursData] = useState([]);
+
+  // Mock Data States (Dispositivos)
+  const [devTrendData, setDevTrendData] = useState([]);
   const [attTableData, setAttTableData] = useState([]);
   const [devTableData, setDevTableData] = useState([]);
 
-  useEffect(() => {
-    // Simular fetch inicial
-    setLoading(true);
-    setTimeout(() => {
-      setAttTrendData(generateAttendanceMock(60));
-      setDevTrendData(generateDeviceMock(60));
-      setPeakHoursData(generatePeakHoursMock());
-      setAttTableData(generateTableMockAttendance(30));
-      setDevTableData(generateTableMockDevices(30));
-      setDepartments(['TI', 'RRHH', 'Operaciones', 'Ventas']);
+  const fetchKpis = async () => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('token');
+      
+      const now = new Date();
+      let startStr = '';
+      let endStr = now.toISOString();
+
+      if (dateRange === 'Hoy') {
+        const today = new Date(now.setHours(0,0,0,0));
+        startStr = today.toISOString();
+      } else if (dateRange === 'Últimos 7 días') {
+        const past = new Date(now.setDate(now.getDate() - 7));
+        startStr = past.toISOString();
+      } else if (dateRange === 'Este Mes') {
+        const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+        startStr = firstDay.toISOString();
+      } else if (dateRange === 'Personalizado') {
+        if (customStart) startStr = new Date(customStart).toISOString();
+        if (customEnd) {
+          const e = new Date(customEnd);
+          e.setHours(23,59,59,999);
+          endStr = e.toISOString();
+        }
+      }
+
+      let url = `${import.meta.env.VITE_API_URL || 'http://localhost:4000'}/api/v1/reports/kpis`;
+      if (startStr && endStr) {
+        url += `?startDate=${startStr}&endDate=${endStr}`;
+      }
+
+      const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
+      if (!res.ok) throw new Error('Error al obtener KPIs');
+      const data = await res.json();
+      
+      setAttKpis(data.kpis);
+      setAttDistribution(data.distribution);
+      setAttTrendData(data.trend);
+      setPeakHoursData(data.peakHours);
+
+      // Fetch Table Data
+      let tableUrl = `${import.meta.env.VITE_API_URL || 'http://localhost:4000'}/api/v1/reports/attendance-consolidated?limit=200`;
+      if (startStr && endStr) {
+        tableUrl += `&startDate=${startStr}&endDate=${endStr}`;
+      }
+      const tableRes = await fetch(tableUrl, { headers: { 'Authorization': `Bearer ${token}` } });
+      if (tableRes.ok) {
+        const tableData = await tableRes.json();
+        setAttTableData(tableData.data);
+      }
+
+      // Fetch Departments for filter
+      const depRes = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:4000'}/api/v1/departments`, { headers: { 'Authorization': `Bearer ${token}` } });
+      if (depRes.ok) {
+        const depData = await depRes.json();
+        setDepartments(depData.map(d => d.name));
+      }
+
+    } catch (err) {
+      console.error(err);
+    } finally {
       setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchKpis();
+    // Simulate Dispositivos fetch
+    setTimeout(() => {
+      setDevTrendData(generateDeviceMock(60));
+      setDevTableData(generateTableMockDevices(30));
     }, 800);
-  }, []);
+  }, [dateRange, customStart, customEnd]);
 
   const handleRefresh = () => {
     setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 600);
+    fetchKpis().then(() => setRefreshing(false));
   };
 
   // --- Filtering Logic ---
@@ -240,34 +233,30 @@ const ReportsPage = () => {
     });
   };
 
-  const filteredAttTrend = useMemo(() => filterByDateRange(attTrendData), [attTrendData, dateRange, customStart, customEnd]);
+  const filteredAttTrend = attTrendData; // Ya viene filtrado del backend
+  const doughnutData = attDistribution; // Ya viene del backend
   const filteredDevTrend = useMemo(() => filterByDateRange(devTrendData), [devTrendData, dateRange, customStart, customEnd]);
   
-  // Lógica para filtrar tablas también por departamento
+  // Lógica para filtrar tablas también por departamento y estado
   const filteredAttTable = useMemo(() => {
-    let res = filterByDateRange(attTableData);
+    let res = attTableData;
     if (selectedDept !== 'Todos los departamentos') {
       res = res.filter(r => r.departamento === selectedDept);
     }
+    if (selectedStatus !== 'Todos los estados') {
+      res = res.filter(r => {
+        if (selectedStatus === 'Horas Extra') return r.horasExtra;
+        if (selectedStatus === 'Salida Tardía Sin Justificar') return r.lateDepartureWithoutOvertime;
+        return r.estadoAsistencia === selectedStatus;
+      });
+    }
     return res;
-  }, [attTableData, dateRange, customStart, customEnd, selectedDept]);
+  }, [attTableData, selectedDept, selectedStatus]);
   
   const filteredDevTable = useMemo(() => filterByDateRange(devTableData), [devTableData, dateRange, customStart, customEnd]);
 
-  // --- KPI Calculations (Asistencia) ---
-  const attKPI = useMemo(() => {
-    let totalATiempo = 0;
-    let totalTardanzas = 0;
-    let totalAusencias = 0;
-    filteredAttTrend.forEach(d => {
-      totalATiempo += d.aTiempo;
-      totalTardanzas += d.tardanzas;
-      totalAusencias += d.ausencias;
-    });
-    const total = totalATiempo + totalTardanzas;
-    const pct = total > 0 ? Math.round((totalATiempo / total) * 100) : 0;
-    return { pct, tardanzas: totalTardanzas, ausencias: totalAusencias, avgHours: '8.7' };
-  }, [filteredAttTrend]);
+  // KPI (Asistencia)
+  const attKPI = attKpis;
 
   // --- KPI Calculations (Dispositivos) ---
   const devKPI = useMemo(() => {
@@ -287,17 +276,7 @@ const ReportsPage = () => {
     return { totalLecturas, topNode, enLinea: 3 }; // mock 3 active
   }, [filteredDevTrend]);
 
-  // --- Doughnut Chart Data ---
-  const doughnutData = useMemo(() => {
-    let totalP = 0;
-    filteredAttTrend.forEach(d => totalP += d.permisos);
-    return [
-      { name: 'A tiempo', value: attKPI.pct > 0 ? attKPI.pct : 80, color: COLORS.green },
-      { name: 'Tardanzas', value: attKPI.tardanzas, color: COLORS.yellow },
-      { name: 'Ausencias', value: attKPI.ausencias, color: COLORS.red },
-      { name: 'Permisos', value: totalP, color: COLORS.blue }
-    ];
-  }, [attKPI, filteredAttTrend]);
+
 
   // --- Bar Chart Dispositivos Data ---
   const devBarData = useMemo(() => {
@@ -316,8 +295,8 @@ const ReportsPage = () => {
     let filename = `Reporte_${activeTab === 'asistencia' ? 'Asistencia' : 'Dispositivos'}.csv`;
     
     if (activeTab === 'asistencia') {
-      headers = ['Empleado', 'Departamento', 'Fecha', 'Hora Entrada', 'Hora Salida', 'Horas', 'Puntualidad'];
-      rows = filteredAttTable.map(r => [r.empleado, r.departamento, r.fecha, r.entrada, r.salida, r.horas, r.puntualidad]);
+      headers = ['Empleado', 'Departamento', 'Fecha', 'Entrada Real', 'Salida Real', 'Salida Esperada', 'Horas Trabajadas', 'Horas Extra', 'Estado Asistencia'];
+      rows = filteredAttTable.map(r => [r.empleado, r.departamento, r.fecha, r.entrada, r.salida, r.horaEsperadaSalida, r.horasTrabajadas || '0', r.horasExtra ? `Sí (${+(r.overtimeMinutes / 60).toFixed(1)}h)` : 'No', r.estadoAsistencia]);
     } else {
       headers = ['Dispositivo', 'Ubicación', 'Fecha', 'Lecturas', 'Uptime', 'Estado'];
       rows = filteredDevTable.map(r => [r.dispositivo, r.ubicacion, r.fecha, r.lecturas, r.uptime, r.estado]);
@@ -443,6 +422,23 @@ const ReportsPage = () => {
           <option>Todos los departamentos</option>
           {departments.map(d => <option key={d}>{d}</option>)}
         </select>
+
+        {activeTab === 'asistencia' && (
+          <select 
+            style={selectStyle} 
+            value={selectedStatus}
+            onChange={(e) => setSelectedStatus(e.target.value)}
+          >
+            <option>Todos los estados</option>
+            <option>A tiempo</option>
+            <option>Tardanza</option>
+            <option>Ausencia</option>
+            <option>Falta Justificada</option>
+            <option>Vacaciones</option>
+            <option>Salida Tardía Sin Justificar</option>
+            <option>Horas Extra</option>
+          </select>
+        )}
         
       </div>
 
@@ -474,12 +470,13 @@ const ReportsPage = () => {
 
         {/* TAB 1: ASISTENCIA */}
         {activeTab === 'asistencia' && (
-          <div className="fade-in">
+          <div className="space-y-6">
             {/* KPI Cards */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
-              {renderCard('Puntualidad Prom.', `${attKPI.pct}%`, 'En el rango seleccionado', CheckCircle, '16, 185, 129')}
-              {renderCard('Total Tardanzas', attKPI.tardanzas, 'Llegadas después de 08:15 AM', Clock, '249, 115, 22')}
-              {renderCard('Total Ausencias', attKPI.ausencias, 'Sin registro en días laborables', UserX, '239, 68, 68')}
+              {renderCard('Puntualidad Prom.', `${attKPI.puntualidadPct}%`, 'En el rango seleccionado', CheckCircle, '16, 185, 129')}
+              {renderCard('Total Tardanzas', attKPI.totalTardanzasInjustificadas, 'Llegadas después de hora limite', AlertCircle, '234, 179, 8')}
+              {renderCard('Total Ausencias', attKPI.totalAusenciasInjustificadas, 'Sin registro o justificación', UserX, '239, 68, 68')}
+              {renderCard('Horas Extra', `${attKPI.horasExtraAprobadas}h`, 'Horas extra acumuladas', Clock, '168, 85, 247')}
               
               {/* Horas Promedio */}
               <div className="card-glow" style={{ ...cardStyle, background: `rgba(59, 130, 246, 0.05)`, border: `1px solid rgba(59, 130, 246, 0.3)`, boxShadow: `0 4px 20px rgba(59, 130, 246, 0.05)` }}>
@@ -489,10 +486,9 @@ const ReportsPage = () => {
                 </div>
                 <div>
                   <h2 style={{ fontSize: '2.5rem', color: COLORS.blue, lineHeight: '1', margin: '1rem 0 0.5rem 0' }}>
-                    {loading ? <Skeleton width="60px" height="40px" /> : `${attKPI.avgHours}h`}
+                    {loading ? <Skeleton width="60px" height="40px" /> : `${attKPI.horasPromedio}h`}
                   </h2>
                   <p className="text-xs text-muted" style={{ margin: 0 }}>Registros completos (E/S)</p>
-                  {/* // TODO: incluir registros sin salida cuando se implemente cierre automático de turno. */}
                 </div>
               </div>
             </div>
@@ -504,16 +500,35 @@ const ReportsPage = () => {
                 <h3 style={{ margin: '0 0 1.5rem 0', color: COLORS.text, fontSize: '1.1rem' }}>Tendencia de Asistencia</h3>
                 {loading ? <Skeleton width="100%" height="300px" /> : (
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={filteredAttTrend} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+                    <AreaChart data={filteredAttTrend} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+                      <defs>
+                        <linearGradient id="colorATiempo" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor={COLORS.green} stopOpacity={0.3} />
+                          <stop offset="95%" stopColor={COLORS.green} stopOpacity={0} />
+                        </linearGradient>
+                        <linearGradient id="colorPermisos" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor={COLORS.blue} stopOpacity={0.3} />
+                          <stop offset="95%" stopColor={COLORS.blue} stopOpacity={0} />
+                        </linearGradient>
+                        <linearGradient id="colorTardanzas" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor={COLORS.yellow} stopOpacity={0.3} />
+                          <stop offset="95%" stopColor={COLORS.yellow} stopOpacity={0} />
+                        </linearGradient>
+                        <linearGradient id="colorAusencias" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor={COLORS.red} stopOpacity={0.3} />
+                          <stop offset="95%" stopColor={COLORS.red} stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} vertical={false} />
                       <XAxis dataKey="date" stroke={COLORS.textMuted} fontSize={12} tickLine={false} axisLine={false} />
                       <YAxis stroke={COLORS.textMuted} fontSize={12} tickLine={false} axisLine={false} />
                       <Tooltip content={<CustomTooltip />} />
                       <Legend iconType="circle" />
-                      <Line type="monotone" name="A tiempo" dataKey="aTiempo" stroke={COLORS.green} strokeWidth={3} dot={{r: 0}} activeDot={{r: 6}} animationDuration={1000} />
-                      <Line type="monotone" name="Tardanzas" dataKey="tardanzas" stroke={COLORS.yellow} strokeWidth={3} dot={{r: 0}} activeDot={{r: 6}} animationDuration={1000} />
-                      <Line type="monotone" name="Ausencias" dataKey="ausencias" stroke={COLORS.red} strokeWidth={3} dot={{r: 0}} activeDot={{r: 6}} animationDuration={1000} />
-                    </LineChart>
+                      <Area type="monotone" dataKey="aTiempo" name="A tiempo" stroke={COLORS.green} fillOpacity={1} fill="url(#colorATiempo)" />
+                      <Area type="monotone" dataKey="justificados" name="Justificados" stroke={COLORS.blue} fillOpacity={1} fill="url(#colorPermisos)" />
+                      <Area type="monotone" dataKey="tardanzas" name="Tardanzas" stroke={COLORS.yellow} fillOpacity={1} fill="url(#colorTardanzas)" />
+                      <Area type="monotone" dataKey="ausencias" name="Ausencias" stroke={COLORS.red} fillOpacity={1} fill="url(#colorAusencias)" />
+                    </AreaChart>
                   </ResponsiveContainer>
                 )}
               </div>
@@ -547,7 +562,7 @@ const ReportsPage = () => {
                           <Cell key={`cell-${index}`} fill={entry.color} />
                         ))}
                       </Pie>
-                      <Tooltip content={<CustomTooltip />} />
+                      <Tooltip wrapperStyle={{ zIndex: 100 }} content={<CustomTooltip />} />
                       <Legend 
                         iconType="circle" 
                         verticalAlign="bottom" 
@@ -557,8 +572,8 @@ const ReportsPage = () => {
                     </PieChart>
                   </ResponsiveContainer>
                   {/* Etiqueta Central - Posicionada de forma absoluta */}
-                  <div style={{ position: 'absolute', top: 'calc(50% - 10px)', left: '50%', transform: 'translate(-50%, -50%)', textAlign: 'center', pointerEvents: 'none' }}>
-                    <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: COLORS.text, lineHeight: '1' }}>{attKPI.pct}%</div>
+                  <div style={{ position: 'absolute', top: 'calc(50% - 10px)', left: '50%', transform: 'translate(-50%, -50%)', textAlign: 'center', pointerEvents: 'none', zIndex: 0 }}>
+                    <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: COLORS.text, lineHeight: '1' }}>{attKPI.puntualidadPct}%</div>
                     <div style={{ fontSize: '0.75rem', color: COLORS.textMuted, marginTop: '0.25rem' }}>A tiempo</div>
                   </div>
                 </div>
@@ -595,44 +610,75 @@ const ReportsPage = () => {
                     <th style={thStyle}>Departamento</th>
                     <th style={thStyle}>Fecha</th>
                     <th style={thStyle}>Entrada</th>
-                    <th style={thStyle}>Salida</th>
-                    <th style={thStyle}>Horas</th>
-                    <th style={thStyle}>Puntualidad</th>
+                    <th style={thStyle}>Salida Real</th>
+                    <th style={thStyle}>Salida Esperada</th>
+                    <th style={thStyle}>Horas Extra</th>
+                    <th style={thStyle}>Estado Asistencia</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredAttTable.length === 0 ? (
-                    <tr><td colSpan="7" style={{ padding: '2rem', textAlign: 'center', color: COLORS.textMuted }}>No hay datos para el filtro seleccionado.</td></tr>
-                  ) : filteredAttTable.slice(0, 20).map((row) => ( // Paginacion simulada (primeras 20)
-                    <tr key={row.id} style={{ borderBottom: `1px solid ${COLORS.border}` }}>
+                    <tr><td colSpan="8" style={{ padding: '2rem', textAlign: 'center', color: COLORS.textMuted }}>No hay datos para el filtro seleccionado.</td></tr>
+                  ) : filteredAttTable.slice(0, 100).map((row) => {
+                    
+                    let statusColor = COLORS.textMuted;
+                    let statusBg = 'rgba(255,255,255,0.05)';
+                    
+                    if (row.estadoAsistencia.includes('A tiempo') || row.estadoAsistencia.includes('Justificada')) {
+                      statusColor = COLORS.green;
+                      statusBg = 'rgba(16,185,129,0.1)';
+                    } else if (row.estadoAsistencia.includes('Vacaciones')) {
+                      statusColor = COLORS.blue;
+                      statusBg = 'rgba(59, 130, 246, 0.1)';
+                    } else if (row.estadoAsistencia.includes('Tardanza') || row.estadoAsistencia.includes('Ausencia')) {
+                      statusColor = row.estadoAsistencia.includes('Ausencia') ? COLORS.red : COLORS.yellow;
+                      statusBg = row.estadoAsistencia.includes('Ausencia') ? 'rgba(239, 68, 68, 0.1)' : 'rgba(234, 179, 8, 0.1)';
+                    }
+
+                    return (
+                    <tr key={row.id} style={{ borderBottom: `1px solid ${COLORS.border}`, background: row.lateDepartureWithoutOvertime ? 'rgba(239, 68, 68, 0.05)' : 'transparent' }}>
                       <td style={tdStyle}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                          <div style={{ width: 32, height: 32, borderRadius: '50%', backgroundColor: 'rgba(249, 115, 22, 0.1)', border: '1px solid rgba(249, 115, 22, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: COLORS.orange, fontSize: '0.75rem', fontWeight: 600 }}>
+                          <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: COLORS.border, display: 'flex', alignItems: 'center', justifyContent: 'center', color: COLORS.textMuted, fontSize: '0.8rem', fontWeight: 600 }}>
                             {getInitials(row.empleado)}
                           </div>
-                          <span style={{ fontWeight: 500 }}>{row.empleado}</span>
+                          <div>
+                            <span style={{ color: COLORS.text, fontWeight: 500 }}>{row.empleado}</span>
+                          </div>
                         </div>
                       </td>
                       <td style={tdStyle}>{row.departamento}</td>
                       <td style={tdStyle}>{row.fecha}</td>
                       <td style={tdStyle}>{row.entrada}</td>
-                      <td style={tdStyle}>{row.salida}</td>
-                      <td style={tdStyle}>{row.horas}</td>
+                      <td style={tdStyle}>
+                        <span style={{ color: row.lateDepartureWithoutOvertime ? COLORS.red : 'inherit', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          {row.salida}
+                          {row.lateDepartureWithoutOvertime && <AlertCircle size={14} title="Salida tardía sin horas extra aprobadas" />}
+                        </span>
+                      </td>
+                      <td style={tdStyle}>{row.horaEsperadaSalida}</td>
+                      <td style={tdStyle}>
+                        {row.horasExtra ? (
+                          <span style={{ color: COLORS.blue }}>Sí ({+(row.overtimeMinutes / 60).toFixed(1)}h)</span>
+                        ) : (
+                          <span style={{ color: COLORS.textMuted }}>No</span>
+                        )}
+                      </td>
                       <td style={tdStyle}>
                         <span style={{ 
-                          color: row.puntualidad === 'A tiempo' ? COLORS.green : COLORS.yellow,
-                          background: row.puntualidad === 'A tiempo' ? 'rgba(16,185,129,0.1)' : 'rgba(234,179,8,0.1)',
+                          color: statusColor,
+                          background: statusBg,
                           padding: '2px 8px', borderRadius: '4px', fontSize: '0.8rem'
                         }}>
-                          {row.puntualidad}
+                          {row.estadoAsistencia}
                         </span>
                       </td>
                     </tr>
-                  ))}
+                  )})}
                 </tbody>
               </table>
               <div className="no-print" style={{ padding: '1rem', textAlign: 'center', color: COLORS.textMuted, fontSize: '0.85rem' }}>
-                Mostrando hasta 20 filas (Paginación simulada)
+                Mostrando hasta 100 filas
               </div>
             </div>
           </div>

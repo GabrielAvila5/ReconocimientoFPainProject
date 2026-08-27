@@ -4,8 +4,27 @@ import { toast } from 'sonner';
 
 const FaceRegistration = ({ onComplete }) => {
   const navigate = useNavigate();
-  const [formData, setFormData] = useState({ firstName: '', lastName: '', identifier: '', email: '', department: '', position: '' });
+  const [formData, setFormData] = useState({ firstName: '', lastName: '', identifier: '', email: '', departmentId: '', position: '' });
   const [loading, setLoading] = useState(false);
+  const [departments, setDepartments] = useState([]);
+
+  useEffect(() => {
+    const fetchDeps = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/v1/departments`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setDepartments(data);
+        }
+      } catch (e) {
+        console.error('Error fetching departments', e);
+      }
+    };
+    fetchDeps();
+  }, []);
 
   const handleInputChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -67,7 +86,12 @@ const FaceRegistration = ({ onComplete }) => {
         </div>
         <div>
           <label style={labelStyle}>Departamento</label>
-          <input name="department" value={formData.department} onChange={handleInputChange} style={inputStyle} required />
+          <select name="departmentId" value={formData.departmentId} onChange={handleInputChange} style={inputStyle} required>
+            <option value="">Seleccione un departamento...</option>
+            {departments.map(d => (
+              <option key={d.id} value={d.id}>{d.name}</option>
+            ))}
+          </select>
         </div>
         <div>
           <label style={labelStyle}>Cargo</label>
@@ -79,7 +103,7 @@ const FaceRegistration = ({ onComplete }) => {
         <button onClick={onComplete} style={btnSecondary} disabled={loading}>Cancelar</button>
         <button 
           onClick={submitRegistration} 
-          disabled={loading || !formData.firstName || !formData.lastName || !formData.identifier || !formData.department || !formData.position}
+          disabled={loading || !formData.firstName || !formData.lastName || !formData.identifier || !formData.departmentId || !formData.position}
           style={{ ...btnPrimary, opacity: loading ? 0.7 : 1 }}
         >
           {loading ? 'Guardando...' : 'Guardar y Continuar a Captura Biométrica'}

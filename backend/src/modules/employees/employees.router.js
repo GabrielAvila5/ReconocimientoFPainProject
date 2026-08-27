@@ -60,8 +60,12 @@ router.get('/', async (req, res) => {
 // Crear empleado básico sin biometría
 router.post('/', async (req, res) => {
   try {
-    const { firstName, lastName, identifier, email, department, position } = req.body;
+    const { firstName, lastName, identifier, email, departmentId, position } = req.body;
     
+    if (!departmentId) {
+      return res.status(400).json({ error: 'El departamento es obligatorio.' });
+    }
+
     const employee = await prisma.employee.create({
       data: {
         firstName,
@@ -69,12 +73,9 @@ router.post('/', async (req, res) => {
         identifier,
         email,
         position,
-        department: department ? {
-          connectOrCreate: {
-            where: { name: department },
-            create: { name: department }
-          }
-        } : undefined
+        department: {
+          connect: { id: parseInt(departmentId, 10) }
+        }
       }
     });
     
@@ -100,7 +101,7 @@ router.get('/:id', async (req, res) => {
     const employee = await prisma.employee.findUnique({
       where: { id: req.params.id },
       include: { 
-        department: true,
+        department: { include: { shifts: { include: { shift: true } } } },
         shifts: {
           include: { shift: true }
         },
@@ -125,32 +126,26 @@ router.get('/:id', async (req, res) => {
 // Editar empleado básico (sin biometría)
 router.put('/:id', async (req, res) => {
   try {
-    const { firstName, lastName, identifier, email, department, position, isActive } = req.body;
+    const { firstName, lastName, identifier, email, departmentId, position, isActive } = req.body;
     
-    // Preparar data (departamento es opcional)
+    if (!departmentId) {
+      return res.status(400).json({ error: 'El departamento es obligatorio.' });
+    }
+
+    // Preparar data (departamento es obligatorio)
     let data = {
       firstName,
       lastName,
       identifier,
       email,
-      position
+      position,
+      department: {
+        connect: { id: parseInt(departmentId, 10) }
+      }
     };
 
     if (isActive !== undefined) {
       data.isActive = isActive;
-    }
-
-    if (department) {
-      data.department = {
-        connectOrCreate: {
-          where: { name: department },
-          create: { name: department }
-        }
-      };
-    } else {
-      data.department = {
-        disconnect: true
-      };
     }
 
     const employee = await prisma.employee.update({
