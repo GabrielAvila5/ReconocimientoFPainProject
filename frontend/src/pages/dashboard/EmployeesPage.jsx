@@ -457,6 +457,42 @@ const EmployeesPage = () => {
                     )}
                   </div>
                   
+                  <div style={{ marginBottom: '1.5rem' }}>
+                    <h5 style={{ margin: '0 0 0.5rem 0', color: '#a1a1aa', fontSize: '0.9rem' }}>Horario Asignado</h5>
+                    {(() => {
+                      const empShift = employeeDetails.shifts?.[0]?.shift;
+                      const deptShift = employeeDetails.department?.shifts?.[0]?.shift;
+                      
+                      const formatTime = (timeStr) => {
+                        if (!timeStr) return '';
+                        const [h, m] = timeStr.split(':');
+                        const d = new Date();
+                        d.setHours(parseInt(h, 10), parseInt(m, 10), 0);
+                        return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+                      };
+
+                      if (empShift) {
+                        return (
+                          <span style={{ padding: '0.3rem 0.8rem', background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6', borderRadius: '999px', fontSize: '0.8rem', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
+                            Específico: {formatTime(empShift.startTime)} - {formatTime(empShift.endTime)}
+                          </span>
+                        );
+                      } else if (deptShift) {
+                        return (
+                          <span style={{ padding: '0.3rem 0.8rem', background: 'rgba(139, 92, 246, 0.1)', color: '#8b5cf6', borderRadius: '999px', fontSize: '0.8rem', border: '1px solid rgba(139, 92, 246, 0.2)' }}>
+                            Por Departamento: {formatTime(deptShift.startTime)} - {formatTime(deptShift.endTime)}
+                          </span>
+                        );
+                      } else {
+                        return (
+                          <span style={{ padding: '0.3rem 0.8rem', background: 'rgba(161, 161, 170, 0.1)', color: '#a1a1aa', borderRadius: '999px', fontSize: '0.8rem', border: '1px solid rgba(161, 161, 170, 0.2)' }}>
+                            Horario Global del Sistema
+                          </span>
+                        );
+                      }
+                    })()}
+                  </div>
+                  
                   <div>
                     <h5 style={{ margin: '0 0 0.75rem 0', color: '#a1a1aa', fontSize: '0.9rem' }}>Último Registro de Asistencia</h5>
                     {employeeDetails.attendances && employeeDetails.attendances.length > 0 ? (
