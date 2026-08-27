@@ -208,6 +208,31 @@ router.post('/register', requireApiKey, async (req, res) => {
         });
       }
 
+      if (isLate && lateMinutes > 0) {
+        const employee = await prisma.employee.findUnique({ where: { id: employeeId } });
+        if (employee) {
+          const msg = `${employee.firstName} ${employee.lastName} registró su entrada con ${lateMinutes} minuto${lateMinutes > 1 ? 's' : ''} de tardanza.`;
+          
+          await prisma.notification.create({
+            data: {
+              title: 'Llegada Tardía',
+              message: msg,
+              type: 'WARNING',
+              category: 'attendance',
+              entityId: employeeId
+            }
+          });
+
+          emitNotification({
+            title: 'Llegada Tardía',
+            message: msg,
+            type: 'WARNING',
+            category: 'attendance',
+            entityId: employeeId
+          });
+        }
+      }
+
     } else if (action === 'salida') {
       if (!record) return res.status(400).json({ error: 'No hay registro de entrada' });
       record = await prisma.attendanceRecord.update({
