@@ -275,6 +275,17 @@ router.get('/attendance-consolidated', async (req, res) => {
   try {
     const { startDate, endDate, department, employeeId, eventType, page = 1, limit = 20 } = req.query;
     
+    const settings = await prisma.systemSettings.findFirst();
+    const tz = settings?.timezone || 'America/Mexico_City';
+
+    const formatExpectedTime = (timeStr) => {
+      if (!timeStr || timeStr === 'N/A') return 'N/A';
+      const [h, m] = timeStr.split(':');
+      const d = new Date();
+      d.setHours(parseInt(h, 10), parseInt(m, 10), 0);
+      return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    };
+
     if (!startDate || !endDate) return res.status(400).json({ error: 'startDate y endDate son requeridos' });
 
     const start = new Date(startDate);
@@ -416,9 +427,9 @@ router.get('/attendance-consolidated', async (req, res) => {
         empleado: `${att.employee.firstName} ${att.employee.lastName}`,
         departamento: att.employee.department?.name || 'N/A',
         fecha: dateStr,
-        entrada: att.entrada ? new Date(att.entrada).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }) : 'N/A',
-        salida: finalSalida ? new Date(finalSalida).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }) + (isAutoExit ? ' (Auto)' : '') : 'N/A',
-        horaEsperadaSalida,
+        entrada: att.entrada ? new Date(att.entrada).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: tz }) : 'N/A',
+        salida: finalSalida ? new Date(finalSalida).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: tz }) + (isAutoExit ? ' (Auto)' : '') : 'N/A',
+        horaEsperadaSalida: formatExpectedTime(horaEsperadaSalida),
         horasTrabajadas,
         estadoAsistencia,
         horasExtra,
@@ -480,9 +491,9 @@ router.get('/attendance-consolidated', async (req, res) => {
           empleado: `${evt.employee.firstName} ${evt.employee.lastName}`,
           departamento: evt.employee.department?.name || 'N/A',
           fecha: evt.dateStr,
-          entrada: simulatedEntrada !== 'N/A' ? new Date(simulatedEntrada).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }) + ' (Auto)' : 'N/A',
-          salida: simulatedSalida !== 'N/A' ? new Date(simulatedSalida).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }) + ' (Auto)' : 'N/A',
-          horaEsperadaSalida: shiftMap[evt.employeeId] ? shiftMap[evt.employeeId].endTime : 'N/A',
+          entrada: simulatedEntrada !== 'N/A' ? new Date(simulatedEntrada).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: tz }) + ' (Auto)' : 'N/A',
+          salida: simulatedSalida !== 'N/A' ? new Date(simulatedSalida).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: tz }) + ' (Auto)' : 'N/A',
+          horaEsperadaSalida: formatExpectedTime(shiftMap[evt.employeeId] ? shiftMap[evt.employeeId].endTime : 'N/A'),
           horasTrabajadas: simulatedHorasTrabajadas,
           estadoAsistencia,
           horasExtra,
