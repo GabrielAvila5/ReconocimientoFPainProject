@@ -10,6 +10,7 @@ const STAGES = {
   SELECT_ACTION: 'SELECT_ACTION',
   PROCESSING: 'PROCESSING',
   SUCCESS: 'SUCCESS',
+  ERROR: 'ERROR',
 };
 
 const KioskFlowPage = () => {
@@ -18,14 +19,15 @@ const KioskFlowPage = () => {
   const [context, setContext] = useState(null);
   const [selectedShiftId, setSelectedShiftId] = useState(null);
   const [successMessage, setSuccessMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
 
   // Auto-reset timeout
   useEffect(() => {
     let timeout;
     if (stage === STAGES.IDENTIFIED) {
       timeout = setTimeout(() => resetFlow(), 8000); // 8 segs para confirmar si es él
-    } else if (stage === STAGES.SUCCESS) {
-      timeout = setTimeout(() => resetFlow(), 4000);
+    } else if (stage === STAGES.SUCCESS || stage === STAGES.ERROR) {
+      timeout = setTimeout(() => resetFlow(), 5000);
     }
     return () => clearTimeout(timeout);
   }, [stage]);
@@ -35,6 +37,7 @@ const KioskFlowPage = () => {
     setEmployee(null);
     setContext(null);
     setSelectedShiftId(null);
+    setErrorMessage('');
   };
 
   const handleEmployeeIdentified = async (empData) => {
@@ -124,8 +127,8 @@ const KioskFlowPage = () => {
       setStage(STAGES.SUCCESS);
     } catch (error) {
       console.error(error);
-      alert(error.message || 'Hubo un error al registrar. Intenta de nuevo.');
-      setStage(STAGES.SELECT_ACTION);
+      setErrorMessage(error.message || 'Hubo un error al registrar. Intenta de nuevo.');
+      setStage(STAGES.ERROR);
     }
   };
 
@@ -228,6 +231,13 @@ const KioskFlowPage = () => {
             <CheckCircle2 size={96} className="text-green-500 mb-6" />
             <h2 className="text-3xl font-bold text-green-700 dark:text-green-400 mb-2">¡Listo!</h2>
             <p className="text-xl text-green-600 dark:text-green-300">{successMessage}</p>
+          </div>
+        )}
+
+        {stage === STAGES.ERROR && (
+          <div className="animate-scale-up flex flex-col items-center justify-center bg-red-50 dark:bg-red-900/30 p-12 rounded-3xl border-4 border-red-500 shadow-2xl max-w-lg text-center">
+            <h2 className="text-3xl font-bold text-red-700 dark:text-red-400 mb-2">Denegado</h2>
+            <p className="text-xl text-red-600 dark:text-red-300">{errorMessage}</p>
           </div>
         )}
 

@@ -16,6 +16,7 @@ const STAGES = {
   SELECT_ACTION: 'SELECT_ACTION',
   PROCESSING: 'PROCESSING',
   SUCCESS: 'SUCCESS',
+  ERROR: 'ERROR',
 };
 
 const FaceRecognitionPage = () => {
@@ -35,6 +36,7 @@ const FaceRecognitionPage = () => {
   const [activeModal, setActiveModal] = useState(null);
   const [actionPayload, setActionPayload] = useState(null);
   const [successMessage, setSuccessMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
   
   const thresholdRef = useRef(0.49);
   
@@ -115,8 +117,8 @@ const FaceRecognitionPage = () => {
     let timeout;
     if (stage === STAGES.IDENTIFIED) {
       timeout = setTimeout(() => resetFlow(), 6000); 
-    } else if (stage === STAGES.SUCCESS) {
-      timeout = setTimeout(() => resetFlow(), 4000);
+    } else if (stage === STAGES.SUCCESS || stage === STAGES.ERROR) {
+      timeout = setTimeout(() => resetFlow(), 5000);
     }
     return () => clearTimeout(timeout);
   }, [stage]);
@@ -235,6 +237,7 @@ const FaceRecognitionPage = () => {
     setSelectedShiftId(null);
     setActiveModal(null);
     setActionPayload(null);
+    setErrorMessage('');
     setStatusText('Buscando rostros...');
     processingRef.current = false;
     if (canvasRef.current) {
@@ -319,8 +322,8 @@ const FaceRecognitionPage = () => {
       setStage(STAGES.SUCCESS);
     } catch (error) {
       console.error(error);
-      toast.error(error.message || 'Hubo un error al registrar. Intenta de nuevo.');
-      setStage(STAGES.SELECT_ACTION);
+      setErrorMessage(error.message || 'Hubo un error al registrar. Intenta de nuevo.');
+      setStage(STAGES.ERROR);
     }
   };
 
@@ -481,6 +484,15 @@ const FaceRecognitionPage = () => {
           <CheckCircle2 size={96} color="#10b981" style={{ marginBottom: '1.5rem' }} />
           <h2 style={{ fontSize: '2.5rem', color: '#10b981', marginBottom: '0.5rem' }}>¡Listo!</h2>
           <p style={{ fontSize: '1.5rem', color: '#fff' }}>{successMessage}</p>
+        </div>
+      )}
+
+      {/* ETAPA 7: ERROR */}
+      {stage === STAGES.ERROR && (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', background: 'rgba(239, 68, 68, 0.1)', padding: '3rem', borderRadius: '24px', border: '4px solid #ef4444' }}>
+          <UserX size={96} color="#ef4444" style={{ marginBottom: '1.5rem' }} />
+          <h2 style={{ fontSize: '2.5rem', color: '#ef4444', marginBottom: '0.5rem' }}>Denegado</h2>
+          <p style={{ fontSize: '1.5rem', color: '#fff', textAlign: 'center', maxWidth: '600px' }}>{errorMessage}</p>
         </div>
       )}
 

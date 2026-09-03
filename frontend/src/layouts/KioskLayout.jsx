@@ -1,5 +1,6 @@
 import React from 'react';
 import { Outlet } from 'react-router-dom';
+import { Toaster } from 'sonner';
 
 const KioskLayout = () => {
   return (
@@ -7,6 +8,7 @@ const KioskLayout = () => {
       <main style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
         <Outlet />
       </main>
+      <Toaster theme="dark" position="top-right" />
     </div>
   );
 };
