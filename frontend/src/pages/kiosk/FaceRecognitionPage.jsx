@@ -219,6 +219,8 @@ const FaceRecognitionPage = () => {
         // Si ya tiene entrada registrada, seleccionamos su turno actual para otras acciones
         if (data.hasEntrada && data.currentShiftId) {
           setSelectedShiftId(data.currentShiftId);
+        } else if (data.availableShifts && data.availableShifts.length > 0) {
+          setSelectedShiftId(data.availableShifts[0].id);
         }
       }
     } catch (error) {
@@ -258,12 +260,7 @@ const FaceRecognitionPage = () => {
   };
 
   const goToNextAfterIdentity = (currentCtx = contextRef.current) => {
-    // Si no tiene entrada, SIEMPRE mostrar selector de turno para confirmar
-    if (!currentCtx.hasEntrada && currentCtx.availableShifts?.length >= 1 && !selectedShiftId) {
-      setStage(STAGES.SELECT_SHIFT);
-    } else {
-      setStage(STAGES.SELECT_ACTION);
-    }
+    setStage(STAGES.SELECT_ACTION);
   };
 
   const handleSelectShift = (shiftId) => {
@@ -462,6 +459,7 @@ const FaceRecognitionPage = () => {
         <div className="dark" style={{ width: '100%' }}>
           <ActionSelector 
             context={context} 
+            employeeName={recognizedEmployee?.name}
             onAction={handleActionSelected} 
             onCancel={resetFlow}
           />

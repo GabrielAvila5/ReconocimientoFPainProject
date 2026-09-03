@@ -50,11 +50,10 @@ const KioskFlowPage = () => {
         const data = await res.json();
         setContext(data);
         
-        // Pre-seleccionar turno si solo hay uno
-        if (data.availableShifts && data.availableShifts.length === 1) {
-          setSelectedShiftId(data.availableShifts[0].id);
-        } else if (data.currentShiftId) {
+        if (data.hasEntrada && data.currentShiftId) {
           setSelectedShiftId(data.currentShiftId);
+        } else if (data.availableShifts && data.availableShifts.length > 0) {
+          setSelectedShiftId(data.availableShifts[0].id);
         }
       }
     } catch (error) {
@@ -76,12 +75,7 @@ const KioskFlowPage = () => {
   };
 
   const goToNextAfterIdentity = () => {
-    // Si no tiene entrada y tiene múltiples turnos disponibles, elegir turno
-    if (!context.hasEntrada && context.availableShifts?.length > 1 && !selectedShiftId) {
-      setStage(STAGES.SELECT_SHIFT);
-    } else {
-      setStage(STAGES.SELECT_ACTION);
-    }
+    setStage(STAGES.SELECT_ACTION);
   };
 
   const handleSelectShift = (shiftId) => {
@@ -215,6 +209,7 @@ const KioskFlowPage = () => {
         {stage === STAGES.SELECT_ACTION && context && (
           <ActionSelector 
             context={context} 
+            employeeName={employee?.firstName ? `${employee.firstName} ${employee.lastName}` : employee?.name}
             onAction={handleActionSelected} 
             onCancel={resetFlow}
           />

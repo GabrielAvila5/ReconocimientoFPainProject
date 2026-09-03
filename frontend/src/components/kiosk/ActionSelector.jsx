@@ -1,14 +1,14 @@
 import React from 'react';
 import { LogIn, LogOut, Coffee, Clock, AlertTriangle, CheckCircle2 } from 'lucide-react';
 
-const ActionSelector = ({ context, onAction, onCancel }) => {
+const ActionSelector = ({ context, employeeName, onAction, onCancel }) => {
   const { hasEntrada, hasReceso, hasSalida, hasHorasExtra, availableShifts, currentShiftId } = context;
 
   // Botones a mostrar basados en contexto
   const getAvailableActions = () => {
     if (!hasEntrada) {
       return [
-        { id: 'entrada', label: 'Entrar', icon: <LogIn size={48} />, color: '#16a34a', hoverColor: '#15803d' },
+        { id: 'entrada', label: 'Confirmar Asistencia', icon: <CheckCircle2 size={48} />, color: '#16a34a', hoverColor: '#15803d' },
       ];
     }
 
@@ -36,11 +36,14 @@ const ActionSelector = ({ context, onAction, onCancel }) => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', maxWidth: '800px', margin: '0 auto', padding: '2rem' }}>
-      <h2 style={{ fontSize: '2rem', fontWeight: 'bold', color: '#fff', marginBottom: '2rem' }}>¿Qué deseas registrar?</h2>
+      <h2 style={{ fontSize: '2rem', fontWeight: 'bold', color: '#fff', marginBottom: '2rem', textAlign: 'center' }}>
+        Confirmar asistencia de {employeeName || 'Empleado'}
+      </h2>
       
       <div style={{ 
         display: 'grid', 
-        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
+        gridTemplateColumns: `repeat(auto-fit, minmax(200px, ${actions.length === 1 ? '400px' : '1fr'}))`,
+        justifyContent: 'center',
         gap: '1.5rem', 
         width: '100%' 
       }}>
