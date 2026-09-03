@@ -161,6 +161,7 @@ router.post('/register', requireApiKey, async (req, res) => {
         // Horario global
         targetShift = {
           startTime: `${(settings?.workdayStartHour ?? 9).toString().padStart(2, '0')}:${(settings?.workdayStartMinute ?? 0).toString().padStart(2, '0')}`,
+          endTime: `${(settings?.workdayEndHour ?? 17).toString().padStart(2, '0')}:${(settings?.workdayEndMinute ?? 0).toString().padStart(2, '0')}`,
           tolerance: settings?.latenessToleranceMin ?? 15
         };
       }
@@ -187,6 +188,16 @@ router.post('/register', requireApiKey, async (req, res) => {
         if (diffMins > tolerance) {
           isLate = true;
           lateMinutes = diffMins;
+        }
+
+        if (targetShift.endTime) {
+          const [endHour, endMinute] = targetShift.endTime.split(':').map(Number);
+          let shiftEndTime = new Date();
+          shiftEndTime.setHours(endHour, endMinute, 0, 0);
+
+          if (now.getTime() > shiftEndTime.getTime()) {
+            return res.status(403).json({ error: 'Tu horario ya ha concluido. Se ha registrado una falta por inasistencia.' });
+          }
         }
       }
 

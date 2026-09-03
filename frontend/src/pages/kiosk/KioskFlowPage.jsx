@@ -110,7 +110,8 @@ const KioskFlowPage = () => {
       });
 
       if (!response.ok) {
-        throw new Error('Error al registrar');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Error al registrar');
       }
 
       let msg = 'Registro exitoso';
@@ -123,7 +124,7 @@ const KioskFlowPage = () => {
       setStage(STAGES.SUCCESS);
     } catch (error) {
       console.error(error);
-      alert('Hubo un error al registrar. Intenta de nuevo.');
+      alert(error.message || 'Hubo un error al registrar. Intenta de nuevo.');
       setStage(STAGES.SELECT_ACTION);
     }
   };
