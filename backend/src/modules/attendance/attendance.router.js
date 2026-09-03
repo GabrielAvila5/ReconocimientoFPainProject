@@ -6,10 +6,16 @@ const prisma = require('../../utils/prisma');
 const { euclideanDistance, syncFaceCache } = require('../../utils/faceMath');
 const { emitNotification } = require('../../app'); // Importar para WebSockets
 
-// Helper para obtener inicio del día
+// Helper para obtener inicio del día seguro con Timezone
 const getStartOfDay = () => {
   const now = new Date();
-  return new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+  const tz = 'America/Mexico_City';
+  const formatter = new Intl.DateTimeFormat('en-US', { timeZone: tz, year: 'numeric', month: 'numeric', day: 'numeric' });
+  const parts = formatter.formatToParts(now);
+  const y = parseInt(parts.find(p => p.type === 'year').value, 10);
+  const m = parseInt(parts.find(p => p.type === 'month').value, 10) - 1;
+  const d = parseInt(parts.find(p => p.type === 'day').value, 10);
+  return new Date(Date.UTC(y, m, d));
 };
 
 // ============================================
@@ -167,9 +173,17 @@ router.post('/register', requireApiKey, async (req, res) => {
       }
 
       if (targetShift) {
-        const [hour, minute] = targetShift.startTime.split(':').map(Number);
-        let expectedTime = new Date();
-        expectedTime.setHours(hour, minute, 0, 0);
+        const tz = settings?.timezone || 'America/Mexico_City';
+        
+        const nowFormatter = new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', minute: 'numeric', hour12: false });
+        const nowParts = nowFormatter.formatToParts(now);
+        const nowHourStr = nowParts.find(p => p.type === 'hour').value;
+        const nowHour = nowHourStr === '24' ? 0 : parseInt(nowHourStr, 10);
+        const nowMinute = parseInt(nowParts.find(p => p.type === 'minute').value, 10);
+        const nowTotalMins = nowHour * 60 + nowMinute;
+
+        const [shiftHour, shiftMinute] = targetShift.startTime.split(':').map(Number);
+        let expectedTotalMins = shiftHour * 60 + shiftMinute;
 
         // Check for LATE_ARRIVAL event
         const lateEvent = await prisma.eventRequest.findFirst({
@@ -178,12 +192,16 @@ router.post('/register', requireApiKey, async (req, res) => {
         });
 
         if (lateEvent && lateEvent.startTime) {
-          expectedTime = new Date(lateEvent.startTime);
+          const evFormatter = new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', minute: 'numeric', hour12: false });
+          const evParts = evFormatter.formatToParts(new Date(lateEvent.startTime));
+          const evHourStr = evParts.find(p => p.type === 'hour').value;
+          const evHour = evHourStr === '24' ? 0 : parseInt(evHourStr, 10);
+          const evMinute = parseInt(evParts.find(p => p.type === 'minute').value, 10);
+          expectedTotalMins = evHour * 60 + evMinute;
         }
 
         const tolerance = targetShift.tolerance !== null ? targetShift.tolerance : settings.latenessToleranceMin;
-        const diffMs = now.getTime() - expectedTime.getTime();
-        const diffMins = Math.floor(diffMs / 60000);
+        const diffMins = nowTotalMins - expectedTotalMins;
 
         if (diffMins > tolerance) {
           isLate = true;
@@ -192,10 +210,9 @@ router.post('/register', requireApiKey, async (req, res) => {
 
         if (targetShift.endTime) {
           const [endHour, endMinute] = targetShift.endTime.split(':').map(Number);
-          let shiftEndTime = new Date();
-          shiftEndTime.setHours(endHour, endMinute, 0, 0);
+          const endTotalMins = endHour * 60 + endMinute;
 
-          if (now.getTime() > shiftEndTime.getTime()) {
+          if (nowTotalMins > endTotalMins) {
             return res.status(403).json({ error: 'Tu horario ya ha concluido. Se ha registrado una falta por inasistencia.' });
           }
         }

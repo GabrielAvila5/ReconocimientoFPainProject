@@ -117,14 +117,61 @@ const processAutoCheckout = async () => {
   }
 };
 
+const processAbsences = async () => {
+  console.log('[CRON] Iniciando verificación de inasistencias...');
+  try {
+    const tz = 'America/Mexico_City';
+    const now = new Date();
+    const formatter = new Intl.DateTimeFormat('en-US', { timeZone: tz, year: 'numeric', month: 'numeric', day: 'numeric' });
+    const parts = formatter.formatToParts(now);
+    const y = parseInt(parts.find(p => p.type === 'year').value, 10);
+    const m = parseInt(parts.find(p => p.type === 'month').value, 10) - 1;
+    const d = parseInt(parts.find(p => p.type === 'day').value, 10);
+    const startOfDay = new Date(Date.UTC(y, m, d));
+
+    const employees = await prisma.employee.findMany({
+      where: { isActive: true },
+      select: { id: true, firstName: true, lastName: true }
+    });
+
+    let absenceCount = 0;
+    for (const emp of employees) {
+      const record = await prisma.attendanceRecord.findFirst({
+        where: { employeeId: emp.id, date: startOfDay }
+      });
+
+      if (!record) {
+        absenceCount++;
+        const msg = `${emp.firstName} ${emp.lastName} no registró asistencia el día de hoy.`;
+        
+        await prisma.notification.create({
+          data: {
+            title: 'Falta por Inasistencia',
+            message: msg,
+            type: 'WARNING',
+            category: 'attendance',
+            entityId: emp.id
+          }
+        });
+      }
+    }
+    console.log(`[CRON] Verificación terminada. Se registraron ${absenceCount} inasistencias.`);
+  } catch (error) {
+    console.error('[CRON] Error al procesar inasistencias:', error);
+  }
+};
+
 // Función para inicializar el Cron Job
 const initAttendanceCron = () => {
   // Ejecutar todos los días a las 23:59 con timezone de México
-  cron.schedule('59 23 * * *', processAutoCheckout, {
+  cron.schedule('59 23 * * *', async () => {
+    await processAutoCheckout();
+    await processAbsences();
+  }, {
     scheduled: true,
     timezone: "America/Mexico_City"
   });
-  console.log('[CRON] Tarea de auto-cierre programada (23:59 America/Mexico_City).');
+  console.log('[CRON] Tarea de auto-cierre y verificación de inasistencias programada (23:59 America/Mexico_City).');
 };
 
 // Función de "catch-up" para correr al arrancar el servidor
@@ -136,5 +183,6 @@ const runCatchUp = async () => {
 module.exports = {
   initAttendanceCron,
   runCatchUp,
-  processAutoCheckout
+  processAutoCheckout,
+  processAbsences
 };
