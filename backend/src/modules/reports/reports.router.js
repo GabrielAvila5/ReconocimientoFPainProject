@@ -39,6 +39,64 @@ const getShiftCascadeForEmployees = async (employeeIds) => {
   return map;
 };
 
+const buildEventMapForDateRange = async (start, end, employeeIds = null, department = null) => {
+  const evtWhere = { 
+    status: 'ACTIVE',
+    OR: [
+      { date: { gte: start, lte: end } },
+      { dateTo: { gte: start } } 
+    ]
+  };
+  
+  if (employeeIds && employeeIds.length > 0) {
+    evtWhere.employeeId = { in: employeeIds };
+  }
+  if (department) {
+    evtWhere.employee = { department: { name: department } };
+  }
+
+  const events = await prisma.eventRequest.findMany({
+    where: evtWhere,
+    include: {
+      employee: { select: { id: true, firstName: true, lastName: true, department: { select: { name: true } } } },
+      registeredBy: { select: { name: true } }
+    }
+  });
+
+  const shiftMap = await getShiftCascadeForEmployees([...new Set(events.map(e => e.employeeId))]);
+  const expandedEvents = [];
+
+  for (const evt of events) {
+    if (evt.dateTo) {
+      let currentDate = new Date(evt.date);
+      const limitDate = new Date(evt.dateTo);
+      const actualLimit = limitDate > end ? end : limitDate;
+      
+      while (currentDate <= actualLimit) {
+        if (currentDate >= start) {
+          if ((evt.type === 'OVERTIME' || isWorkingDay(currentDate)) && shiftMap[evt.employeeId]) {
+            expandedEvents.push({ ...evt, dateStr: currentDate.toISOString().split('T')[0] });
+          }
+        }
+        currentDate.setUTCDate(currentDate.getUTCDate() + 1);
+      }
+    } else {
+      if (evt.date >= start && evt.date <= end) {
+        expandedEvents.push({ ...evt, dateStr: new Date(evt.date).toISOString().split('T')[0] });
+      }
+    }
+  }
+
+  const eventMap = {};
+  for (const evt of expandedEvents) {
+    const key = `${evt.employeeId}_${evt.dateStr}`;
+    if (!eventMap[key]) eventMap[key] = [];
+    eventMap[key].push(evt);
+  }
+
+  return { eventMap, expandedEvents, shiftMap };
+};
+
 // ============================================
 // ENDPOINT: /api/v1/reports/kpis
 // ============================================
@@ -63,44 +121,10 @@ router.get('/kpis', async (req, res) => {
 
     const attendances = await prisma.attendanceRecord.findMany({
       where: { date: { gte: start, lte: end } },
-      select: { date: true, isLate: true, entrada: true, salida: true, employeeId: true }
+      select: { date: true, isLate: true, entrada: true, salida: true, recesoInicio: true, recesoFin: true, employeeId: true }
     });
 
-    const events = await prisma.eventRequest.findMany({
-      where: { 
-        status: 'ACTIVE',
-        OR: [
-          { date: { gte: start, lte: end } },
-          { dateTo: { gte: start } } 
-        ]
-      },
-      select: { type: true, minutes: true, date: true, dateTo: true, employeeId: true }
-    });
-
-    // Expandir eventos
-    const expandedEvents = [];
-    const shiftMap = await getShiftCascadeForEmployees([...new Set(events.map(e => e.employeeId))]);
-
-    for (const evt of events) {
-      if (evt.dateTo) {
-        let currentDate = new Date(evt.date);
-        const limitDate = new Date(evt.dateTo);
-        const actualLimit = limitDate > end ? end : limitDate;
-        
-        while (currentDate <= actualLimit) {
-          if (currentDate >= start) {
-            if (isWorkingDay(currentDate) && shiftMap[evt.employeeId]) {
-              expandedEvents.push({ ...evt, dateStr: currentDate.toISOString().split('T')[0] });
-            }
-          }
-          currentDate.setUTCDate(currentDate.getUTCDate() + 1);
-        }
-      } else {
-        if (evt.date >= start && evt.date <= end) {
-          expandedEvents.push({ ...evt, dateStr: new Date(evt.date).toISOString().split('T')[0] });
-        }
-      }
-    }
+    const { eventMap, expandedEvents, shiftMap } = await buildEventMapForDateRange(start, end);
 
     // Calcular KPIs
     let aTiempo = 0;
@@ -114,15 +138,19 @@ router.get('/kpis', async (req, res) => {
     let totalHorasTrabajadas = 0;
     let countHorasTrabajadas = 0;
 
+    // Break KPIs
+    let totalDescansos = 0;
+    let totalDescansoMinutos = 0;
+    let countDescansosCompletos = 0;
+    let retornosTardios = 0;
+    let sinRetorno = 0;
+    let noTomado = 0;
+    let aTiempoDescanso = 0;
+
     const trendMap = {}; 
     const peakHoursMap = {};
-    const eventMap = {};
 
     for (const evt of expandedEvents) {
-      const key = `${evt.employeeId}_${evt.dateStr}`;
-      if (!eventMap[key]) eventMap[key] = [];
-      eventMap[key].push(evt);
-      
       if (evt.type === 'OVERTIME' && evt.minutes) {
         horasExtraMinutos += evt.minutes;
       }
@@ -188,6 +216,55 @@ router.get('/kpis', async (req, res) => {
         totalHorasTrabajadas += diff;
         countHorasTrabajadas++;
       }
+
+      // Break KPIs calculation
+      if (!hasVacation && !hasJustifiedAbsence) {
+        const shift = shiftMap[att.employeeId];
+        if (shift && shift.breakStartTime && shift.breakEndTime) {
+          const [startH, startM] = shift.breakStartTime.split(':').map(Number);
+          const [endH, endM] = shift.breakEndTime.split(':').map(Number);
+          const expectedDurationMins = (endH * 60 + endM) - (startH * 60 + startM);
+
+          if (att.recesoInicio && att.recesoFin) {
+            totalDescansos++;
+            const durationMins = (new Date(att.recesoFin) - new Date(att.recesoInicio)) / (1000 * 60);
+            totalDescansoMinutos += durationMins;
+            countDescansosCompletos++;
+
+            const tolerance = shift.tolerance ?? 15;
+            if (durationMins > expectedDurationMins + tolerance) {
+              retornosTardios++;
+            } else {
+              aTiempoDescanso++;
+            }
+          } else if (att.recesoInicio && !att.recesoFin) {
+            sinRetorno++;
+          } else if (att.entrada && !att.recesoInicio) {
+            // Check if break time has passed today, or if exit recorded
+            let isNoTomado = false;
+            if (att.salida) {
+              isNoTomado = true;
+            } else {
+              const now = new Date();
+              const endBreakDate = new Date(att.date);
+              endBreakDate.setUTCHours(endH, endM, 0, 0); // approx, should be local time ideally, but let's compare local HH:MM
+              const nowLocalMins = now.getHours() * 60 + now.getMinutes();
+              const nowLocalDateStr = now.toISOString().split('T')[0];
+              
+              if (dateStr < nowLocalDateStr) {
+                isNoTomado = true; // Past day
+              } else if (dateStr === nowLocalDateStr) {
+                if (nowLocalMins > (endH * 60 + endM)) {
+                  isNoTomado = true; // Today, but time passed
+                }
+              }
+            }
+            if (isNoTomado) {
+              noTomado++;
+            }
+          }
+        }
+      }
     }
 
     // Detectar Ausencias (Días hábiles sin asistencia ni justificación)
@@ -242,6 +319,8 @@ router.get('/kpis', async (req, res) => {
       accesos: peakHoursMap[time]
     }));
 
+    const promedioDescansoMinutos = countDescansosCompletos > 0 ? (totalDescansoMinutos / countDescansosCompletos).toFixed(1) : 0;
+
     res.json({
       kpis: {
         puntualidadPct,
@@ -249,6 +328,14 @@ router.get('/kpis', async (req, res) => {
         totalAusenciasInjustificadas: ausenciasInjustificadas,
         horasExtraAprobadas: +(horasExtraMinutos / 60).toFixed(1),
         horasPromedio: +horasPromedio
+      },
+      breakKpis: {
+        totalDescansos,
+        promedioDescansoMinutos: +promedioDescansoMinutos,
+        retornosTardios,
+        sinRetorno,
+        noTomado,
+        aTiempo: aTiempoDescanso
       },
       distribution: [
         { name: "A tiempo", value: aTiempo, color: "#10b981" },
@@ -306,54 +393,7 @@ router.get('/attendance-consolidated', async (req, res) => {
       }
     });
 
-    const evtWhere = { 
-      status: 'ACTIVE',
-      OR: [
-        { date: { gte: start, lte: end } },
-        { dateTo: { gte: start } }
-      ]
-    };
-    if (employeeId) evtWhere.employeeId = employeeId;
-    if (department) evtWhere.employee = { department: { name: department } };
-
-    const events = await prisma.eventRequest.findMany({
-      where: evtWhere,
-      include: {
-        employee: { select: { id: true, firstName: true, lastName: true, department: { select: { name: true } } } },
-        registeredBy: { select: { name: true } }
-      }
-    });
-
-    const expandedEvents = [];
-    const shiftMap = await getShiftCascadeForEmployees([...new Set(events.map(e => e.employeeId))]);
-
-    for (const evt of events) {
-      if (evt.dateTo) {
-        let currentDate = new Date(evt.date);
-        const limitDate = new Date(evt.dateTo);
-        const actualLimit = limitDate > end ? end : limitDate;
-        
-        while (currentDate <= actualLimit) {
-          if (currentDate >= start) {
-            if (isWorkingDay(currentDate) && shiftMap[evt.employeeId]) {
-              expandedEvents.push({ ...evt, dateStr: currentDate.toISOString().split('T')[0] });
-            }
-          }
-          currentDate.setUTCDate(currentDate.getUTCDate() + 1);
-        }
-      } else {
-        if (evt.date >= start && evt.date <= end) {
-          expandedEvents.push({ ...evt, dateStr: new Date(evt.date).toISOString().split('T')[0] });
-        }
-      }
-    }
-
-    const eventMap = {};
-    for (const evt of expandedEvents) {
-      const key = `${evt.employeeId}_${evt.dateStr}`;
-      if (!eventMap[key]) eventMap[key] = [];
-      eventMap[key].push(evt);
-    }
+    const { eventMap, shiftMap, expandedEvents } = await buildEventMapForDateRange(start, end, employeeId ? [employeeId] : null, department);
 
     const unifiedList = [];
     const attendanceMap = {};
@@ -533,6 +573,161 @@ router.get('/attendance-consolidated', async (req, res) => {
 
   } catch (error) {
     console.error('Error in /attendance-consolidated:', error);
+    res.status(500).json({ error: 'Error del servidor' });
+  }
+});
+
+// ============================================
+// ENDPOINT: /api/v1/reports/breaks-consolidated
+// ============================================
+router.get('/breaks-consolidated', async (req, res) => {
+  try {
+    const { startDate, endDate, department, employeeId, status, page = 1, limit = 20 } = req.query;
+    
+    const settings = await prisma.systemSettings.findFirst();
+    const tz = settings?.timezone || 'America/Mexico_City';
+
+    if (!startDate || !endDate) return res.status(400).json({ error: 'startDate y endDate son requeridos' });
+
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    
+    if ((end - start) / (1000 * 60 * 60 * 24) > 90) {
+      return res.status(400).json({ error: 'El rango de fechas no puede superar los 90 días' });
+    }
+
+    const attWhere = { date: { gte: start, lte: end } };
+    if (employeeId) attWhere.employeeId = employeeId;
+    if (department) attWhere.employee = { department: { name: department } };
+
+    const attendances = await prisma.attendanceRecord.findMany({
+      where: attWhere,
+      include: {
+        employee: { select: { id: true, firstName: true, lastName: true, department: { select: { name: true } } } }
+      }
+    });
+
+    const { eventMap, shiftMap } = await buildEventMapForDateRange(start, end, employeeId ? [employeeId] : null, department);
+
+    const formatExpectedTime = (timeStr) => {
+      if (!timeStr || timeStr === 'N/A') return 'N/A';
+      const [h, m] = timeStr.split(':');
+      const d = new Date();
+      d.setHours(parseInt(h, 10), parseInt(m, 10), 0);
+      return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    };
+
+    const unifiedList = [];
+
+    for (const att of attendances) {
+      const dateStr = new Date(att.date).toISOString().split('T')[0];
+      const key = `${att.employeeId}_${dateStr}`;
+      const dayEvents = eventMap[key] || [];
+
+      let estadoDescanso = 'Pendiente';
+      let expectedDurationMins = 'N/A';
+      let durationMins = 'N/A';
+      let startTime = 'N/A';
+      let endTime = 'N/A';
+
+      if (dayEvents.some(e => e.type === 'VACATION')) {
+        estadoDescanso = 'Vacaciones';
+      } else if (dayEvents.some(e => e.type === 'JUSTIFIED_ABSENCE')) {
+        estadoDescanso = 'Falta Justificada';
+      } else {
+        const shift = shiftMap[att.employeeId];
+        
+        if (!shift || !shift.breakStartTime || !shift.breakEndTime) {
+          estadoDescanso = 'No aplica';
+        } else {
+          const [startH, startM] = shift.breakStartTime.split(':').map(Number);
+          const [endH, endM] = shift.breakEndTime.split(':').map(Number);
+          expectedDurationMins = (endH * 60 + endM) - (startH * 60 + startM);
+          
+          if (att.recesoInicio && att.recesoFin) {
+            startTime = new Date(att.recesoInicio).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: tz });
+            endTime = new Date(att.recesoFin).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: tz });
+            durationMins = Math.round((new Date(att.recesoFin) - new Date(att.recesoInicio)) / (1000 * 60));
+            
+            const tolerance = shift.tolerance ?? 15;
+            if (durationMins > expectedDurationMins + tolerance) {
+              estadoDescanso = 'Regreso Tardío';
+            } else {
+              estadoDescanso = 'A tiempo';
+            }
+          } else if (att.recesoInicio && !att.recesoFin) {
+            startTime = new Date(att.recesoInicio).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: tz });
+            estadoDescanso = 'Sin Retorno';
+          } else if (att.entrada && !att.recesoInicio) {
+            let isNoTomado = false;
+            if (att.salida) {
+              isNoTomado = true;
+            } else {
+              const now = new Date();
+              const endBreakDate = new Date(att.date);
+              endBreakDate.setUTCHours(endH, endM, 0, 0); 
+              const nowLocalMins = now.getHours() * 60 + now.getMinutes();
+              const nowLocalDateStr = now.toISOString().split('T')[0];
+              
+              if (dateStr < nowLocalDateStr) {
+                isNoTomado = true; 
+              } else if (dateStr === nowLocalDateStr) {
+                if (nowLocalMins > (endH * 60 + endM)) {
+                  isNoTomado = true; 
+                }
+              }
+            }
+            if (isNoTomado) {
+              estadoDescanso = 'No tomado';
+            } else {
+              estadoDescanso = 'Pendiente';
+            }
+          } else {
+             // No entrada, no break = Pendiente (or ignored)
+             estadoDescanso = 'Pendiente';
+          }
+        }
+      }
+
+      unifiedList.push({
+        id: att.id,
+        employeeId: att.employeeId,
+        empleado: `${att.employee.firstName} ${att.employee.lastName}`,
+        departamento: att.employee.department?.name || 'N/A',
+        fecha: dateStr,
+        inicioDescanso: startTime,
+        finDescanso: endTime,
+        duracionReal: durationMins,
+        duracionEsperada: expectedDurationMins,
+        estado: estadoDescanso,
+        _timestamp: new Date(att.date).getTime()
+      });
+    }
+
+    let finalData = unifiedList;
+    if (status && status !== 'Todos los estados') {
+      finalData = unifiedList.filter(row => row.estado === status);
+    }
+
+    finalData.sort((a, b) => b._timestamp - a._timestamp);
+    
+    const pageNum = parseInt(page, 10);
+    const limitNum = parseInt(limit, 10);
+    const startIndex = (pageNum - 1) * limitNum;
+    const paginatedData = finalData.slice(startIndex, startIndex + limitNum);
+
+    res.json({
+      data: paginatedData.map(({ _timestamp, ...rest }) => rest), 
+      meta: {
+        total: finalData.length,
+        page: pageNum,
+        limit: limitNum,
+        totalPages: Math.ceil(finalData.length / limitNum)
+      }
+    });
+
+  } catch (error) {
+    console.error('Error in /breaks-consolidated:', error);
     res.status(500).json({ error: 'Error del servidor' });
   }
 });

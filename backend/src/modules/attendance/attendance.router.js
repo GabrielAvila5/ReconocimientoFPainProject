@@ -4,7 +4,6 @@ const requireApiKey = require('../../middlewares/requireApiKey');
 const requireJwt = require('../../middlewares/requireJwt');
 const prisma = require('../../utils/prisma');
 const { euclideanDistance, syncFaceCache } = require('../../utils/faceMath');
-const { emitNotification } = require('../../app'); // Importar para WebSockets
 
 // Helper para obtener inicio del día seguro con Timezone
 const getStartOfDay = () => {
@@ -251,13 +250,16 @@ router.post('/register', requireApiKey, async (req, res) => {
             }
           });
 
-          emitNotification({
-            title: 'Llegada Tardía',
-            message: msg,
-            type: 'WARNING',
-            category: 'attendance',
-            entityId: employeeId
-          });
+          const appModule = require('../../app');
+          if (appModule.emitNotification) {
+            appModule.emitNotification({
+              title: 'Llegada Tardía',
+              message: msg,
+              type: 'WARNING',
+              category: 'attendance',
+              entityId: employeeId
+            });
+          }
         }
       }
 
@@ -302,13 +304,16 @@ router.post('/register', requireApiKey, async (req, res) => {
         }
       });
 
-      emitNotification({
-        title: 'Salida Anticipada',
-        message: msg,
-        type: 'WARNING',
-        category: 'attendance',
-        entityId: employeeId
-      });
+      const appModule = require('../../app');
+      if (appModule.emitNotification) {
+        appModule.emitNotification({
+          title: 'Salida Anticipada',
+          message: msg,
+          type: 'WARNING',
+          category: 'attendance',
+          entityId: employeeId
+        });
+      }
 
     } else if (action === 'horasExtra') {
       // Bloquear acceso vía kiosk

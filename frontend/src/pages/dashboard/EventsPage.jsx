@@ -230,6 +230,21 @@ const EventTypeBadge = ({ type }) => {
 // Modal para crear un nuevo evento
 const CreateEventModal = ({ onClose, onCreated }) => {
   const [selectedEmp, setSelectedEmp] = useState(null);
+  const [targetType, setTargetType] = useState('employee');
+  const [departments, setDepartments] = useState([]);
+  const [selectedDeptId, setSelectedDeptId] = useState('');
+  
+  useEffect(() => {
+    const fetchDepts = async () => {
+      try {
+        const res = await api.get('/departments');
+        setDepartments(res.data);
+      } catch (err) {
+        console.error('Error fetching departments', err);
+      }
+    };
+    fetchDepts();
+  }, []);
   
   const [formData, setFormData] = useState({
     type: 'OVERTIME',
@@ -245,19 +260,33 @@ const CreateEventModal = ({ onClose, onCreated }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!selectedEmp) return toast.error('Debe seleccionar un empleado');
+    if (targetType === 'employee' && !selectedEmp) return toast.error('Debe seleccionar un empleado');
+    if (targetType === 'department' && !selectedDeptId) return toast.error('Debe seleccionar un departamento');
     
+    // Confirmación para departamento
+    if (targetType === 'department') {
+      const dept = departments.find(d => d.id === selectedDeptId || d.name === selectedDeptId);
+      const deptName = dept ? dept.name : selectedDeptId;
+      const isConfirmed = window.confirm(`¿Estás seguro de asignar Horas Extra masivamente al departamento: ${deptName}? Esto afectará a todos los empleados activos de ese departamento.`);
+      if (!isConfirmed) return;
+    }
+
     setLoading(true);
     
     // Preparar el payload
     const payload = {
-      employeeId: selectedEmp.id,
       type: formData.type,
       date: formData.date,
       reason: formData.reason || 'Sin motivo'
     };
+
+    if (targetType === 'employee') {
+      payload.employeeId = selectedEmp.id;
+    } else {
+      payload.departmentId = selectedDeptId;
+    }
     
-    if (formData.type === 'VACATION' && formData.dateTo) {
+    if ((formData.type === 'VACATION' || formData.type === 'OVERTIME') && formData.dateTo) {
       payload.dateTo = formData.dateTo;
     }
     
@@ -279,7 +308,12 @@ const CreateEventModal = ({ onClose, onCreated }) => {
     }
 
     try {
-      await api.post('/events', payload);
+      const res = await api.post('/events', payload);
+      if (res.data.message) {
+        toast.success(res.data.message); // Mensaje del servidor sobre el batch
+      } else {
+        toast.success('Evento creado exitosamente');
+      }
       onCreated();
     } catch (err) {
       toast.error(err.response?.data?.error || err.message || 'Error al crear evento');
@@ -289,7 +323,7 @@ const CreateEventModal = ({ onClose, onCreated }) => {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose} style={{ zIndex: 100 }}>
+    <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content page-glow" onClick={e => e.stopPropagation()} style={{ maxWidth: '600px' }}>
         <div className="modal-header">
           <h3 style={{ color: '#fff', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -300,13 +334,58 @@ const CreateEventModal = ({ onClose, onCreated }) => {
         
         <form onSubmit={handleSubmit} style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           
-          <div>
-            <label style={labelStyle}>Empleado</label>
-            <EmployeeSearchSelect 
-              selectedEmp={selectedEmp}
-              onSelect={setSelectedEmp}
-            />
-          </div>
+          {formData.type === 'OVERTIME' && (
+            <div>
+              <label style={labelStyle}>Asignar a:</label>
+              <div style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem' }}>
+                <label style={{ color: '#fff', display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                  <input 
+                    type="radio" 
+                    name="targetType" 
+                    value="employee" 
+                    checked={targetType === 'employee'} 
+                    onChange={() => setTargetType('employee')}
+                  />
+                  Empleado Individual
+                </label>
+                <label style={{ color: '#fff', display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                  <input 
+                    type="radio" 
+                    name="targetType" 
+                    value="department" 
+                    checked={targetType === 'department'} 
+                    onChange={() => setTargetType('department')}
+                  />
+                  Departamento Completo
+                </label>
+              </div>
+            </div>
+          )}
+
+          {targetType === 'employee' || formData.type !== 'OVERTIME' ? (
+            <div>
+              <label style={labelStyle}>Empleado</label>
+              <EmployeeSearchSelect 
+                selectedEmp={selectedEmp}
+                onSelect={setSelectedEmp}
+              />
+            </div>
+          ) : (
+            <div>
+              <label style={labelStyle}>Departamento</label>
+              <select 
+                value={selectedDeptId}
+                onChange={e => setSelectedDeptId(e.target.value)}
+                style={inputStyle}
+                required
+              >
+                <option value="">Seleccione un departamento...</option>
+                {departments.map(d => (
+                  <option key={d.id} value={d.id}>{d.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
             <div>
@@ -336,15 +415,15 @@ const CreateEventModal = ({ onClose, onCreated }) => {
             </div>
           </div>
 
-          {formData.type === 'VACATION' && (
+          {(formData.type === 'VACATION' || formData.type === 'OVERTIME') && (
             <div>
-              <label style={labelStyle}>Fecha Fin</label>
+              <label style={labelStyle}>Fecha Fin {formData.type === 'OVERTIME' ? '(Opcional)' : ''}</label>
               <input 
                 type="date" 
                 value={formData.dateTo}
                 onChange={e => setFormData({...formData, dateTo: e.target.value})}
                 style={inputStyle}
-                required
+                required={formData.type === 'VACATION'}
               />
             </div>
           )}

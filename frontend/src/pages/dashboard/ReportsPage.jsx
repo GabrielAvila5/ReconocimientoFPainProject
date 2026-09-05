@@ -114,6 +114,14 @@ const ReportsPage = () => {
     horasExtraAprobadas: 0,
     horasPromedio: 0
   });
+  const [breakKpis, setBreakKpis] = useState({
+    totalDescansos: 0,
+    promedioDescansoMinutos: 0,
+    retornosTardios: 0,
+    sinRetorno: 0,
+    noTomado: 0,
+    aTiempo: 0
+  });
   const [attTrendData, setAttTrendData] = useState([]);
   const [attDistribution, setAttDistribution] = useState([]);
   const [peakHoursData, setPeakHoursData] = useState([]);
@@ -121,6 +129,7 @@ const ReportsPage = () => {
   // Mock Data States (Dispositivos)
   const [devTrendData, setDevTrendData] = useState([]);
   const [attTableData, setAttTableData] = useState([]);
+  const [breakTableData, setBreakTableData] = useState([]);
   const [devTableData, setDevTableData] = useState([]);
 
   const fetchKpis = async () => {
@@ -160,6 +169,7 @@ const ReportsPage = () => {
       const data = await res.json();
       
       setAttKpis(data.kpis);
+      if (data.breakKpis) setBreakKpis(data.breakKpis);
       setAttDistribution(data.distribution);
       setAttTrendData(data.trend);
       setPeakHoursData(data.peakHours);
@@ -173,6 +183,17 @@ const ReportsPage = () => {
       if (tableRes.ok) {
         const tableData = await tableRes.json();
         setAttTableData(tableData.data);
+      }
+
+      // Fetch Breaks Table Data
+      let breakTableUrl = `${import.meta.env.VITE_API_URL || 'http://localhost:4000'}/api/v1/reports/breaks-consolidated?limit=200`;
+      if (startStr && endStr) {
+        breakTableUrl += `&startDate=${startStr}&endDate=${endStr}`;
+      }
+      const breakTableRes = await fetch(breakTableUrl, { headers: { 'Authorization': `Bearer ${token}` } });
+      if (breakTableRes.ok) {
+        const breakData = await breakTableRes.json();
+        setBreakTableData(breakData.data);
       }
 
       // Fetch Departments for filter
@@ -253,6 +274,17 @@ const ReportsPage = () => {
     return res;
   }, [attTableData, selectedDept, selectedStatus]);
   
+  const filteredBreakTable = useMemo(() => {
+    let res = breakTableData;
+    if (selectedDept !== 'Todos los departamentos') {
+      res = res.filter(r => r.departamento === selectedDept);
+    }
+    if (selectedStatus !== 'Todos los estados') {
+      res = res.filter(r => r.estado === selectedStatus);
+    }
+    return res;
+  }, [breakTableData, selectedDept, selectedStatus]);
+
   const filteredDevTable = useMemo(() => filterByDateRange(devTableData), [devTableData, dateRange, customStart, customEnd]);
 
   // KPI (Asistencia)
@@ -292,11 +324,14 @@ const ReportsPage = () => {
   // --- Exports ---
   const exportToCSV = () => {
     let headers, rows;
-    let filename = `Reporte_${activeTab === 'asistencia' ? 'Asistencia' : 'Dispositivos'}.csv`;
+    let filename = `Reporte_${activeTab === 'asistencia' ? 'Asistencia' : activeTab === 'descansos' ? 'Descansos' : 'Dispositivos'}.csv`;
     
     if (activeTab === 'asistencia') {
       headers = ['Empleado', 'Departamento', 'Fecha', 'Entrada Real', 'Salida Real', 'Salida Esperada', 'Horas Trabajadas', 'Horas Extra', 'Estado Asistencia'];
       rows = filteredAttTable.map(r => [r.empleado, r.departamento, r.fecha, r.entrada, r.salida, r.horaEsperadaSalida, r.horasTrabajadas || '0', r.horasExtra ? `Sí (${+(r.overtimeMinutes / 60).toFixed(1)}h)` : 'No', r.estadoAsistencia]);
+    } else if (activeTab === 'descansos') {
+      headers = ['Empleado', 'Departamento', 'Fecha', 'Inicio Descanso', 'Fin Descanso', 'Duración Real', 'Duración Esperada', 'Estado'];
+      rows = filteredBreakTable.map(r => [r.empleado, r.departamento, r.fecha, r.inicioDescanso, r.finDescanso, r.duracionReal, r.duracionEsperada, r.estado]);
     } else {
       headers = ['Dispositivo', 'Ubicación', 'Fecha', 'Lecturas', 'Uptime', 'Estado'];
       rows = filteredDevTable.map(r => [r.dispositivo, r.ubicacion, r.fecha, r.lecturas, r.uptime, r.estado]);
@@ -439,6 +474,23 @@ const ReportsPage = () => {
             <option>Horas Extra</option>
           </select>
         )}
+        {activeTab === 'descansos' && (
+          <select 
+            style={selectStyle} 
+            value={selectedStatus}
+            onChange={(e) => setSelectedStatus(e.target.value)}
+          >
+            <option>Todos los estados</option>
+            <option>A tiempo</option>
+            <option>Regreso Tardío</option>
+            <option>Sin Retorno</option>
+            <option>No tomado</option>
+            <option>Vacaciones</option>
+            <option>Falta Justificada</option>
+            <option>No aplica</option>
+            <option>Pendiente</option>
+          </select>
+        )}
         
       </div>
 
@@ -447,7 +499,7 @@ const ReportsPage = () => {
         
         {/* Print Only Header */}
         <div style={{ display: 'none', marginBottom: '2rem' }} className="print-only">
-          <h1 style={{ color: '#000', fontSize: '24px' }}>Reporte de {activeTab === 'asistencia' ? 'Asistencia' : 'Dispositivos'}</h1>
+          <h1 style={{ color: '#000', fontSize: '24px' }}>Reporte de {activeTab === 'asistencia' ? 'Asistencia' : activeTab === 'descansos' ? 'Descansos' : 'Dispositivos'}</h1>
           <p style={{ color: '#555' }}>Generado el {new Date().toLocaleDateString()}</p>
           <hr style={{ border: '1px solid #ddd' }} />
         </div>
@@ -455,13 +507,19 @@ const ReportsPage = () => {
         {/* Tabs */}
         <div className="no-print" style={{ display: 'flex', background: COLORS.darker, borderRadius: '8px', padding: '4px', border: `1px solid ${COLORS.border}`, width: 'fit-content', marginBottom: '2rem' }}>
           <button 
-            onClick={() => setActiveTab('asistencia')} 
+            onClick={() => { setActiveTab('asistencia'); setSelectedStatus('Todos los estados'); }} 
             style={{ ...toggleBtn, background: activeTab === 'asistencia' ? 'rgba(249, 115, 22, 0.1)' : 'transparent', color: activeTab === 'asistencia' ? COLORS.orange : COLORS.textMuted }}
           >
             Asistencia
           </button>
           <button 
-            onClick={() => setActiveTab('dispositivos')} 
+            onClick={() => { setActiveTab('descansos'); setSelectedStatus('Todos los estados'); }} 
+            style={{ ...toggleBtn, background: activeTab === 'descansos' ? 'rgba(249, 115, 22, 0.1)' : 'transparent', color: activeTab === 'descansos' ? COLORS.orange : COLORS.textMuted }}
+          >
+            Descansos
+          </button>
+          <button 
+            onClick={() => { setActiveTab('dispositivos'); setSelectedStatus('Todos los estados'); }} 
             style={{ ...toggleBtn, background: activeTab === 'dispositivos' ? 'rgba(249, 115, 22, 0.1)' : 'transparent', color: activeTab === 'dispositivos' ? COLORS.orange : COLORS.textMuted }}
           >
             Dispositivos
@@ -490,6 +548,87 @@ const ReportsPage = () => {
                   </h2>
                   <p className="text-xs text-muted" style={{ margin: 0 }}>Registros completos (E/S)</p>
                 </div>
+              </div>
+            </div>
+
+            {/* Table */}
+            <div style={{ ...cardStyle, padding: 0, overflow: 'hidden', marginBottom: '2rem' }}>
+              <table style={tableStyle}>
+                <thead>
+                  <tr style={{ background: COLORS.darker, borderBottom: `1px solid ${COLORS.border}` }}>
+                    <th style={thStyle}>Empleado</th>
+                    <th style={thStyle}>Departamento</th>
+                    <th style={thStyle}>Fecha</th>
+                    <th style={thStyle}>Entrada</th>
+                    <th style={thStyle}>Salida Real</th>
+                    <th style={thStyle}>Salida Esperada</th>
+                    <th style={thStyle}>Horas Extra</th>
+                    <th style={thStyle}>Estado Asistencia</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredAttTable.length === 0 ? (
+                    <tr><td colSpan="8" style={{ padding: '2rem', textAlign: 'center', color: COLORS.textMuted }}>No hay datos para el filtro seleccionado.</td></tr>
+                  ) : filteredAttTable.slice(0, 100).map((row) => {
+                    
+                    let statusColor = COLORS.textMuted;
+                    let statusBg = 'rgba(255,255,255,0.05)';
+                    
+                    if (row.estadoAsistencia.includes('A tiempo') || row.estadoAsistencia.includes('Justificada')) {
+                      statusColor = COLORS.green;
+                      statusBg = 'rgba(16,185,129,0.1)';
+                    } else if (row.estadoAsistencia.includes('Vacaciones')) {
+                      statusColor = COLORS.blue;
+                      statusBg = 'rgba(59, 130, 246, 0.1)';
+                    } else if (row.estadoAsistencia.includes('Tardanza') || row.estadoAsistencia.includes('Ausencia')) {
+                      statusColor = row.estadoAsistencia.includes('Ausencia') ? COLORS.red : COLORS.yellow;
+                      statusBg = row.estadoAsistencia.includes('Ausencia') ? 'rgba(239, 68, 68, 0.1)' : 'rgba(234, 179, 8, 0.1)';
+                    }
+
+                    return (
+                    <tr key={row.id} style={{ borderBottom: `1px solid ${COLORS.border}`, background: row.lateDepartureWithoutOvertime ? 'rgba(239, 68, 68, 0.05)' : 'transparent' }}>
+                      <td style={tdStyle}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                          <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: COLORS.border, display: 'flex', alignItems: 'center', justifyContent: 'center', color: COLORS.textMuted, fontSize: '0.8rem', fontWeight: 600 }}>
+                            {getInitials(row.empleado)}
+                          </div>
+                          <div>
+                            <span style={{ color: COLORS.text, fontWeight: 500 }}>{row.empleado}</span>
+                          </div>
+                        </div>
+                      </td>
+                      <td style={tdStyle}>{row.departamento}</td>
+                      <td style={tdStyle}>{row.fecha}</td>
+                      <td style={tdStyle}>{row.entrada}</td>
+                      <td style={tdStyle}>
+                        <span style={{ color: row.lateDepartureWithoutOvertime ? COLORS.red : 'inherit', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          {row.salida}
+                          {row.lateDepartureWithoutOvertime && <AlertCircle size={14} title="Salida tardía sin horas extra aprobadas" />}
+                        </span>
+                      </td>
+                      <td style={tdStyle}>{row.horaEsperadaSalida}</td>
+                      <td style={tdStyle}>
+                        {row.horasExtra ? (
+                          <span style={{ color: COLORS.blue }}>Sí ({+(row.overtimeMinutes / 60).toFixed(1)}h)</span>
+                        ) : (
+                          <span style={{ color: COLORS.textMuted }}>No</span>
+                        )}
+                      </td>
+                      <td style={tdStyle}>
+                        <span style={{ 
+                          color: statusColor,
+                          background: statusBg,
+                          padding: '2px 8px', borderRadius: '4px', fontSize: '0.8rem'
+                        }}>
+                          {row.estadoAsistencia}
+                        </span>
+                      </td>
+                    </tr>
+                  )})}
+                </tbody>
+              </table>
+              <div className="no-print" style={{ padding: '1rem', textAlign: 'center', color: COLORS.textMuted, fontSize: '0.85rem' }}>
+                Mostrando hasta 100 filas
               </div>
             </div>
 
@@ -600,43 +739,76 @@ const ReportsPage = () => {
                 )}
               </div>
             </div>
+          </div>
+        )}
+
+        {/* TAB 2: DESCANSOS */}
+        {activeTab === 'descansos' && (
+          <div className="space-y-6">
+            {/* KPI Cards */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
+              {renderCard('Total Descansos', breakKpis.totalDescansos, 'Registrados con éxito', CheckCircle, '16, 185, 129')}
+              {renderCard('Regresos Tardíos', breakKpis.retornosTardios, 'Excedieron duración', AlertCircle, '239, 68, 68')}
+              {renderCard('Sin Retorno', breakKpis.sinRetorno, 'Falta marca de fin', UserX, '234, 179, 8')}
+              {renderCard('No Tomados', breakKpis.noTomado, 'No salieron a descanso', Clock, '168, 85, 247')}
+              
+              {/* Promedio */}
+              <div className="card-glow" style={{ ...cardStyle, background: `rgba(59, 130, 246, 0.05)`, border: `1px solid rgba(59, 130, 246, 0.3)`, boxShadow: `0 4px 20px rgba(59, 130, 246, 0.05)` }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ color: COLORS.textMuted, fontSize: '0.75rem', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase' }}>Promedio (Minutos)</span>
+                  <Clock size={18} style={{ color: COLORS.blue }} />
+                </div>
+                <div>
+                  <h2 style={{ fontSize: '2.5rem', color: COLORS.blue, lineHeight: '1', margin: '1rem 0 0.5rem 0' }}>
+                    {loading ? <Skeleton width="60px" height="40px" /> : `${breakKpis.promedioDescansoMinutos}m`}
+                  </h2>
+                  <p className="text-xs text-muted" style={{ margin: 0 }}>Duración real vs esperada</p>
+                </div>
+              </div>
+            </div>
 
             {/* Table */}
-            <div style={{ ...cardStyle, padding: 0, overflow: 'hidden' }}>
+            <div style={{ ...cardStyle, padding: 0, overflow: 'hidden', marginBottom: '2rem' }}>
               <table style={tableStyle}>
                 <thead>
                   <tr style={{ background: COLORS.darker, borderBottom: `1px solid ${COLORS.border}` }}>
                     <th style={thStyle}>Empleado</th>
                     <th style={thStyle}>Departamento</th>
                     <th style={thStyle}>Fecha</th>
-                    <th style={thStyle}>Entrada</th>
-                    <th style={thStyle}>Salida Real</th>
-                    <th style={thStyle}>Salida Esperada</th>
-                    <th style={thStyle}>Horas Extra</th>
-                    <th style={thStyle}>Estado Asistencia</th>
+                    <th style={thStyle}>Inicio Descanso</th>
+                    <th style={thStyle}>Fin Descanso</th>
+                    <th style={thStyle}>Duración Real</th>
+                    <th style={thStyle}>Duración Esperada</th>
+                    <th style={thStyle}>Estado</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredAttTable.length === 0 ? (
+                  {filteredBreakTable.length === 0 ? (
                     <tr><td colSpan="8" style={{ padding: '2rem', textAlign: 'center', color: COLORS.textMuted }}>No hay datos para el filtro seleccionado.</td></tr>
-                  ) : filteredAttTable.slice(0, 100).map((row) => {
+                  ) : filteredBreakTable.slice(0, 100).map((row) => {
                     
                     let statusColor = COLORS.textMuted;
                     let statusBg = 'rgba(255,255,255,0.05)';
                     
-                    if (row.estadoAsistencia.includes('A tiempo') || row.estadoAsistencia.includes('Justificada')) {
+                    if (row.estado === 'A tiempo') {
                       statusColor = COLORS.green;
                       statusBg = 'rgba(16,185,129,0.1)';
-                    } else if (row.estadoAsistencia.includes('Vacaciones')) {
+                    } else if (row.estado === 'Regreso Tardío' || row.estado === 'No tomado') {
+                      statusColor = COLORS.red;
+                      statusBg = 'rgba(239, 68, 68, 0.1)';
+                    } else if (row.estado === 'Sin Retorno') {
+                      statusColor = COLORS.yellow;
+                      statusBg = 'rgba(234, 179, 8, 0.1)';
+                    } else if (row.estado === 'Vacaciones' || row.estado === 'Falta Justificada') {
                       statusColor = COLORS.blue;
                       statusBg = 'rgba(59, 130, 246, 0.1)';
-                    } else if (row.estadoAsistencia.includes('Tardanza') || row.estadoAsistencia.includes('Ausencia')) {
-                      statusColor = row.estadoAsistencia.includes('Ausencia') ? COLORS.red : COLORS.yellow;
-                      statusBg = row.estadoAsistencia.includes('Ausencia') ? 'rgba(239, 68, 68, 0.1)' : 'rgba(234, 179, 8, 0.1)';
+                    } else if (row.estado === 'Pendiente' || row.estado === 'No aplica') {
+                      statusColor = COLORS.textMuted;
+                      statusBg = 'transparent';
                     }
 
                     return (
-                    <tr key={row.id} style={{ borderBottom: `1px solid ${COLORS.border}`, background: row.lateDepartureWithoutOvertime ? 'rgba(239, 68, 68, 0.05)' : 'transparent' }}>
+                    <tr key={row.id} style={{ borderBottom: `1px solid ${COLORS.border}` }}>
                       <td style={tdStyle}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                           <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: COLORS.border, display: 'flex', alignItems: 'center', justifyContent: 'center', color: COLORS.textMuted, fontSize: '0.8rem', fontWeight: 600 }}>
@@ -649,28 +821,17 @@ const ReportsPage = () => {
                       </td>
                       <td style={tdStyle}>{row.departamento}</td>
                       <td style={tdStyle}>{row.fecha}</td>
-                      <td style={tdStyle}>{row.entrada}</td>
-                      <td style={tdStyle}>
-                        <span style={{ color: row.lateDepartureWithoutOvertime ? COLORS.red : 'inherit', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          {row.salida}
-                          {row.lateDepartureWithoutOvertime && <AlertCircle size={14} title="Salida tardía sin horas extra aprobadas" />}
-                        </span>
-                      </td>
-                      <td style={tdStyle}>{row.horaEsperadaSalida}</td>
-                      <td style={tdStyle}>
-                        {row.horasExtra ? (
-                          <span style={{ color: COLORS.blue }}>Sí ({+(row.overtimeMinutes / 60).toFixed(1)}h)</span>
-                        ) : (
-                          <span style={{ color: COLORS.textMuted }}>No</span>
-                        )}
-                      </td>
+                      <td style={tdStyle}>{row.inicioDescanso}</td>
+                      <td style={tdStyle}>{row.finDescanso}</td>
+                      <td style={tdStyle}>{row.duracionReal === 'N/A' ? 'N/A' : `${row.duracionReal}m`}</td>
+                      <td style={tdStyle}>{row.duracionEsperada === 'N/A' ? 'N/A' : `${row.duracionEsperada}m`}</td>
                       <td style={tdStyle}>
                         <span style={{ 
                           color: statusColor,
                           background: statusBg,
                           padding: '2px 8px', borderRadius: '4px', fontSize: '0.8rem'
                         }}>
-                          {row.estadoAsistencia}
+                          {row.estado}
                         </span>
                       </td>
                     </tr>
@@ -684,7 +845,7 @@ const ReportsPage = () => {
           </div>
         )}
 
-        {/* TAB 2: DISPOSITIVOS */}
+        {/* TAB 3: DISPOSITIVOS */}
         {activeTab === 'dispositivos' && (
           <div className="fade-in">
             {/* KPI Cards */}

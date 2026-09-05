@@ -181,6 +181,7 @@ model EventRequest {
   endTime        DateTime?   // Para OVERTIME
   minutes        Int?        
   reason         String      @db.Text
+  batchId        String?     @db.VarChar(50) // Para asignaciones masivas
   registeredById String
   registeredBy   AdminUser   @relation(fields: [registeredById], references: [id], onDelete: Restrict)
   createdAt      DateTime    @default(now())
@@ -188,6 +189,7 @@ model EventRequest {
 
   @@index([employeeId, date, type])
   @@index([status, date])
+  @@index([batchId])
 }
 
 model SystemSettings {

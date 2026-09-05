@@ -1,5 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
+const crypto = require('crypto');
 
 const getEvents = async (req, res) => {
   try {
@@ -38,43 +39,128 @@ const getEvents = async (req, res) => {
 
 const createEvent = async (req, res) => {
   try {
-    const { employeeId, type, date, dateTo, startTime, endTime, minutes, reason } = req.body;
+    const { employeeId, departmentId, type, date, dateTo, startTime, endTime, minutes, reason } = req.body;
 
-    if (!employeeId || !type || !date || !reason) {
+    if ((!employeeId && !departmentId) || !type || !date || !reason) {
       return res.status(400).json({ error: 'Faltan campos obligatorios.' });
     }
 
-    const newEvent = await prisma.eventRequest.create({
-      data: {
-        employeeId,
+    const startDateObj = new Date(date);
+    const endDateObj = dateTo ? new Date(dateTo) : startDateObj;
+    const batchId = crypto.randomUUID();
+
+    if (departmentId && type === 'OVERTIME') {
+      // 1. Obtener empleados activos del departamento
+      const employees = await prisma.employee.findMany({
+        where: {
+          departmentId: departmentId,
+          status: 'ACTIVE'
+        },
+        select: { id: true, firstName: true, lastName: true }
+      });
+
+      if (employees.length === 0) {
+        return res.status(404).json({ error: 'No se encontraron empleados activos en este departamento.' });
+      }
+
+      // 2. Buscar traslapes (empleados que ya tengan OVERTIME activo en ese rango)
+      const overlappingEvents = await prisma.eventRequest.findMany({
+        where: {
+          type: 'OVERTIME',
+          status: 'ACTIVE',
+          employeeId: { in: employees.map(e => e.id) },
+          OR: [
+            {
+              date: { lte: endDateObj },
+              dateTo: { gte: startDateObj }
+            },
+            {
+              date: { lte: endDateObj },
+              dateTo: null,
+              date: { gte: startDateObj } // dateTo es null, comparamos solo date
+            }
+          ]
+        },
+        select: { employeeId: true }
+      });
+
+      const overlappingEmpIds = new Set(overlappingEvents.map(e => e.employeeId));
+      
+      const eligibleEmployees = employees.filter(e => !overlappingEmpIds.has(e.id));
+      const excludedCount = employees.length - eligibleEmployees.length;
+
+      if (eligibleEmployees.length === 0) {
+        return res.status(400).json({ 
+          error: `No se pudo asignar. Los ${employees.length} empleados ya tienen Horas Extra registradas en ese rango.` 
+        });
+      }
+
+      // 3. Crear eventos usando transacción
+      const createData = eligibleEmployees.map(emp => ({
+        employeeId: emp.id,
         type,
-        date: new Date(date),
+        date: startDateObj,
         dateTo: dateTo ? new Date(dateTo) : null,
         startTime: startTime ? new Date(startTime) : null,
         endTime: endTime ? new Date(endTime) : null,
         minutes: minutes ? parseInt(minutes) : null,
         reason,
+        batchId,
         registeredById: req.user.id
-      },
-      include: {
-        employee: {
-          select: { firstName: true, lastName: true }
+      }));
+
+      await prisma.$transaction([
+        prisma.eventRequest.createMany({ data: createData }),
+        prisma.adminAuditLog.create({
+          data: {
+            action: 'CREATE_MASSIVE_OVERTIME',
+            performedById: req.user.id,
+            performedByName: req.user.name || req.user.email || 'Admin',
+            targetName: `Departamento: ${departmentId} (${eligibleEmployees.length} empleados)`,
+            targetEmail: batchId // Guardamos el batchId en este campo
+          }
+        })
+      ]);
+
+      return res.status(201).json({ 
+        message: `Se asignó a ${eligibleEmployees.length} de ${employees.length} empleados activos. ${excludedCount > 0 ? `${excludedCount} excluidos por traslape.` : ''}` 
+      });
+      
+    } else {
+      // Flujo individual
+      const newEvent = await prisma.eventRequest.create({
+        data: {
+          employeeId,
+          type,
+          date: startDateObj,
+          dateTo: dateTo ? new Date(dateTo) : null,
+          startTime: startTime ? new Date(startTime) : null,
+          endTime: endTime ? new Date(endTime) : null,
+          minutes: minutes ? parseInt(minutes) : null,
+          reason,
+          batchId,
+          registeredById: req.user.id
+        },
+        include: {
+          employee: {
+            select: { firstName: true, lastName: true }
+          }
         }
-      }
-    });
+      });
 
-    // Auditoría
-    await prisma.adminAuditLog.create({
-      data: {
-        action: 'CREATE_EVENT_REQUEST',
-        performedById: req.user.id,
-        performedByName: req.user.name || req.user.email || 'Admin',
-        targetName: `${newEvent.employee.firstName} ${newEvent.employee.lastName}`,
-        targetEmail: type // Guardamos el tipo de evento en este campo por conveniencia
-      }
-    });
+      // Auditoría individual
+      await prisma.adminAuditLog.create({
+        data: {
+          action: 'CREATE_EVENT_REQUEST',
+          performedById: req.user.id,
+          performedByName: req.user.name || req.user.email || 'Admin',
+          targetName: `${newEvent.employee.firstName} ${newEvent.employee.lastName}`,
+          targetEmail: type 
+        }
+      });
 
-    res.status(201).json(newEvent);
+      return res.status(201).json(newEvent);
+    }
   } catch (error) {
     console.error('Error creating event:', error);
     res.status(500).json({ error: 'Error interno del servidor' });

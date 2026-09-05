@@ -76,7 +76,7 @@ const EmployeesPage = () => {
   }, [employees]);
 
   const filteredEmployees = useMemo(() => {
-    return employees.filter(emp => {
+    const filtered = employees.filter(emp => {
       const matchSearch = 
         emp.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
         emp.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -87,6 +87,12 @@ const EmployeesPage = () => {
       const matchDepartment = selectedDepartment ? emp.department?.name === selectedDepartment : true;
       
       return matchSearch && matchDepartment;
+    });
+
+    return filtered.sort((a, b) => {
+      const nameA = `${a.firstName} ${a.lastName}`.toLowerCase();
+      const nameB = `${b.firstName} ${b.lastName}`.toLowerCase();
+      return nameA.localeCompare(nameB);
     });
   }, [employees, searchTerm, selectedDepartment]);
 
@@ -854,7 +860,7 @@ const EditEmployeeModal = ({ employee, departmentsList, onClose, onSaved }) => {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose} style={{ zIndex: 100 }}>
+    <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content page-glow" onClick={e => e.stopPropagation()} style={{ maxWidth: '500px' }}>
         <div className="modal-header">
           <h3 style={{ color: '#fff', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>

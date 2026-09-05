@@ -68,12 +68,6 @@ const AttendancePage = () => {
   const combinedRecords = useMemo(() => {
     if (!employees || employees.length === 0 || !settings) return [];
     
-    // Calcular TIME_LIMIT dinámico
-    let totalMinutes = (settings.workdayStartHour * 60) + settings.workdayStartMinute + settings.latenessToleranceMin;
-    const limitHour = Math.floor(totalMinutes / 60) % 24;
-    const limitMinute = totalMinutes % 60;
-    const TIME_LIMIT = `${limitHour.toString().padStart(2, '0')}:${limitMinute.toString().padStart(2, '0')}:00`;
-
     const records = [];
     
     // Diccionario para saber quién ya tiene registro
@@ -90,7 +84,7 @@ const AttendancePage = () => {
       const salidaTime = record.salida ? new Date(record.salida).toTimeString().split(' ')[0] : null;
       
       let puntualidad = 'A tiempo';
-      if (entradaTime && entradaTime > TIME_LIMIT) puntualidad = 'Retardo';
+      if (record.isLate) puntualidad = 'Retardo';
       if (!entradaTime) puntualidad = 'Falta'; // Caso extremo
       
       let tipoStr = 'Entrada';
