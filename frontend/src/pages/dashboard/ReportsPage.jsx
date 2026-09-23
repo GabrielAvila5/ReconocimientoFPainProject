@@ -331,7 +331,16 @@ const ReportsPage = () => {
       rows = filteredAttTable.map(r => [r.empleado, r.departamento, r.fecha, r.entrada, r.salida, r.horaEsperadaSalida, r.horasTrabajadas || '0', r.horasExtra ? `Sí (${+(r.overtimeMinutes / 60).toFixed(1)}h)` : 'No', r.estadoAsistencia]);
     } else if (activeTab === 'descansos') {
       headers = ['Empleado', 'Departamento', 'Fecha', 'Inicio Descanso', 'Fin Descanso', 'Duración Real', 'Duración Esperada', 'Estado'];
-      rows = filteredBreakTable.map(r => [r.empleado, r.departamento, r.fecha, r.inicioDescanso, r.finDescanso, r.duracionReal, r.duracionEsperada, r.estado]);
+      rows = filteredBreakTable.map(r => [
+        r.empleado,
+        r.departamento,
+        r.fecha,
+        r.inicioDescanso || 'N/A',
+        r.finDescanso || 'N/A',
+        r.duracionReal === 'N/A' || r.duracionReal === null || r.duracionReal === undefined ? 'N/A' : `${r.duracionReal} min`,
+        r.duracionEsperada === 'N/A' || r.duracionEsperada === null || r.duracionEsperada === undefined ? 'N/A' : `${r.duracionEsperada} min`,
+        r.estado
+      ]);
     } else {
       headers = ['Dispositivo', 'Ubicación', 'Fecha', 'Lecturas', 'Uptime', 'Estado'];
       rows = filteredDevTable.map(r => [r.dispositivo, r.ubicacion, r.fecha, r.lecturas, r.uptime, r.estado]);

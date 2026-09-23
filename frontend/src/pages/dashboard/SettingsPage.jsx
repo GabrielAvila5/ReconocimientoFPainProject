@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Save, AlertCircle, RefreshCw, Lock, AlertTriangle, X, Clock, Plus, Trash2, UserPlus } from 'lucide-react';
+import { Save, AlertCircle, RefreshCw, Lock, AlertTriangle, X, Clock, Plus, Trash2, UserPlus, Building2 } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../../utils/api';
 import AdminManager from '../../components/AdminManager';
@@ -48,6 +48,19 @@ const SettingsPage = () => {
   const [departments, setDepartments] = useState([]);
   const [editingDepartment, setEditingDepartment] = useState(null);
   const [deptLoading, setDeptLoading] = useState(false);
+  const [isNewDeptModalOpen, setIsNewDeptModalOpen] = useState(false);
+  const [newDeptName, setNewDeptName] = useState('');
+  const [creatingDept, setCreatingDept] = useState(false);
+
+  const [confirmDialog, setConfirmDialog] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    confirmText: 'Confirmar',
+    danger: false,
+    onConfirm: null,
+    loading: false
+  });
 
   const [employees, setEmployees] = useState([]);
   const [editingEmployee, setEditingEmployee] = useState(null);
@@ -98,27 +111,52 @@ const SettingsPage = () => {
     }
   };
 
-  const handleCreateDepartment = async () => {
-    const name = window.prompt('Ingrese el nombre del nuevo departamento:');
-    if (!name) return;
+  const handleOpenCreateDepartment = () => {
+    setNewDeptName('');
+    setIsNewDeptModalOpen(true);
+  };
+
+  const handleCreateDepartment = async (e) => {
+    if (e) e.preventDefault();
+    const trimmed = newDeptName.trim();
+    if (!trimmed) {
+      toast.error('El nombre del departamento es requerido');
+      return;
+    }
     try {
-      await api.post('/departments', { name });
+      setCreatingDept(true);
+      await api.post('/departments', { name: trimmed });
       toast.success('Departamento creado exitosamente');
+      setIsNewDeptModalOpen(false);
+      setNewDeptName('');
       fetchDepartments();
     } catch (err) {
       toast.error(err.response?.data?.error || 'Error al crear departamento');
+    } finally {
+      setCreatingDept(false);
     }
   };
 
-  const handleDeleteDepartment = async (id) => {
-    if (!window.confirm('¿Está seguro de eliminar este departamento?')) return;
-    try {
-      await api.delete(`/departments/${id}`);
-      toast.success('Departamento eliminado exitosamente');
-      fetchDepartments();
-    } catch (err) {
-      toast.error(err.response?.data?.error || 'Error al eliminar departamento');
-    }
+  const handleDeleteDepartment = (id, name) => {
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Eliminar Departamento',
+      message: `¿Está seguro de eliminar el departamento "${name || 'seleccionado'}"? Esta acción no se puede deshacer.`,
+      confirmText: 'Eliminar',
+      danger: true,
+      onConfirm: async () => {
+        try {
+          setConfirmDialog(prev => ({ ...prev, loading: true }));
+          await api.delete(`/departments/${id}`);
+          toast.success('Departamento eliminado exitosamente');
+          setConfirmDialog(prev => ({ ...prev, isOpen: false, loading: false }));
+          fetchDepartments();
+        } catch (err) {
+          toast.error(err.response?.data?.error || 'Error al eliminar departamento');
+          setConfirmDialog(prev => ({ ...prev, loading: false }));
+        }
+      }
+    });
   };
 
   const handleSaveDepartment = async () => {
@@ -165,15 +203,26 @@ const SettingsPage = () => {
     }
   };
 
-  const handleRemoveEmployeeShift = async (id) => {
-    if (!window.confirm('¿Está seguro de desactivar el turno personalizado para este empleado?')) return;
-    try {
-      await api.put(`/employees/${id}/shift`, { useCustom: false });
-      toast.success('Excepción desactivada');
-      fetchEmployees();
-    } catch (err) {
-      toast.error(err.response?.data?.error || 'Error al desactivar excepción');
-    }
+  const handleRemoveEmployeeShift = (id, empName) => {
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Desactivar Excepción',
+      message: `¿Está seguro de desactivar el turno personalizado para ${empName || 'este empleado'}?`,
+      confirmText: 'Desactivar',
+      danger: true,
+      onConfirm: async () => {
+        try {
+          setConfirmDialog(prev => ({ ...prev, loading: true }));
+          await api.put(`/employees/${id}/shift`, { useCustom: false });
+          toast.success('Excepción desactivada');
+          setConfirmDialog(prev => ({ ...prev, isOpen: false, loading: false }));
+          fetchEmployees();
+        } catch (err) {
+          toast.error(err.response?.data?.error || 'Error al desactivar excepción');
+          setConfirmDialog(prev => ({ ...prev, loading: false }));
+        }
+      }
+    });
   };
 
   const handleChange = (field, value) => {
@@ -384,7 +433,7 @@ const SettingsPage = () => {
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '3rem', marginBottom: '1.5rem', borderTop: '1px solid #333', paddingTop: '2rem' }}>
               <h3 style={{ margin: 0, color: '#fff', fontSize: '1.2rem' }}>Excepciones por Departamento</h3>
-              <button onClick={handleCreateDepartment} style={{ ...btnPrimary, padding: '0.5rem 1rem', fontSize: '0.85rem' }}>
+              <button onClick={handleOpenCreateDepartment} style={{ ...btnPrimary, padding: '0.5rem 1rem', fontSize: '0.85rem' }}>
                 <Plus size={16} /> Nuevo Depto
               </button>
             </div>
@@ -431,7 +480,7 @@ const SettingsPage = () => {
                             Editar
                           </button>
                           <button 
-                            onClick={() => handleDeleteDepartment(dept.id)}
+                            onClick={() => handleDeleteDepartment(dept.id, dept.name)}
                             style={{ background: 'transparent', border: '1px solid #3f3f46', color: '#ef4444', padding: '0.4rem 0.5rem', borderRadius: '6px', cursor: 'pointer', transition: 'all 0.2s' }}
                             onMouseOver={e => e.currentTarget.style.borderColor = '#ef4444'}
                             onMouseOut={e => e.currentTarget.style.borderColor = '#3f3f46'}
@@ -498,7 +547,7 @@ const SettingsPage = () => {
                               Editar
                             </button>
                             <button 
-                              onClick={() => handleRemoveEmployeeShift(emp.id)}
+                              onClick={() => handleRemoveEmployeeShift(emp.id, `${emp.firstName} ${emp.lastName}`)}
                               style={{ background: 'transparent', border: '1px solid #3f3f46', color: '#ef4444', padding: '0.4rem 0.5rem', borderRadius: '6px', cursor: 'pointer', transition: 'all 0.2s' }}
                               onMouseOver={e => e.currentTarget.style.borderColor = '#ef4444'}
                               onMouseOut={e => e.currentTarget.style.borderColor = '#3f3f46'}
@@ -991,6 +1040,197 @@ const SettingsPage = () => {
                 </button>
                 <button onClick={handleSaveEmployee} disabled={empLoading} style={{ ...btnPrimary, background: '#3b82f6', opacity: empLoading ? 0.7 : 1 }}>
                   {empLoading ? 'Guardando...' : 'Aplicar'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal de Creación de Nuevo Departamento */}
+        {isNewDeptModalOpen && (
+          <div 
+            style={{ 
+              position: 'fixed', 
+              top: 0, 
+              left: 0, 
+              width: '100%', 
+              height: '100%', 
+              background: 'rgba(0,0,0,0.75)', 
+              backdropFilter: 'blur(4px)',
+              zIndex: 9999, 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              padding: '1rem' 
+            }}
+            onClick={() => !creatingDept && setIsNewDeptModalOpen(false)}
+          >
+            <div 
+              style={{ 
+                background: '#18181b', 
+                border: '1px solid #333', 
+                borderRadius: '12px', 
+                width: '100%', 
+                maxWidth: '440px', 
+                padding: '2rem', 
+                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)' 
+              }}
+              onClick={e => e.stopPropagation()}
+              className="fade-in"
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+                <h3 style={{ margin: 0, color: '#fff', fontSize: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                  <Building2 size={22} style={{ color: '#f97316' }} />
+                  Nuevo Departamento
+                </h3>
+                <button 
+                  onClick={() => setIsNewDeptModalOpen(false)} 
+                  disabled={creatingDept}
+                  style={{ background: 'transparent', border: 'none', color: '#a1a1aa', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '4px' }}
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <p style={{ color: '#a1a1aa', fontSize: '0.875rem', margin: '0 0 1.5rem 0', lineHeight: '1.4' }}>
+                Ingresa el nombre del nuevo departamento para gestionar excepciones de horarios y asignaciones de empleados.
+              </p>
+
+              <form onSubmit={handleCreateDepartment}>
+                <div style={{ marginBottom: '1.75rem' }}>
+                  <label style={labelStyle}>
+                    Nombre del Departamento <span style={{ color: '#f97316' }}>*</span>
+                  </label>
+                  <input 
+                    type="text" 
+                    placeholder="Ej. Recursos Humanos, Logística, TI..." 
+                    value={newDeptName} 
+                    onChange={e => setNewDeptName(e.target.value)} 
+                    style={inputStyle}
+                    autoFocus
+                    required
+                    disabled={creatingDept}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
+                  <button 
+                    type="button" 
+                    onClick={() => setIsNewDeptModalOpen(false)} 
+                    style={btnSecondary}
+                    disabled={creatingDept}
+                  >
+                    Cancelar
+                  </button>
+                  <button 
+                    type="submit" 
+                    disabled={creatingDept || !newDeptName.trim()} 
+                    style={{ 
+                      ...btnPrimary, 
+                      opacity: (creatingDept || !newDeptName.trim()) ? 0.6 : 1,
+                      cursor: (creatingDept || !newDeptName.trim()) ? 'not-allowed' : 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem'
+                    }}
+                  >
+                    {creatingDept ? (
+                      <>
+                        <RefreshCw size={16} className="spin" /> Guardando...
+                      </>
+                    ) : (
+                      <>
+                        <Plus size={16} /> Crear Departamento
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Modal de Confirmación Genérico */}
+        {confirmDialog.isOpen && (
+          <div 
+            style={{ 
+              position: 'fixed', 
+              top: 0, 
+              left: 0, 
+              width: '100%', 
+              height: '100%', 
+              background: 'rgba(0,0,0,0.75)', 
+              backdropFilter: 'blur(4px)',
+              zIndex: 9999, 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              padding: '1rem' 
+            }}
+            onClick={() => !confirmDialog.loading && setConfirmDialog(prev => ({ ...prev, isOpen: false }))}
+          >
+            <div 
+              style={{ 
+                background: '#18181b', 
+                border: '1px solid #333', 
+                borderRadius: '12px', 
+                width: '100%', 
+                maxWidth: '440px', 
+                padding: '2rem', 
+                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)' 
+              }}
+              onClick={e => e.stopPropagation()}
+              className="fade-in"
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
+                <div style={{ 
+                  background: confirmDialog.danger ? 'rgba(239, 68, 68, 0.15)' : 'rgba(249, 115, 22, 0.15)', 
+                  padding: '0.5rem', 
+                  borderRadius: '10px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  <AlertTriangle size={24} style={{ color: confirmDialog.danger ? '#ef4444' : '#f97316' }} />
+                </div>
+                <h3 style={{ margin: 0, color: '#fff', fontSize: '1.2rem' }}>
+                  {confirmDialog.title}
+                </h3>
+              </div>
+
+              <p style={{ color: '#a1a1aa', fontSize: '0.95rem', margin: '0 0 1.75rem 0', lineHeight: '1.5' }}>
+                {confirmDialog.message}
+              </p>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
+                <button 
+                  type="button" 
+                  onClick={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))} 
+                  style={btnSecondary}
+                  disabled={confirmDialog.loading}
+                >
+                  Cancelar
+                </button>
+                <button 
+                  type="button" 
+                  onClick={confirmDialog.onConfirm} 
+                  disabled={confirmDialog.loading} 
+                  style={{ 
+                    ...btnPrimary, 
+                    background: confirmDialog.danger ? '#ef4444' : btnPrimary.background,
+                    opacity: confirmDialog.loading ? 0.7 : 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem'
+                  }}
+                >
+                  {confirmDialog.loading ? (
+                    <>
+                      <RefreshCw size={16} className="spin" /> Procesando...
+                    </>
+                  ) : (
+                    confirmDialog.confirmText
+                  )}
                 </button>
               </div>
             </div>

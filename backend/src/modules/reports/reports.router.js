@@ -13,33 +13,56 @@ const isWorkingDay = (dateObj) => {
 };
 
 const getShiftCascadeForEmployees = async (employeeIds) => {
-  const employees = await prisma.employee.findMany({
-    where: { id: { in: employeeIds } },
-    include: {
-      shifts: { include: { shift: true } },
-      department: { include: { shifts: { include: { shift: true } } } }
-    }
-  });
-
   const settings = await prisma.systemSettings.findFirst();
+  const globalBreakStart = settings?.breakStartTime || '13:00';
+  const globalBreakEnd = settings?.breakEndTime || '14:00';
   const globalShift = {
     id: -1,
     name: 'Horario Global',
-    startTime: `${(settings?.workdayStartHour ?? 9).toString().padStart(2, '0')}:${(settings?.workdayStartMinute ?? 0).toString().padStart(2, '0')}`,
-    endTime: `${(settings?.workdayEndHour ?? 18).toString().padStart(2, '0')}:${(settings?.workdayEndMinute ?? 0).toString().padStart(2, '0')}`,
-    tolerance: settings?.latenessToleranceMin ?? 15
+    startTime: `${(settings?.workdayStartHour ?? 8).toString().padStart(2, '0')}:${(settings?.workdayStartMinute ?? 0).toString().padStart(2, '0')}`,
+    endTime: `${(settings?.workdayEndHour ?? 17).toString().padStart(2, '0')}:${(settings?.workdayEndMinute ?? 0).toString().padStart(2, '0')}`,
+    tolerance: settings?.latenessToleranceMin ?? 15,
+    breakStartTime: globalBreakStart,
+    breakEndTime: globalBreakEnd
   };
 
   const map = {};
-  for (const emp of employees) {
-    if (emp.shifts.length > 0) map[emp.id] = emp.shifts[0].shift;
-    else if (emp.department && emp.department.shifts.length > 0) map[emp.id] = emp.department.shifts[0].shift;
-    else map[emp.id] = globalShift;
+  if (employeeIds && employeeIds.length > 0) {
+    const employees = await prisma.employee.findMany({
+      where: { id: { in: employeeIds } },
+      include: {
+        shifts: { include: { shift: true } },
+        department: { include: { shifts: { include: { shift: true } } } }
+      }
+    });
+
+    for (const emp of employees) {
+      if (emp.shifts && emp.shifts.length > 0) {
+        const s = emp.shifts[0].shift;
+        map[emp.id] = {
+          ...s,
+          breakStartTime: s.breakStartTime || globalBreakStart,
+          breakEndTime: s.breakEndTime || globalBreakEnd,
+          tolerance: (s.tolerance !== undefined && s.tolerance !== null) ? s.tolerance : globalShift.tolerance
+        };
+      } else if (emp.department && emp.department.shifts && emp.department.shifts.length > 0) {
+        const s = emp.department.shifts[0].shift;
+        map[emp.id] = {
+          ...s,
+          breakStartTime: s.breakStartTime || globalBreakStart,
+          breakEndTime: s.breakEndTime || globalBreakEnd,
+          tolerance: (s.tolerance !== undefined && s.tolerance !== null) ? s.tolerance : globalShift.tolerance
+        };
+      } else {
+        map[emp.id] = globalShift;
+      }
+    }
   }
-  return map;
+
+  return { map, globalShift };
 };
 
-const buildEventMapForDateRange = async (start, end, employeeIds = null, department = null) => {
+const buildEventMapForDateRange = async (start, end, employeeIds = null, department = null, extraEmployeeIds = []) => {
   const evtWhere = { 
     status: 'ACTIVE',
     OR: [
@@ -63,10 +86,16 @@ const buildEventMapForDateRange = async (start, end, employeeIds = null, departm
     }
   });
 
-  const shiftMap = await getShiftCascadeForEmployees([...new Set(events.map(e => e.employeeId))]);
+  const allEmpIds = [...new Set([
+    ...events.map(e => e.employeeId),
+    ...(extraEmployeeIds || [])
+  ])];
+
+  const { map: shiftMap, globalShift } = await getShiftCascadeForEmployees(allEmpIds);
   const expandedEvents = [];
 
   for (const evt of events) {
+    const shift = shiftMap[evt.employeeId] || globalShift;
     if (evt.dateTo) {
       let currentDate = new Date(evt.date);
       const limitDate = new Date(evt.dateTo);
@@ -74,7 +103,7 @@ const buildEventMapForDateRange = async (start, end, employeeIds = null, departm
       
       while (currentDate <= actualLimit) {
         if (currentDate >= start) {
-          if ((evt.type === 'OVERTIME' || isWorkingDay(currentDate)) && shiftMap[evt.employeeId]) {
+          if ((evt.type === 'OVERTIME' || isWorkingDay(currentDate)) && shift) {
             expandedEvents.push({ ...evt, dateStr: currentDate.toISOString().split('T')[0] });
           }
         }
@@ -94,7 +123,7 @@ const buildEventMapForDateRange = async (start, end, employeeIds = null, departm
     eventMap[key].push(evt);
   }
 
-  return { eventMap, expandedEvents, shiftMap };
+  return { eventMap, expandedEvents, shiftMap, globalShift };
 };
 
 // ============================================
@@ -124,7 +153,8 @@ router.get('/kpis', async (req, res) => {
       select: { date: true, isLate: true, entrada: true, salida: true, recesoInicio: true, recesoFin: true, employeeId: true }
     });
 
-    const { eventMap, expandedEvents, shiftMap } = await buildEventMapForDateRange(start, end);
+    const attEmpIds = attendances.map(a => a.employeeId);
+    const { eventMap, expandedEvents, shiftMap, globalShift } = await buildEventMapForDateRange(start, end, null, null, attEmpIds);
 
     // Calcular KPIs
     let aTiempo = 0;
@@ -219,49 +249,47 @@ router.get('/kpis', async (req, res) => {
 
       // Break KPIs calculation
       if (!hasVacation && !hasJustifiedAbsence) {
-        const shift = shiftMap[att.employeeId];
-        if (shift && shift.breakStartTime && shift.breakEndTime) {
-          const [startH, startM] = shift.breakStartTime.split(':').map(Number);
-          const [endH, endM] = shift.breakEndTime.split(':').map(Number);
-          const expectedDurationMins = (endH * 60 + endM) - (startH * 60 + startM);
+        const shift = shiftMap[att.employeeId] || globalShift;
+        const breakStart = shift.breakStartTime || globalShift.breakStartTime || '13:00';
+        const breakEnd = shift.breakEndTime || globalShift.breakEndTime || '14:00';
+        const [startH, startM] = breakStart.split(':').map(Number);
+        const [endH, endM] = breakEnd.split(':').map(Number);
+        const expectedDurationMins = (endH * 60 + endM) - (startH * 60 + startM);
 
-          if (att.recesoInicio && att.recesoFin) {
-            totalDescansos++;
-            const durationMins = (new Date(att.recesoFin) - new Date(att.recesoInicio)) / (1000 * 60);
-            totalDescansoMinutos += durationMins;
-            countDescansosCompletos++;
+        if (att.recesoInicio && att.recesoFin) {
+          totalDescansos++;
+          const durationMins = (new Date(att.recesoFin) - new Date(att.recesoInicio)) / (1000 * 60);
+          totalDescansoMinutos += durationMins;
+          countDescansosCompletos++;
 
-            const tolerance = shift.tolerance ?? 15;
-            if (durationMins > expectedDurationMins + tolerance) {
-              retornosTardios++;
-            } else {
-              aTiempoDescanso++;
-            }
-          } else if (att.recesoInicio && !att.recesoFin) {
-            sinRetorno++;
-          } else if (att.entrada && !att.recesoInicio) {
-            // Check if break time has passed today, or if exit recorded
-            let isNoTomado = false;
-            if (att.salida) {
-              isNoTomado = true;
-            } else {
-              const now = new Date();
-              const endBreakDate = new Date(att.date);
-              endBreakDate.setUTCHours(endH, endM, 0, 0); // approx, should be local time ideally, but let's compare local HH:MM
-              const nowLocalMins = now.getHours() * 60 + now.getMinutes();
-              const nowLocalDateStr = now.toISOString().split('T')[0];
-              
-              if (dateStr < nowLocalDateStr) {
-                isNoTomado = true; // Past day
-              } else if (dateStr === nowLocalDateStr) {
-                if (nowLocalMins > (endH * 60 + endM)) {
-                  isNoTomado = true; // Today, but time passed
-                }
+          const tolerance = shift.tolerance ?? 15;
+          if (durationMins > expectedDurationMins + tolerance) {
+            retornosTardios++;
+          } else {
+            aTiempoDescanso++;
+          }
+        } else if (att.recesoInicio && !att.recesoFin) {
+          sinRetorno++;
+        } else if (att.entrada && !att.recesoInicio) {
+          // Check if break time has passed today, or if exit recorded
+          let isNoTomado = false;
+          if (att.salida) {
+            isNoTomado = true;
+          } else {
+            const now = new Date();
+            const nowLocalMins = now.getHours() * 60 + now.getMinutes();
+            const nowLocalDateStr = now.toISOString().split('T')[0];
+            
+            if (dateStr < nowLocalDateStr) {
+              isNoTomado = true; // Past day
+            } else if (dateStr === nowLocalDateStr) {
+              if (nowLocalMins > (endH * 60 + endM)) {
+                isNoTomado = true; // Today, but time passed
               }
             }
-            if (isNoTomado) {
-              noTomado++;
-            }
+          }
+          if (isNoTomado) {
+            noTomado++;
           }
         }
       }
@@ -270,7 +298,7 @@ router.get('/kpis', async (req, res) => {
     // Detectar Ausencias (Días hábiles sin asistencia ni justificación)
     const activeEmployees = await prisma.employee.findMany({ where: { isActive: true }, select: { id: true } });
     const empIds = activeEmployees.map(e => e.id);
-    const empShiftMap = await getShiftCascadeForEmployees(empIds);
+    const { map: empShiftMap } = await getShiftCascadeForEmployees(empIds);
 
     let currentDate = new Date(start);
     const endAbsenceDate = new Date(end) > new Date() ? new Date() : new Date(end); 
@@ -393,7 +421,8 @@ router.get('/attendance-consolidated', async (req, res) => {
       }
     });
 
-    const { eventMap, shiftMap, expandedEvents } = await buildEventMapForDateRange(start, end, employeeId ? [employeeId] : null, department);
+    const attEmpIds = attendances.map(a => a.employeeId);
+    const { eventMap, shiftMap, expandedEvents, globalShift } = await buildEventMapForDateRange(start, end, employeeId ? [employeeId] : null, department, attEmpIds);
 
     const unifiedList = [];
     const attendanceMap = {};
@@ -414,7 +443,7 @@ router.get('/attendance-consolidated', async (req, res) => {
       // We will calculate horasTrabajadas after determining the final exit time
 
       // Calcular hora esperada de salida y horas extra
-      const shift = shiftMap[att.employeeId];
+      const shift = shiftMap[att.employeeId] || globalShift;
       let horaEsperadaSalida = 'N/A';
       let lateDepartureWithoutOvertime = false;
       
@@ -607,7 +636,8 @@ router.get('/breaks-consolidated', async (req, res) => {
       }
     });
 
-    const { eventMap, shiftMap } = await buildEventMapForDateRange(start, end, employeeId ? [employeeId] : null, department);
+    const attEmpIds = attendances.map(a => a.employeeId);
+    const { eventMap, shiftMap, globalShift } = await buildEventMapForDateRange(start, end, employeeId ? [employeeId] : null, department, attEmpIds);
 
     const formatExpectedTime = (timeStr) => {
       if (!timeStr || timeStr === 'N/A') return 'N/A';
@@ -623,6 +653,7 @@ router.get('/breaks-consolidated', async (req, res) => {
       const dateStr = new Date(att.date).toISOString().split('T')[0];
       const key = `${att.employeeId}_${dateStr}`;
       const dayEvents = eventMap[key] || [];
+      const shift = shiftMap[att.employeeId] || globalShift;
 
       let estadoDescanso = 'Pendiente';
       let expectedDurationMins = 'N/A';
@@ -630,63 +661,60 @@ router.get('/breaks-consolidated', async (req, res) => {
       let startTime = 'N/A';
       let endTime = 'N/A';
 
+      // Always extract real recorded break times if present
+      if (att.recesoInicio) {
+        startTime = new Date(att.recesoInicio).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: tz });
+      }
+      if (att.recesoFin) {
+        endTime = new Date(att.recesoFin).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: tz });
+      }
+      if (att.recesoInicio && att.recesoFin) {
+        durationMins = Math.round((new Date(att.recesoFin) - new Date(att.recesoInicio)) / (1000 * 60));
+      }
+
+      // Expected duration from shift or global settings
+      const breakStart = shift.breakStartTime || globalShift.breakStartTime || '13:00';
+      const breakEnd = shift.breakEndTime || globalShift.breakEndTime || '14:00';
+      if (breakStart && breakEnd) {
+        const [startH, startM] = breakStart.split(':').map(Number);
+        const [endH, endM] = breakEnd.split(':').map(Number);
+        expectedDurationMins = (endH * 60 + endM) - (startH * 60 + startM);
+      }
+
       if (dayEvents.some(e => e.type === 'VACATION')) {
         estadoDescanso = 'Vacaciones';
       } else if (dayEvents.some(e => e.type === 'JUSTIFIED_ABSENCE')) {
         estadoDescanso = 'Falta Justificada';
-      } else {
-        const shift = shiftMap[att.employeeId];
-        
-        if (!shift || !shift.breakStartTime || !shift.breakEndTime) {
-          estadoDescanso = 'No aplica';
+      } else if (att.recesoInicio && att.recesoFin) {
+        const tolerance = shift.tolerance ?? 15;
+        if (expectedDurationMins !== 'N/A' && durationMins > expectedDurationMins + tolerance) {
+          estadoDescanso = 'Regreso Tardío';
         } else {
-          const [startH, startM] = shift.breakStartTime.split(':').map(Number);
-          const [endH, endM] = shift.breakEndTime.split(':').map(Number);
-          expectedDurationMins = (endH * 60 + endM) - (startH * 60 + startM);
+          estadoDescanso = 'A tiempo';
+        }
+      } else if (att.recesoInicio && !att.recesoFin) {
+        estadoDescanso = 'Sin Retorno';
+      } else if (att.entrada && !att.recesoInicio) {
+        let isNoTomado = false;
+        if (att.salida) {
+          isNoTomado = true;
+        } else if (breakEnd) {
+          const [endH, endM] = breakEnd.split(':').map(Number);
+          const now = new Date();
+          const nowLocalMins = now.getHours() * 60 + now.getMinutes();
+          const nowLocalDateStr = now.toISOString().split('T')[0];
           
-          if (att.recesoInicio && att.recesoFin) {
-            startTime = new Date(att.recesoInicio).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: tz });
-            endTime = new Date(att.recesoFin).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: tz });
-            durationMins = Math.round((new Date(att.recesoFin) - new Date(att.recesoInicio)) / (1000 * 60));
-            
-            const tolerance = shift.tolerance ?? 15;
-            if (durationMins > expectedDurationMins + tolerance) {
-              estadoDescanso = 'Regreso Tardío';
-            } else {
-              estadoDescanso = 'A tiempo';
+          if (dateStr < nowLocalDateStr) {
+            isNoTomado = true; 
+          } else if (dateStr === nowLocalDateStr) {
+            if (nowLocalMins > (endH * 60 + endM)) {
+              isNoTomado = true; 
             }
-          } else if (att.recesoInicio && !att.recesoFin) {
-            startTime = new Date(att.recesoInicio).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: tz });
-            estadoDescanso = 'Sin Retorno';
-          } else if (att.entrada && !att.recesoInicio) {
-            let isNoTomado = false;
-            if (att.salida) {
-              isNoTomado = true;
-            } else {
-              const now = new Date();
-              const endBreakDate = new Date(att.date);
-              endBreakDate.setUTCHours(endH, endM, 0, 0); 
-              const nowLocalMins = now.getHours() * 60 + now.getMinutes();
-              const nowLocalDateStr = now.toISOString().split('T')[0];
-              
-              if (dateStr < nowLocalDateStr) {
-                isNoTomado = true; 
-              } else if (dateStr === nowLocalDateStr) {
-                if (nowLocalMins > (endH * 60 + endM)) {
-                  isNoTomado = true; 
-                }
-              }
-            }
-            if (isNoTomado) {
-              estadoDescanso = 'No tomado';
-            } else {
-              estadoDescanso = 'Pendiente';
-            }
-          } else {
-             // No entrada, no break = Pendiente (or ignored)
-             estadoDescanso = 'Pendiente';
           }
         }
+        estadoDescanso = isNoTomado ? 'No tomado' : 'Pendiente';
+      } else {
+        estadoDescanso = 'Pendiente';
       }
 
       unifiedList.push({

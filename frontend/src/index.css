@@ -249,6 +249,15 @@ h1, h2, h3, h4 {
   to { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
 .table-row-hover:hover {
   background-color: rgba(255, 255, 255, 0.03) !important;
 }
