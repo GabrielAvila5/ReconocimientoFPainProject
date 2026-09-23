@@ -22,48 +22,8 @@ const COLORS = {
   textMuted: '#a1a1aa'
 };
 
-// --- Mock Data Generators (Devices Only) ---
-const generateDeviceMock = (days = 60) => {
-  const data = [];
-  const now = new Date();
-  for (let i = days; i >= 0; i--) {
-    const d = new Date(now);
-    d.setDate(d.getDate() - i);
-    const dateStr = d.toISOString().split('T')[0];
-    const isWeekend = d.getDay() === 0 || d.getDay() === 6;
-    
-    data.push({
-      date: dateStr,
-      'CAM-01': isWeekend ? 50 : 300 + Math.floor(Math.random() * 100),
-      'KIO-01': isWeekend ? 20 : 150 + Math.floor(Math.random() * 50),
-      'CAM-02': isWeekend ? 30 : 200 + Math.floor(Math.random() * 80),
-      timestamp: d.getTime()
-    });
-  }
-  return data;
-};
-
-const generateTableMockDevices = (days = 7) => {
-  const table = [];
-  const devices = ['CAM-01', 'KIO-01', 'CAM-02'];
-  const locations = ['Entrada Principal', 'Recepción', 'Pasillo Norte'];
-  const now = new Date();
-  for (let i = 0; i < days * 3; i++) {
-    const d = new Date(now);
-    d.setDate(d.getDate() - Math.floor(Math.random() * days));
-    const deviceIdx = Math.floor(Math.random() * devices.length);
-    table.push({
-      id: `dev-${i}`,
-      dispositivo: devices[deviceIdx],
-      ubicacion: locations[deviceIdx],
-      fecha: d.toISOString().split('T')[0],
-      lecturas: 150 + Math.floor(Math.random() * 200),
-      uptime: '99.9%',
-      estado: Math.random() > 0.9 ? 'Inestable' : 'En Línea'
-    });
-  }
-  return table;
-};
+// --- Device Chart Colors ---
+const DEVICE_COLORS = ['#f97316', '#3b82f6', '#10b981', '#a855f7', '#06b6d4', '#eab308', '#ec4899'];
 
 // --- Custom Recharts Tooltip ---
 const CustomTooltip = ({ active, payload, label }) => {
@@ -126,10 +86,18 @@ const ReportsPage = () => {
   const [attDistribution, setAttDistribution] = useState([]);
   const [peakHoursData, setPeakHoursData] = useState([]);
 
-  // Mock Data States (Dispositivos)
-  const [devTrendData, setDevTrendData] = useState([]);
   const [attTableData, setAttTableData] = useState([]);
   const [breakTableData, setBreakTableData] = useState([]);
+
+  // Real Data States (Dispositivos)
+  const [devKpis, setDevKpis] = useState({
+    totalLecturas: 0,
+    enLinea: 0,
+    topNode: 'Sin actividad'
+  });
+  const [devBarData, setDevBarData] = useState([]);
+  const [devTrendData, setDevTrendData] = useState([]);
+  const [devDeviceNames, setDevDeviceNames] = useState([]);
   const [devTableData, setDevTableData] = useState([]);
 
   const fetchKpis = async () => {
@@ -196,6 +164,21 @@ const ReportsPage = () => {
         setBreakTableData(breakData.data);
       }
 
+      // Fetch Devices Consolidated Data
+      let devUrl = `${import.meta.env.VITE_API_URL || 'http://localhost:4000'}/api/v1/reports/devices-consolidated`;
+      if (startStr && endStr) {
+        devUrl += `?startDate=${startStr}&endDate=${endStr}`;
+      }
+      const devRes = await fetch(devUrl, { headers: { 'Authorization': `Bearer ${token}` } });
+      if (devRes.ok) {
+        const devData = await devRes.json();
+        if (devData.kpis) setDevKpis(devData.kpis);
+        if (devData.barData) setDevBarData(devData.barData);
+        if (devData.trendData) setDevTrendData(devData.trendData);
+        if (devData.deviceNames) setDevDeviceNames(devData.deviceNames);
+        if (devData.tableData) setDevTableData(devData.tableData);
+      }
+
       // Fetch Departments for filter
       const depRes = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:4000'}/api/v1/departments`, { headers: { 'Authorization': `Bearer ${token}` } });
       if (depRes.ok) {
@@ -212,11 +195,6 @@ const ReportsPage = () => {
 
   useEffect(() => {
     fetchKpis();
-    // Simulate Dispositivos fetch
-    setTimeout(() => {
-      setDevTrendData(generateDeviceMock(60));
-      setDevTableData(generateTableMockDevices(30));
-    }, 800);
   }, [dateRange, customStart, customEnd]);
 
   const handleRefresh = () => {
@@ -256,7 +234,7 @@ const ReportsPage = () => {
 
   const filteredAttTrend = attTrendData; // Ya viene filtrado del backend
   const doughnutData = attDistribution; // Ya viene del backend
-  const filteredDevTrend = useMemo(() => filterByDateRange(devTrendData), [devTrendData, dateRange, customStart, customEnd]);
+  const filteredDevTrend = devTrendData;
   
   // Lógica para filtrar tablas también por departamento y estado
   const filteredAttTable = useMemo(() => {
@@ -285,41 +263,17 @@ const ReportsPage = () => {
     return res;
   }, [breakTableData, selectedDept, selectedStatus]);
 
-  const filteredDevTable = useMemo(() => filterByDateRange(devTableData), [devTableData, dateRange, customStart, customEnd]);
+  const filteredDevTable = useMemo(() => {
+    let res = devTableData;
+    if (selectedStatus !== 'Todos los estados') {
+      res = res.filter(r => r.estado === selectedStatus);
+    }
+    return res;
+  }, [devTableData, selectedStatus]);
 
-  // KPI (Asistencia)
+  // KPIs
   const attKPI = attKpis;
-
-  // --- KPI Calculations (Dispositivos) ---
-  const devKPI = useMemo(() => {
-    let totalLecturas = 0;
-    const nodeTotals = { 'CAM-01': 0, 'KIO-01': 0, 'CAM-02': 0 };
-    filteredDevTrend.forEach(d => {
-      totalLecturas += (d['CAM-01'] + d['KIO-01'] + d['CAM-02']);
-      nodeTotals['CAM-01'] += d['CAM-01'];
-      nodeTotals['KIO-01'] += d['KIO-01'];
-      nodeTotals['CAM-02'] += d['CAM-02'];
-    });
-    let topNode = 'N/A';
-    let max = -1;
-    Object.keys(nodeTotals).forEach(k => {
-      if (nodeTotals[k] > max) { max = nodeTotals[k]; topNode = k; }
-    });
-    return { totalLecturas, topNode, enLinea: 3 }; // mock 3 active
-  }, [filteredDevTrend]);
-
-
-
-  // --- Bar Chart Dispositivos Data ---
-  const devBarData = useMemo(() => {
-    const nodeTotals = { 'CAM-01': 0, 'KIO-01': 0, 'CAM-02': 0 };
-    filteredDevTrend.forEach(d => {
-      nodeTotals['CAM-01'] += d['CAM-01'];
-      nodeTotals['KIO-01'] += d['KIO-01'];
-      nodeTotals['CAM-02'] += d['CAM-02'];
-    });
-    return Object.keys(nodeTotals).map(k => ({ name: k, lecturas: nodeTotals[k] }));
-  }, [filteredDevTrend]);
+  const devKPI = devKpis;
 
   // --- Exports ---
   const exportToCSV = () => {
@@ -458,14 +412,16 @@ const ReportsPage = () => {
           </div>
         )}
 
-        <select 
-          style={selectStyle} 
-          value={selectedDept}
-          onChange={(e) => setSelectedDept(e.target.value)}
-        >
-          <option>Todos los departamentos</option>
-          {departments.map(d => <option key={d}>{d}</option>)}
-        </select>
+        {activeTab !== 'dispositivos' && (
+          <select 
+            style={selectStyle} 
+            value={selectedDept}
+            onChange={(e) => setSelectedDept(e.target.value)}
+          >
+            <option>Todos los departamentos</option>
+            {departments.map(d => <option key={d}>{d}</option>)}
+          </select>
+        )}
 
         {activeTab === 'asistencia' && (
           <select 
@@ -498,6 +454,18 @@ const ReportsPage = () => {
             <option>Falta Justificada</option>
             <option>No aplica</option>
             <option>Pendiente</option>
+          </select>
+        )}
+        {activeTab === 'dispositivos' && (
+          <select 
+            style={selectStyle} 
+            value={selectedStatus}
+            onChange={(e) => setSelectedStatus(e.target.value)}
+          >
+            <option>Todos los estados</option>
+            <option>En Línea</option>
+            <option>Inestable</option>
+            <option>Desconectado</option>
           </select>
         )}
         
@@ -880,7 +848,11 @@ const ReportsPage = () => {
                       <XAxis dataKey="name" stroke={COLORS.textMuted} fontSize={12} tickLine={false} axisLine={false} />
                       <YAxis stroke={COLORS.textMuted} fontSize={12} tickLine={false} axisLine={false} />
                       <Tooltip content={<CustomTooltip />} />
-                      <Bar name="Lecturas" dataKey="lecturas" fill={COLORS.orange} radius={[4, 4, 0, 0]} animationDuration={1000} />
+                      <Bar name="Lecturas" dataKey="lecturas" radius={[4, 4, 0, 0]} animationDuration={1000}>
+                        {devBarData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={DEVICE_COLORS[index % DEVICE_COLORS.length]} />
+                        ))}
+                      </Bar>
                     </BarChart>
                   </ResponsiveContainer>
                 )}
@@ -897,9 +869,22 @@ const ReportsPage = () => {
                       <YAxis stroke={COLORS.textMuted} fontSize={12} tickLine={false} axisLine={false} />
                       <Tooltip content={<CustomTooltip />} />
                       <Legend iconType="circle" />
-                      <Line type="monotone" name="CAM-01" dataKey="CAM-01" stroke={COLORS.blue} strokeWidth={2} dot={false} activeDot={{r: 4}} />
-                      <Line type="monotone" name="KIO-01" dataKey="KIO-01" stroke={COLORS.orange} strokeWidth={2} dot={false} activeDot={{r: 4}} />
-                      <Line type="monotone" name="CAM-02" dataKey="CAM-02" stroke={COLORS.green} strokeWidth={2} dot={false} activeDot={{r: 4}} />
+                      {devDeviceNames.length === 0 ? (
+                        <Line type="monotone" name="Sin actividad" dataKey="none" stroke={COLORS.border} />
+                      ) : (
+                        devDeviceNames.map((name, idx) => (
+                          <Line
+                            key={name}
+                            type="monotone"
+                            name={name}
+                            dataKey={name}
+                            stroke={DEVICE_COLORS[idx % DEVICE_COLORS.length]}
+                            strokeWidth={2}
+                            dot={false}
+                            activeDot={{ r: 4 }}
+                          />
+                        ))
+                      )}
                     </LineChart>
                   </ResponsiveContainer>
                 )}
@@ -922,17 +907,24 @@ const ReportsPage = () => {
                 <tbody>
                   {filteredDevTable.length === 0 ? (
                     <tr><td colSpan="6" style={{ padding: '2rem', textAlign: 'center', color: COLORS.textMuted }}>No hay datos para el filtro seleccionado.</td></tr>
-                  ) : filteredDevTable.slice(0, 20).map((row) => (
+                  ) : filteredDevTable.slice(0, 50).map((row) => (
                     <tr key={row.id} style={{ borderBottom: `1px solid ${COLORS.border}` }}>
-                      <td style={tdStyle}>{row.dispositivo}</td>
+                      <td style={tdStyle}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                          <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'rgba(249,115,22,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: COLORS.orange, fontSize: '0.8rem', fontWeight: 600 }}>
+                            <Server size={16} />
+                          </div>
+                          <span style={{ color: COLORS.text, fontWeight: 500 }}>{row.dispositivo}</span>
+                        </div>
+                      </td>
                       <td style={tdStyle}>{row.ubicacion}</td>
                       <td style={tdStyle}>{row.fecha}</td>
                       <td style={tdStyle}>{row.lecturas}</td>
                       <td style={tdStyle}>{row.uptime}</td>
                       <td style={tdStyle}>
                         <span style={{ 
-                          color: row.estado === 'En Línea' ? COLORS.green : COLORS.yellow,
-                          background: row.estado === 'En Línea' ? 'rgba(16,185,129,0.1)' : 'rgba(234,179,8,0.1)',
+                          color: row.estado === 'En Línea' ? COLORS.green : row.estado === 'Inestable' ? COLORS.yellow : COLORS.red,
+                          background: row.estado === 'En Línea' ? 'rgba(16,185,129,0.1)' : row.estado === 'Inestable' ? 'rgba(234,179,8,0.1)' : 'rgba(239,68,68,0.1)',
                           padding: '2px 8px', borderRadius: '4px', fontSize: '0.8rem'
                         }}>
                           {row.estado}
@@ -943,7 +935,7 @@ const ReportsPage = () => {
                 </tbody>
               </table>
               <div className="no-print" style={{ padding: '1rem', textAlign: 'center', color: COLORS.textMuted, fontSize: '0.85rem' }}>
-                Mostrando hasta 20 filas (Paginación simulada)
+                Mostrando hasta 50 filas
               </div>
             </div>
 

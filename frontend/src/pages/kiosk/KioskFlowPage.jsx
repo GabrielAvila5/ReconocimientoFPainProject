@@ -99,15 +99,18 @@ const KioskFlowPage = () => {
     setStage(STAGES.PROCESSING);
 
     try {
+      const deviceToken = localStorage.getItem('kiosk_device_token') || '';
       const response = await fetch(`${import.meta.env.VITE_API_URL}/api/v1/attendance/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': 'kiosk-secret-key-123'
+          'x-api-key': 'kiosk-secret-key-123',
+          'x-device-token': deviceToken
         },
         body: JSON.stringify({
           employeeId: employee.id,
           shiftId: selectedShiftId,
+          deviceToken,
           ...payload
         })
       });

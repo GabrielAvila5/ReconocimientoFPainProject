@@ -149,6 +149,21 @@ router.post('/register', requireApiKey, async (req, res) => {
     const now = new Date();
     const settings = await prisma.systemSettings.findFirst();
 
+    // Resolving device from token or fallback
+    const deviceToken = req.headers['x-device-token'] || req.body?.deviceToken;
+    let deviceId = null;
+    if (deviceToken) {
+      const dev = await prisma.device.findUnique({ where: { token: deviceToken }, select: { id: true } });
+      if (dev) {
+        deviceId = dev.id;
+        await prisma.device.update({ where: { id: dev.id }, data: { lastSeenAt: now, status: 'ONLINE' } }).catch(() => {});
+      }
+    }
+    if (!deviceId) {
+      const fallbackDev = await prisma.device.findFirst({ orderBy: { lastSeenAt: 'desc' } });
+      if (fallbackDev) deviceId = fallbackDev.id;
+    }
+
     if (action === 'entrada') {
       if (record && record.entrada) return res.status(400).json({ error: 'Ya tiene entrada registrada' });
 
@@ -225,13 +240,20 @@ router.post('/register', requireApiKey, async (req, res) => {
             entrada: now,
             shiftId: resolvedShiftId,
             isLate,
-            lateMinutes
+            lateMinutes,
+            deviceId
           }
         });
       } else {
         record = await prisma.attendanceRecord.update({
           where: { id: record.id },
-          data: { entrada: now, shiftId: resolvedShiftId, isLate, lateMinutes }
+          data: {
+            entrada: now,
+            shiftId: resolvedShiftId,
+            isLate,
+            lateMinutes,
+            ...(deviceId ? { deviceId } : {})
+          }
         });
       }
 
@@ -267,19 +289,19 @@ router.post('/register', requireApiKey, async (req, res) => {
       if (!record) return res.status(400).json({ error: 'No hay registro de entrada' });
       record = await prisma.attendanceRecord.update({
         where: { id: record.id },
-        data: { salida: now }
+        data: { salida: now, ...(deviceId ? { deviceId } : {}) }
       });
     } else if (action === 'recesoInicio') {
       if (!record) return res.status(400).json({ error: 'No hay registro de entrada' });
       record = await prisma.attendanceRecord.update({
         where: { id: record.id },
-        data: { recesoInicio: now }
+        data: { recesoInicio: now, ...(deviceId ? { deviceId } : {}) }
       });
     } else if (action === 'recesoFin') {
       if (!record) return res.status(400).json({ error: 'No hay registro de entrada' });
       record = await prisma.attendanceRecord.update({
         where: { id: record.id },
-        data: { recesoFin: now }
+        data: { recesoFin: now, ...(deviceId ? { deviceId } : {}) }
       });
     } else if (action === 'salidaAnticipada') {
       // Bloquear acceso vía kiosk
