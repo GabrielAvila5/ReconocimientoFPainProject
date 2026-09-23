@@ -30,11 +30,22 @@ const io = new Server(server, {
   }
 });
 
+app.set('io', io);
+
 io.on('connection', (socket) => {
   console.log('Client connected:', socket.id);
   
   // Unir al room "dashboard" por defecto o basado en algún evento
   socket.join('dashboard');
+
+  // Unirse a sala de autorización de kiosko por UUID
+  socket.on('join_device_auth', (requestId) => {
+    if (requestId) {
+      const room = `device_auth_${requestId}`;
+      socket.join(room);
+      console.log(`Socket ${socket.id} joined auth room: ${room}`);
+    }
+  });
 
   socket.on('disconnect', () => {
     console.log('Client disconnected:', socket.id);
@@ -64,6 +75,8 @@ const adminsRouter = require('./modules/admins/admins.router');
 app.use('/api/v1/admins', adminsRouter);
 const eventsRouter = require('./modules/events/events.router');
 app.use('/api/v1/events', eventsRouter);
+const devicesRouter = require('./modules/devices/devices.router');
+app.use('/api/v1/devices', devicesRouter);
 
 // Manejo de errores 404 para la API
 app.use('/api', (req, res) => {

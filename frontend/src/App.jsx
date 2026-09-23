@@ -13,6 +13,8 @@ import DashboardLayout from './layouts/DashboardLayout';
 // Pages - Kiosk
 import FaceRecognitionPage from './pages/kiosk/FaceRecognitionPage';
 import EnrollmentPage from './pages/kiosk/EnrollmentPage';
+import KioskSetupPage from './pages/kiosk/KioskSetupPage';
+import KioskGuard from './components/KioskGuard';
 
 // Pages - Dashboard
 import DashboardOverview from './pages/dashboard/DashboardOverview';
@@ -33,6 +35,13 @@ import SetupPage from './pages/auth/SetupPage';
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated } = useAuth();
   return isAuthenticated ? children : <Navigate to="/login" replace />;
+};
+
+const SuperAdminRoute = ({ children }) => {
+  const { user, isAuthenticated } = useAuth();
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (user?.role !== 'SUPER_ADMIN') return <Navigate to="/dashboard" replace />;
+  return children;
 };
 
 // Enrutador inteligente para la raíz
@@ -80,13 +89,24 @@ function App() {
       <NotificationProvider>
         <BrowserRouter>
         <Routes>
+          {/* KIOSK SETUP */}
+          <Route path="/kiosk/setup" element={<KioskSetupPage />} />
+
           {/* KIOSK MODULE (Tablet) */}
-          <Route path="/kiosk" element={<KioskLayout />}>
+          <Route path="/kiosk" element={
+            <KioskGuard>
+              <KioskLayout />
+            </KioskGuard>
+          }>
             <Route index element={<FaceRecognitionPage />} />
           </Route>
           
           {/* KIOSK ENROLLMENT (Tablet) */}
-          <Route path="/kiosk/enroll/:employeeId" element={<EnrollmentPage />} />
+          <Route path="/kiosk/enroll/:employeeId" element={
+            <KioskGuard>
+              <EnrollmentPage />
+            </KioskGuard>
+          } />
 
           {/* DASHBOARD MODULE (Admin) */}
           <Route path="/dashboard" element={
@@ -100,7 +120,11 @@ function App() {
             <Route path="calendar" element={<CalendarPage />} />
             <Route path="reports" element={<ReportsPage />} />
             <Route path="events" element={<EventsPage />} />
-            <Route path="devices" element={<DevicesPage />} />
+            <Route path="devices" element={
+              <SuperAdminRoute>
+                <DevicesPage />
+              </SuperAdminRoute>
+            } />
             <Route path="notifications" element={<NotificationsPage />} />
             <Route path="settings" element={<SettingsPage />} />
           </Route>

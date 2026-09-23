@@ -79,7 +79,7 @@ const DashboardLayout = () => {
   ];
 
   const navItemsSistema = [
-    { name: 'Dispositivos', path: '/dashboard/devices', icon: <Monitor size={18} /> },
+    ...(user?.role === 'SUPER_ADMIN' ? [{ name: 'Dispositivos', path: '/dashboard/devices', icon: <Monitor size={18} /> }] : []),
     { name: 'Notificaciones', path: '/dashboard/notifications', icon: <Bell size={18} />, badge: unreadCount > 0 ? unreadCount : undefined },
     { name: 'Configuración', path: '/dashboard/settings', icon: <Settings size={18} /> },
   ];

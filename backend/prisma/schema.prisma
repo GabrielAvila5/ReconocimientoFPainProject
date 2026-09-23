@@ -234,3 +234,53 @@ model SystemSettings {
 
   updatedAt DateTime @updatedAt
 }
+
+enum DeviceType {
+  KIOSK
+  CAMERA
+  TURNSTILE
+}
+
+enum DeviceStatus {
+  ONLINE
+  OFFLINE
+  UNSTABLE
+}
+
+enum AuthRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  EXPIRED
+}
+
+model Device {
+  id          String       @id @default(uuid())
+  name        String
+  type        DeviceType   @default(KIOSK)
+  status      DeviceStatus @default(ONLINE)
+  token       String?      @unique
+  ipAddress   String?
+  description String?
+  lastSeenAt  DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([token])
+}
+
+model DeviceAuthRequest {
+  id          String            @id @default(uuid())
+  deviceId    String?           // Identificador de huella del navegador/cliente para deduplicación
+  pairingCode String            @unique
+  ipAddress   String
+  userAgent   String            @db.Text
+  status      AuthRequestStatus @default(PENDING)
+  expiresAt   DateTime
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@index([pairingCode])
+  @@index([deviceId])
+  @@index([status, expiresAt])
+}

@@ -161,6 +161,26 @@ const processAbsences = async () => {
   }
 };
 
+// Función para marcar como EXPIRED las solicitudes de dispositivo pendientes vencidas
+const cleanExpiredDeviceAuthRequests = async () => {
+  try {
+    const res = await prisma.deviceAuthRequest.updateMany({
+      where: {
+        status: 'PENDING',
+        expiresAt: { lt: new Date() }
+      },
+      data: {
+        status: 'EXPIRED'
+      }
+    });
+    if (res.count > 0) {
+      console.log(`[CRON] Se marcaron ${res.count} solicitudes de emparejamiento de dispositivo como EXPIRED.`);
+    }
+  } catch (error) {
+    console.error('[CRON] Error al limpiar solicitudes expiradas:', error);
+  }
+};
+
 // Función para inicializar el Cron Job
 const initAttendanceCron = () => {
   // Ejecutar todos los días a las 23:59 con timezone de México
@@ -171,18 +191,26 @@ const initAttendanceCron = () => {
     scheduled: true,
     timezone: "America/Mexico_City"
   });
-  console.log('[CRON] Tarea de auto-cierre y verificación de inasistencias programada (23:59 America/Mexico_City).');
+
+  // Limpieza de solicitudes expiradas cada 10 minutos
+  cron.schedule('*/10 * * * *', async () => {
+    await cleanExpiredDeviceAuthRequests();
+  });
+
+  console.log('[CRON] Tareas de auto-cierre y limpieza de solicitudes programadas.');
 };
 
 // Función de "catch-up" para correr al arrancar el servidor
 const runCatchUp = async () => {
-  console.log('[CATCH-UP] Ejecutando catch-up de asistencia al arranque...');
+  console.log('[CATCH-UP] Ejecutando catch-up de asistencia y limpieza al arranque...');
   await processAutoCheckout();
+  await cleanExpiredDeviceAuthRequests();
 };
 
 module.exports = {
   initAttendanceCron,
   runCatchUp,
   processAutoCheckout,
-  processAbsences
+  processAbsences,
+  cleanExpiredDeviceAuthRequests
 };
