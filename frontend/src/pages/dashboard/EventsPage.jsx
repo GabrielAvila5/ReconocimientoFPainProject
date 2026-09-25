@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Search, Filter, Plus, Trash2, AlertCircle, RefreshCw, X, ClipboardList, CheckCircle2 } from 'lucide-react';
+import { Calendar, Search, Filter, Plus, Trash2, AlertCircle, RefreshCw, X, ClipboardList, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { Toaster, toast } from 'sonner';
 import api from '../../utils/api';
 import EmployeeSearchSelect from '../../components/EmployeeSearchSelect';
@@ -9,6 +9,10 @@ const EventsPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  
+  // Estado para modal estilizado de cancelación de evento
+  const [eventToCancel, setEventToCancel] = useState(null);
+  const [isCanceling, setIsCanceling] = useState(false);
   
   // Filtros
   const [searchTerm, setSearchTerm] = useState('');
@@ -33,14 +37,18 @@ const EventsPage = () => {
     fetchEvents();
   }, []);
 
-  const handleCancelEvent = async (id) => {
-    if (!window.confirm('¿Estás seguro de cancelar este evento? No tendrá efecto en la asistencia a partir de ahora.')) return;
+  const handleConfirmCancel = async () => {
+    if (!eventToCancel) return;
     try {
-      await api.delete(`/events/${id}`);
+      setIsCanceling(true);
+      await api.delete(`/events/${eventToCancel.id}`);
       toast.success('Evento cancelado exitosamente');
+      setEventToCancel(null);
       fetchEvents();
     } catch (err) {
       toast.error(err.response?.data?.error || 'Error al cancelar evento');
+    } finally {
+      setIsCanceling(false);
     }
   };
 
@@ -182,8 +190,20 @@ const EventsPage = () => {
                       <td style={{ ...tdStyle, textAlign: 'center' }}>
                         {evt.status === 'ACTIVE' && (
                           <button 
-                            onClick={() => handleCancelEvent(evt.id)}
-                            style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '0.5rem' }}
+                            onClick={() => setEventToCancel(evt)}
+                            style={{ 
+                              background: 'transparent', 
+                              border: 'none', 
+                              color: '#ef4444', 
+                              cursor: 'pointer', 
+                              padding: '0.5rem',
+                              borderRadius: '8px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              transition: 'all 0.2s'
+                            }}
+                            className="btn-trash-action"
                             title="Cancelar Evento"
                           >
                             <Trash2 size={18} />
@@ -199,12 +219,216 @@ const EventsPage = () => {
         </div>
       )}
 
+      {/* Modal Estilizado de Confirmación para Cancelar Evento */}
+      {eventToCancel && (
+        <CancelEventModal 
+          event={eventToCancel}
+          isCanceling={isCanceling}
+          onClose={() => setEventToCancel(null)}
+          onConfirm={handleConfirmCancel}
+        />
+      )}
+
       {isModalOpen && (
         <CreateEventModal 
           onClose={() => setIsModalOpen(false)} 
           onCreated={() => { setIsModalOpen(false); fetchEvents(); toast.success('Evento creado exitosamente'); }} 
         />
       )}
+
+      <style dangerouslySetInnerHTML={{__html: `
+        .btn-trash-action:hover {
+          background-color: rgba(239, 68, 68, 0.15) !important;
+          transform: scale(1.1);
+        }
+        .fade-in-up {
+          animation: fadeInUp 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        @keyframes fadeInUp {
+          from { opacity: 0; transform: translateY(12px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+      `}} />
+    </div>
+  );
+};
+
+// Modal Estilizado para Cancelar Evento
+const CancelEventModal = ({ event, isCanceling, onClose, onConfirm }) => {
+  if (!event) return null;
+
+  const eventDateFormatted = new Date(event.date).toLocaleDateString('es-MX', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric'
+  });
+
+  const eventDateToFormatted = event.dateTo ? new Date(event.dateTo).toLocaleDateString('es-MX', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric'
+  }) : null;
+
+  return (
+    <div className="modal-overlay" onClick={onClose} style={{ zIndex: 1100 }}>
+      <div 
+        className="modal-content page-glow fade-in-up" 
+        onClick={e => e.stopPropagation()} 
+        style={{
+          maxWidth: '460px',
+          padding: '1.75rem',
+          borderRadius: '20px',
+          border: '1px solid rgba(239, 68, 68, 0.35)',
+          boxShadow: '0 20px 50px rgba(0,0,0,0.8), 0 0 30px rgba(239, 68, 68, 0.12)'
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem' }}>
+          <div style={{
+            width: '54px',
+            height: '54px',
+            borderRadius: '16px',
+            backgroundColor: 'rgba(239, 68, 68, 0.12)',
+            border: '1px solid rgba(239, 68, 68, 0.35)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: '0 0 20px rgba(239, 68, 68, 0.15)'
+          }}>
+            <Trash2 size={26} color="#ef4444" />
+          </div>
+          <button 
+            onClick={onClose}
+            disabled={isCanceling}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: '#71717a',
+              cursor: 'pointer',
+              padding: '0.4rem',
+              borderRadius: '8px',
+              transition: 'color 0.2s'
+            }}
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        <h3 style={{ margin: '0 0 0.5rem 0', color: '#fff', fontSize: '1.25rem', fontWeight: 700 }}>
+          ¿Cancelar este evento?
+        </h3>
+        
+        <p style={{ margin: '0 0 1.25rem 0', color: '#a1a1aa', fontSize: '0.9rem', lineHeight: '1.5' }}>
+          ¿Estás seguro de cancelar este evento? No tendrá efecto en la asistencia a partir de ahora.
+        </p>
+
+        {/* Resumen detallado del evento */}
+        <div style={{
+          background: '#121215',
+          border: '1px solid #27272a',
+          borderRadius: '12px',
+          padding: '1rem',
+          marginBottom: '1.5rem',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '0.65rem'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '0.75rem', color: '#71717a', fontWeight: 600 }}>EMPLEADO</span>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: '0.85rem', color: '#fff', fontWeight: 600 }}>
+                {event.employee?.firstName} {event.employee?.lastName}
+              </div>
+              <div style={{ fontSize: '0.75rem', color: '#a1a1aa' }}>
+                ID: {event.employee?.identifier}
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '0.75rem', color: '#71717a', fontWeight: 600 }}>TIPO</span>
+            <EventTypeBadge type={event.type} />
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '0.75rem', color: '#71717a', fontWeight: 600 }}>FECHA / RANGO</span>
+            <span style={{ fontSize: '0.85rem', color: '#e4e4e7', fontWeight: 500 }}>
+              {eventDateFormatted} {eventDateToFormatted ? `hasta ${eventDateToFormatted}` : ''}
+            </span>
+          </div>
+
+          {(event.startTime || event.endTime || event.minutes) && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '0.75rem', color: '#71717a', fontWeight: 600 }}>DETALLE</span>
+              <span style={{ fontSize: '0.85rem', color: '#d4d4d8' }}>
+                {event.minutes ? `${event.minutes / 60} hrs extra` : null}
+                {event.startTime && `Desde ${new Date(event.startTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`}
+                {event.endTime && ` Hasta ${new Date(event.endTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`}
+              </span>
+            </div>
+          )}
+
+          {event.reason && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
+              <span style={{ fontSize: '0.75rem', color: '#71717a', fontWeight: 600 }}>MOTIVO</span>
+              <span style={{ fontSize: '0.8rem', color: '#a1a1aa', textAlign: 'right', maxWidth: '240px' }}>
+                {event.reason}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Botones de acción */}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={isCanceling}
+            style={{
+              padding: '0.65rem 1.25rem',
+              background: '#27272a',
+              color: '#e4e4e7',
+              border: '1px solid #3f3f46',
+              borderRadius: '10px',
+              fontSize: '0.85rem',
+              fontWeight: 500,
+              cursor: 'pointer',
+              transition: 'background 0.2s'
+            }}
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={isCanceling}
+            style={{
+              padding: '0.65rem 1.25rem',
+              background: '#ef4444',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '10px',
+              fontSize: '0.85rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.4rem',
+              boxShadow: '0 4px 14px rgba(239, 68, 68, 0.35)',
+              transition: 'opacity 0.2s'
+            }}
+          >
+            {isCanceling ? (
+              <>
+                <RefreshCw size={14} className="spin" /> Cancelando...
+              </>
+            ) : (
+              <>
+                <Trash2 size={15} /> Aceptar
+              </>
+            )}
+          </button>
+        </div>
+      </div>
     </div>
   );
 };
@@ -257,20 +481,9 @@ const CreateEventModal = ({ onClose, onCreated }) => {
   });
   
   const [loading, setLoading] = useState(false);
+  const [confirmDept, setConfirmDept] = useState(false);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (targetType === 'employee' && !selectedEmp) return toast.error('Debe seleccionar un empleado');
-    if (targetType === 'department' && !selectedDeptId) return toast.error('Debe seleccionar un departamento');
-    
-    // Confirmación para departamento
-    if (targetType === 'department') {
-      const dept = departments.find(d => d.id === selectedDeptId || d.name === selectedDeptId);
-      const deptName = dept ? dept.name : selectedDeptId;
-      const isConfirmed = window.confirm(`¿Estás seguro de asignar Horas Extra masivamente al departamento: ${deptName}? Esto afectará a todos los empleados activos de ese departamento.`);
-      if (!isConfirmed) return;
-    }
-
+  const executeSubmit = async () => {
     setLoading(true);
     
     // Preparar el payload
@@ -319,7 +532,22 @@ const CreateEventModal = ({ onClose, onCreated }) => {
       toast.error(err.response?.data?.error || err.message || 'Error al crear evento');
     } finally {
       setLoading(false);
+      setConfirmDept(false);
     }
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (targetType === 'employee' && !selectedEmp) return toast.error('Debe seleccionar un empleado');
+    if (targetType === 'department' && !selectedDeptId) return toast.error('Debe seleccionar un departamento');
+    
+    // Si es para departamento, mostrar confirmación estilizada
+    if (targetType === 'department') {
+      setConfirmDept(true);
+      return;
+    }
+
+    executeSubmit();
   };
 
   return (
@@ -493,11 +721,74 @@ const CreateEventModal = ({ onClose, onCreated }) => {
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid #3f3f46' }}>
             <button type="button" onClick={onClose} style={btnSecondary}>Cancelar</button>
-            <button type="submit" style={btnPrimary} disabled={loading || !selectedEmp}>
+            <button type="submit" style={btnPrimary} disabled={loading || (targetType === 'employee' && !selectedEmp) || (targetType === 'department' && !selectedDeptId)}>
               {loading ? 'Guardando...' : 'Registrar Evento'}
             </button>
           </div>
         </form>
+
+        {/* Modal de confirmación para asignación masiva a departamento */}
+        {confirmDept && (
+          <div 
+            className="modal-overlay" 
+            style={{ zIndex: 1200 }} 
+            onClick={() => setConfirmDept(false)}
+          >
+            <div 
+              className="modal-content page-glow fade-in-up" 
+              onClick={e => e.stopPropagation()}
+              style={{
+                maxWidth: '440px',
+                padding: '1.75rem',
+                border: '1px solid rgba(234, 179, 8, 0.4)',
+                boxShadow: '0 20px 40px rgba(0,0,0,0.8)'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.75rem' }}>
+                <div style={{
+                  width: '42px',
+                  height: '42px',
+                  borderRadius: '12px',
+                  backgroundColor: 'rgba(234, 179, 8, 0.15)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#eab308'
+                }}>
+                  <AlertTriangle size={22} />
+                </div>
+                <h4 style={{ margin: 0, color: '#fff', fontSize: '1.15rem', fontWeight: 700 }}>
+                  ¿Confirmar asignación masiva?
+                </h4>
+              </div>
+
+              <p style={{ margin: '0 0 1.25rem 0', color: '#d4d4d8', fontSize: '0.85rem', lineHeight: '1.5' }}>
+                Estás a punto de asignar Horas Extra a todos los empleados activos del departamento:{' '}
+                <strong style={{ color: '#fff' }}>
+                  {departments.find(d => d.id === selectedDeptId || d.name === selectedDeptId)?.name || selectedDeptId}
+                </strong>.
+              </p>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+                <button
+                  type="button"
+                  onClick={() => setConfirmDept(false)}
+                  style={btnSecondary}
+                >
+                  Volver
+                </button>
+                <button
+                  type="button"
+                  onClick={executeSubmit}
+                  disabled={loading}
+                  style={btnPrimary}
+                >
+                  {loading ? 'Asignando...' : 'Confirmar y Asignar'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
