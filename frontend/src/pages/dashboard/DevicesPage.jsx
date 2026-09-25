@@ -393,7 +393,10 @@ const DevicesPage = () => {
     if (ip.startsWith('192.168.') || ip.startsWith('10.') || ip.startsWith('172.16.')) {
       return { text: 'Red Local (LAN)', color: '#38bdf8' };
     }
-    return { text: 'IP de Red / WAN', color: '#818cf8' };
+    if (ip.includes(':')) {
+      return { text: 'IPv6 Pública (Hostinger)', color: '#a78bfa' };
+    }
+    return { text: 'IPv4 Pública (Hostinger)', color: '#818cf8' };
   };
 
   return (
@@ -792,7 +795,7 @@ const DevicesPage = () => {
                     <div style={{ fontSize: '0.7rem', color: '#71717a', marginBottom: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
                       Dirección IP
                     </div>
-                    <div style={{ color: '#fff', fontWeight: 600, fontSize: '0.85rem', fontFamily: 'monospace' }}>
+                    <div style={{ color: '#fff', fontWeight: 600, fontSize: '0.85rem', fontFamily: 'monospace', wordBreak: 'break-all' }}>
                       {device.ipAddress || 'Dinámica'}
                     </div>
                     <span style={{ fontSize: '0.65rem', color: ipInfo.color }}>
