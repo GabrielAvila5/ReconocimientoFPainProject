@@ -16,6 +16,26 @@ const TAB_FIELDS = {
   seguridad: []
 };
 
+const formatTimePreview = (timeStr) => {
+  if (!timeStr) return null;
+  const parts = timeStr.split(':');
+  if (parts.length < 2) return null;
+  const h = parseInt(parts[0], 10);
+  const m = parseInt(parts[1], 10);
+  if (isNaN(h) || isNaN(m)) return null;
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const displayH = h % 12 === 0 ? 12 : h % 12;
+  const formatted = `${String(displayH).padStart(2, '0')}:${String(m).padStart(2, '0')} ${ampm}`;
+  if (h >= 1 && h <= 6) {
+    return (
+      <span style={{ color: '#f59e0b', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>
+        ⚠️ {formatted} (Madrugada). ¿Deseas {String(displayH).padStart(2, '0')}:${String(m).padStart(2, '0')} PM ({h + 12}:{String(m).padStart(2, '0')})?
+      </span>
+    );
+  }
+  return <span style={{ color: '#a1a1aa', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>{formatted}</span>;
+};
+
 const SettingsPage = () => {
   const [activeTab, setActiveTab] = useState('general');
   const [loading, setLoading] = useState(true);
@@ -848,6 +868,7 @@ const SettingsPage = () => {
                         onChange={e => setEditingDepartment(prev => ({ ...prev, shift: { ...prev.shift, startTime: e.target.value } }))} 
                         style={inputStyle} 
                       />
+                      {formatTimePreview(editingDepartment.shift.startTime)}
                     </div>
                     <div>
                       <label style={labelStyle}>Hora Salida</label>
@@ -857,6 +878,7 @@ const SettingsPage = () => {
                         onChange={e => setEditingDepartment(prev => ({ ...prev, shift: { ...prev.shift, endTime: e.target.value } }))} 
                         style={inputStyle} 
                       />
+                      {formatTimePreview(editingDepartment.shift.endTime)}
                     </div>
                   </div>
 
@@ -988,6 +1010,7 @@ const SettingsPage = () => {
                         onChange={e => setEditingEmployee(prev => ({ ...prev, shift: { ...prev.shift, startTime: e.target.value } }))} 
                         style={inputStyle} 
                       />
+                      {formatTimePreview(editingEmployee.shift.startTime)}
                     </div>
                     <div>
                       <label style={labelStyle}>Hora Salida</label>
@@ -997,6 +1020,7 @@ const SettingsPage = () => {
                         onChange={e => setEditingEmployee(prev => ({ ...prev, shift: { ...prev.shift, endTime: e.target.value } }))} 
                         style={inputStyle} 
                       />
+                      {formatTimePreview(editingEmployee.shift.endTime)}
                     </div>
                   </div>
 

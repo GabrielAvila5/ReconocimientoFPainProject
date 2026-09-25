@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const requireJwt = require('../../middlewares/requireJwt');
 const prisma = require('../../utils/prisma');
+const { getTzParts, getStartOfDay, getTzDate, getShiftExpectedEndDate, formatExpectedTime, DEFAULT_TZ } = require('../../utils/timeUtils');
 
 router.use(requireJwt);
 
@@ -222,9 +223,10 @@ router.get('/kpis', async (req, res) => {
 
       if (att.entrada) {
         const ent = new Date(att.entrada);
-        const m = ent.getMinutes();
+        const parts = getTzParts(ent, tz);
+        const m = parts.minute;
         const roundedMin = m < 15 ? '00' : m < 30 ? '15' : m < 45 ? '30' : '45';
-        const timeKey = `${ent.getHours().toString().padStart(2, '0')}:${roundedMin}`;
+        const timeKey = `${String(parts.hour).padStart(2, '0')}:${roundedMin}`;
         peakHoursMap[timeKey] = (peakHoursMap[timeKey] || 0) + 1;
       }
 
@@ -234,10 +236,9 @@ router.get('/kpis', async (req, res) => {
         const overtimeEvent = dayEvents.find(e => e.type === 'OVERTIME');
         if (overtimeEvent && shiftMap && shiftMap[att.employeeId]) {
           const shift = shiftMap[att.employeeId];
-          const [expectedH, expectedM] = shift.endTime.split(':').map(Number);
-          const entradaDate = new Date(att.entrada);
-          entradaDate.setUTCHours(expectedH, expectedM + overtimeEvent.minutes, 0, 0);
-          finalSalida = entradaDate.toISOString();
+          const expectedEnd = getShiftExpectedEndDate(att.date || att.entrada, shift.startTime, shift.endTime, tz);
+          const autoExitDate = new Date(expectedEnd.getTime() + overtimeEvent.minutes * 60 * 1000);
+          finalSalida = autoExitDate.toISOString();
         }
       }
 
@@ -276,9 +277,9 @@ router.get('/kpis', async (req, res) => {
           if (att.salida) {
             isNoTomado = true;
           } else {
-            const now = new Date();
-            const nowLocalMins = now.getHours() * 60 + now.getMinutes();
-            const nowLocalDateStr = now.toISOString().split('T')[0];
+            const nowParts = getTzParts(now, tz);
+            const nowLocalMins = nowParts.totalMinutes;
+            const nowLocalDateStr = nowParts.dateStr;
             
             if (dateStr < nowLocalDateStr) {
               isNoTomado = true; // Past day
@@ -391,15 +392,7 @@ router.get('/attendance-consolidated', async (req, res) => {
     const { startDate, endDate, department, employeeId, eventType, page = 1, limit = 20 } = req.query;
     
     const settings = await prisma.systemSettings.findFirst();
-    const tz = settings?.timezone || 'America/Mexico_City';
-
-    const formatExpectedTime = (timeStr) => {
-      if (!timeStr || timeStr === 'N/A') return 'N/A';
-      const [h, m] = timeStr.split(':');
-      const d = new Date();
-      d.setHours(parseInt(h, 10), parseInt(m, 10), 0);
-      return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-    };
+    const tz = settings?.timezone || DEFAULT_TZ;
 
     if (!startDate || !endDate) return res.status(400).json({ error: 'startDate y endDate son requeridos' });
 
@@ -417,7 +410,8 @@ router.get('/attendance-consolidated', async (req, res) => {
     const attendances = await prisma.attendanceRecord.findMany({
       where: attWhere,
       include: {
-        employee: { select: { id: true, firstName: true, lastName: true, department: { select: { name: true } } } }
+        employee: { select: { id: true, firstName: true, lastName: true, department: { select: { name: true } } } },
+        shift: true
       }
     });
 
@@ -443,28 +437,21 @@ router.get('/attendance-consolidated', async (req, res) => {
       // We will calculate horasTrabajadas after determining the final exit time
 
       // Calcular hora esperada de salida y horas extra
-      const shift = shiftMap[att.employeeId] || globalShift;
+      const shift = att.shift || shiftMap[att.employeeId] || globalShift;
       let horaEsperadaSalida = 'N/A';
+      let expectedExitDate = null;
       let lateDepartureWithoutOvertime = false;
       
-      if (shift) {
+      if (shift && shift.endTime) {
         horaEsperadaSalida = shift.endTime; // ej: "18:00"
+        const startTime = shift.startTime || '08:00';
+        expectedExitDate = getShiftExpectedEndDate(att.date || att.entrada, startTime, shift.endTime, tz);
         
-        // Determinar si salió tarde
-        if (att.salida) {
-          const salidaObj = new Date(att.salida);
-          const [expectedH, expectedM] = shift.endTime.split(':').map(Number);
-          
-          // Crear un Date de la salida esperada basado en la fecha de att.salida
-          const expectedDate = new Date(att.salida);
-          expectedDate.setUTCHours(expectedH, expectedM, 0, 0); // Assuming DB times are in UTC, wait...
-          // Actually, att.salida is an ISO string, but the shift is local time.
-          // In a real app we'd use timezone, but here we can just compare hours/mins of local time:
-          const salidaLocalMins = salidaObj.getHours() * 60 + salidaObj.getMinutes();
-          const expectedLocalMins = expectedH * 60 + expectedM;
-          
-          // Si salió después de su hora esperada (con un margen de gracia de 5 mins, por ejemplo)
-          if (salidaLocalMins > expectedLocalMins + 5) {
+        // Determinar si salió tarde comparando timestamps con tolerancia de 5 minutos
+        if (att.salida && expectedExitDate) {
+          const salidaTime = new Date(att.salida).getTime();
+          const gracePeriodMs = 5 * 60 * 1000;
+          if (salidaTime > (expectedExitDate.getTime() + gracePeriodMs)) {
             lateDepartureWithoutOvertime = !dayEvents.some(e => e.type === 'OVERTIME');
           }
         }
@@ -478,11 +465,9 @@ router.get('/attendance-consolidated', async (req, res) => {
       let finalSalida = att.salida;
       let isAutoExit = false;
 
-      if (!finalSalida && att.entrada && shift && horasExtra) {
-        const entradaDate = new Date(att.entrada);
-        const [expectedH, expectedM] = shift.endTime.split(':').map(Number);
-        entradaDate.setUTCHours(expectedH, expectedM + overtimeMinutes, 0, 0); 
-        finalSalida = entradaDate.toISOString();
+      if (!finalSalida && att.entrada && expectedExitDate && horasExtra) {
+        const autoExitDate = new Date(expectedExitDate.getTime() + overtimeMinutes * 60 * 1000);
+        finalSalida = autoExitDate.toISOString();
         isAutoExit = true;
       }
 
@@ -536,13 +521,11 @@ router.get('/attendance-consolidated', async (req, res) => {
           overtimeMinutes = overtimeEventsVirt.reduce((sum, e) => sum + (e.minutes || 0), 0);
           const shift = shiftMap[evt.employeeId];
           const [startH, startM] = shift.startTime.split(':').map(Number);
-          const [endH, endM] = shift.endTime.split(':').map(Number);
+          const [y, m, d] = evt.dateStr.split('-').map(Number);
           
-          const ent = new Date(evt.dateStr);
-          ent.setUTCHours(startH, startM, 0, 0);
-          
-          const sal = new Date(evt.dateStr);
-          sal.setUTCHours(endH, endM + overtimeMinutes, 0, 0);
+          const ent = getTzDate(y, m, d, startH, startM, 0, tz);
+          const expectedEnd = getShiftExpectedEndDate(evt.dateStr, shift.startTime, shift.endTime, tz);
+          const sal = new Date(expectedEnd.getTime() + overtimeMinutes * 60 * 1000);
 
           simulatedEntrada = ent.toISOString();
           simulatedSalida = sal.toISOString();
@@ -614,7 +597,7 @@ router.get('/breaks-consolidated', async (req, res) => {
     const { startDate, endDate, department, employeeId, status, page = 1, limit = 20 } = req.query;
     
     const settings = await prisma.systemSettings.findFirst();
-    const tz = settings?.timezone || 'America/Mexico_City';
+    const tz = settings?.timezone || DEFAULT_TZ;
 
     if (!startDate || !endDate) return res.status(400).json({ error: 'startDate y endDate son requeridos' });
 
@@ -638,14 +621,6 @@ router.get('/breaks-consolidated', async (req, res) => {
 
     const attEmpIds = attendances.map(a => a.employeeId);
     const { eventMap, shiftMap, globalShift } = await buildEventMapForDateRange(start, end, employeeId ? [employeeId] : null, department, attEmpIds);
-
-    const formatExpectedTime = (timeStr) => {
-      if (!timeStr || timeStr === 'N/A') return 'N/A';
-      const [h, m] = timeStr.split(':');
-      const d = new Date();
-      d.setHours(parseInt(h, 10), parseInt(m, 10), 0);
-      return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-    };
 
     const unifiedList = [];
 
@@ -701,8 +676,9 @@ router.get('/breaks-consolidated', async (req, res) => {
         } else if (breakEnd) {
           const [endH, endM] = breakEnd.split(':').map(Number);
           const now = new Date();
-          const nowLocalMins = now.getHours() * 60 + now.getMinutes();
-          const nowLocalDateStr = now.toISOString().split('T')[0];
+          const nowParts = getTzParts(now, tz);
+          const nowLocalMins = nowParts.totalMinutes;
+          const nowLocalDateStr = nowParts.dateStr;
           
           if (dateStr < nowLocalDateStr) {
             isNoTomado = true; 
@@ -928,7 +904,7 @@ router.get('/devices-consolidated', async (req, res) => {
           id: `row-${d.id}-empty`,
           dispositivo: d.name,
           ubicacion: d.description ? (d.description.length > 30 ? (d.ipAddress || 'Kiosko') : d.description) : (d.ipAddress || 'Estación Principal'),
-          fecha: new Date().toISOString().split('T')[0],
+          fecha: getTzParts(new Date(), tz).dateStr,
           lecturas: 0,
           uptime: d.status === 'ONLINE' ? '99.9%' : d.status === 'UNSTABLE' ? '85.0%' : '0%',
           estado: d.status === 'ONLINE' ? 'En Línea' : d.status === 'UNSTABLE' ? 'Inestable' : 'Desconectado'

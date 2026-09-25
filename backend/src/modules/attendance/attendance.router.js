@@ -4,18 +4,8 @@ const requireApiKey = require('../../middlewares/requireApiKey');
 const requireJwt = require('../../middlewares/requireJwt');
 const prisma = require('../../utils/prisma');
 const { euclideanDistance, syncFaceCache } = require('../../utils/faceMath');
-
-// Helper para obtener inicio del día seguro con Timezone
-const getStartOfDay = () => {
-  const now = new Date();
-  const tz = 'America/Mexico_City';
-  const formatter = new Intl.DateTimeFormat('en-US', { timeZone: tz, year: 'numeric', month: 'numeric', day: 'numeric' });
-  const parts = formatter.formatToParts(now);
-  const y = parseInt(parts.find(p => p.type === 'year').value, 10);
-  const m = parseInt(parts.find(p => p.type === 'month').value, 10) - 1;
-  const d = parseInt(parts.find(p => p.type === 'day').value, 10);
-  return new Date(Date.UTC(y, m, d));
-};
+const { getStartOfDay, getTzParts, DEFAULT_TZ } = require('../../utils/timeUtils');
+const { processAutoCheckout } = require('../../jobs/attendanceCron');
 
 // ============================================
 // RUTAS PARA EL KIOSCO (API KEY)
@@ -73,7 +63,13 @@ router.post('/validate', requireApiKey, async (req, res) => {
 router.get('/context/:employeeId', requireApiKey, async (req, res) => {
   try {
     const { employeeId } = req.params;
-    const startOfDay = getStartOfDay();
+
+    // Self-Healing: cerrar automáticamente registros previos olvidados del empleado
+    await processAutoCheckout(employeeId);
+
+    const settings = await prisma.systemSettings.findFirst();
+    const tz = settings?.timezone || DEFAULT_TZ;
+    const startOfDay = getStartOfDay(new Date(), tz);
 
     // 1. Obtener registro de hoy
     const todayRecord = await prisma.attendanceRecord.findFirst({
@@ -141,13 +137,20 @@ router.post('/register', requireApiKey, async (req, res) => {
       return res.status(400).json({ error: 'employeeId y action son obligatorios' });
     }
 
-    const startOfDay = getStartOfDay();
+    const settings = await prisma.systemSettings.findFirst();
+    const tz = settings?.timezone || DEFAULT_TZ;
+
+    // Self-Healing: Si va a registrar entrada, cerrar cualquier turno pendiente de días anteriores
+    if (action === 'entrada') {
+      await processAutoCheckout(employeeId);
+    }
+
+    const startOfDay = getStartOfDay(new Date(), tz);
     let record = await prisma.attendanceRecord.findFirst({
       where: { employeeId, date: startOfDay }
     });
 
     const now = new Date();
-    const settings = await prisma.systemSettings.findFirst();
 
     // Resolving device from token or fallback
     const deviceToken = req.headers['x-device-token'] || req.body?.deviceToken;
@@ -207,14 +210,8 @@ router.post('/register', requireApiKey, async (req, res) => {
       }
 
       if (targetShift) {
-        const tz = settings?.timezone || 'America/Mexico_City';
-        
-        const nowFormatter = new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', minute: 'numeric', hour12: false });
-        const nowParts = nowFormatter.formatToParts(now);
-        const nowHourStr = nowParts.find(p => p.type === 'hour').value;
-        const nowHour = nowHourStr === '24' ? 0 : parseInt(nowHourStr, 10);
-        const nowMinute = parseInt(nowParts.find(p => p.type === 'minute').value, 10);
-        const nowTotalMins = nowHour * 60 + nowMinute;
+        const nowParts = getTzParts(now, tz);
+        const nowTotalMins = nowParts.totalMinutes;
 
         const [shiftHour, shiftMinute] = targetShift.startTime.split(':').map(Number);
         let expectedTotalMins = shiftHour * 60 + shiftMinute;
@@ -226,29 +223,16 @@ router.post('/register', requireApiKey, async (req, res) => {
         });
 
         if (lateEvent && lateEvent.startTime) {
-          const evFormatter = new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', minute: 'numeric', hour12: false });
-          const evParts = evFormatter.formatToParts(new Date(lateEvent.startTime));
-          const evHourStr = evParts.find(p => p.type === 'hour').value;
-          const evHour = evHourStr === '24' ? 0 : parseInt(evHourStr, 10);
-          const evMinute = parseInt(evParts.find(p => p.type === 'minute').value, 10);
-          expectedTotalMins = evHour * 60 + evMinute;
+          const evParts = getTzParts(new Date(lateEvent.startTime), tz);
+          expectedTotalMins = evParts.totalMinutes;
         }
 
-        const tolerance = targetShift.tolerance !== null ? targetShift.tolerance : settings.latenessToleranceMin;
+        const tolerance = targetShift.tolerance !== null ? targetShift.tolerance : (settings?.latenessToleranceMin ?? 15);
         const diffMins = nowTotalMins - expectedTotalMins;
 
         if (diffMins > tolerance) {
           isLate = true;
           lateMinutes = diffMins;
-        }
-
-        if (targetShift.endTime) {
-          const [endHour, endMinute] = targetShift.endTime.split(':').map(Number);
-          const endTotalMins = endHour * 60 + endMinute;
-
-          if (nowTotalMins > endTotalMins) {
-            return res.status(403).json({ error: 'Tu horario ya ha concluido. Se ha registrado una falta por inasistencia.' });
-          }
         }
       }
 
