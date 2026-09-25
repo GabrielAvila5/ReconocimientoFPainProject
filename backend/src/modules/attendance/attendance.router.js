@@ -153,14 +153,34 @@ router.post('/register', requireApiKey, async (req, res) => {
     const deviceToken = req.headers['x-device-token'] || req.body?.deviceToken;
     let deviceId = null;
     if (deviceToken) {
-      const dev = await prisma.device.findUnique({ where: { token: deviceToken }, select: { id: true } });
+      const dev = await prisma.device.findUnique({ 
+        where: { token: deviceToken }, 
+        select: { id: true, isActive: true, isBlocked: true, blockedReason: true, deactivatedReason: true } 
+      });
       if (dev) {
+        if (!dev.isActive) {
+          return res.status(403).json({
+            error: dev.deactivatedReason 
+              ? `Dispositivo dado de baja: ${dev.deactivatedReason}` 
+              : 'Este dispositivo checador ha sido dado de baja.'
+          });
+        }
+        if (dev.isBlocked) {
+          return res.status(403).json({
+            error: dev.blockedReason 
+              ? `Dispositivo bloqueado temporalmente: ${dev.blockedReason}` 
+              : 'Este dispositivo checador se encuentra bloqueado temporalmente por administración.'
+          });
+        }
         deviceId = dev.id;
         await prisma.device.update({ where: { id: dev.id }, data: { lastSeenAt: now, status: 'ONLINE' } }).catch(() => {});
       }
     }
     if (!deviceId) {
-      const fallbackDev = await prisma.device.findFirst({ orderBy: { lastSeenAt: 'desc' } });
+      const fallbackDev = await prisma.device.findFirst({ 
+        where: { isActive: true, isBlocked: false },
+        orderBy: { lastSeenAt: 'desc' } 
+      });
       if (fallbackDev) deviceId = fallbackDev.id;
     }
 

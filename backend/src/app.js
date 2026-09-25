@@ -47,6 +47,15 @@ io.on('connection', (socket) => {
     }
   });
 
+  // Unirse a sala de control directo del dispositivo por deviceId
+  socket.on('join_device', (deviceId) => {
+    if (deviceId) {
+      const room = `device_${deviceId}`;
+      socket.join(room);
+      console.log(`Socket ${socket.id} joined device room: ${room}`);
+    }
+  });
+
   socket.on('disconnect', () => {
     console.log('Client disconnected:', socket.id);
   });

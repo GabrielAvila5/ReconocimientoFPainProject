@@ -6,6 +6,27 @@ const getIo = (req) => {
   return req.app.get('io');
 };
 
+// Helper para obtener la dirección IP real del cliente
+const getClientIp = (req) => {
+  let ip = req.headers['x-forwarded-for']?.split(',')[0].trim() 
+    || req.ip 
+    || req.connection?.remoteAddress 
+    || req.socket?.remoteAddress 
+    || '127.0.0.1';
+
+  // Quitar mapeo de IPv4 en IPv6 (ej: ::ffff:192.168.1.100 -> 192.168.1.100)
+  if (ip.startsWith('::ffff:')) {
+    ip = ip.replace('::ffff:', '');
+  }
+
+  // Normalizar IPv6 localhost (::1 o 1) a 127.0.0.1
+  if (ip === '::1' || ip === '1') {
+    ip = '127.0.0.1';
+  }
+
+  return ip;
+};
+
 // Generar un código de emparejamiento legible (ej: KIO-7492)
 const generatePairingCode = () => {
   const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'; // Evitar 0/O, 1/I para evitar confusiones
@@ -22,8 +43,7 @@ const generatePairingCode = () => {
  */
 const requestDeviceAuth = async (req, res) => {
   try {
-    const rawIp = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.ip || req.connection?.remoteAddress || '127.0.0.1';
-    const ipAddress = rawIp.replace(/^.*:/, ''); // Limpiar IPv6 mapping si aplica
+    const ipAddress = getClientIp(req);
     const userAgent = req.headers['user-agent'] || 'Kiosk Device';
     const { deviceId, forceNew } = req.body || {};
 
@@ -293,8 +313,7 @@ const rejectDeviceAuth = async (req, res) => {
 
 /**
  * POST /api/v1/devices/verify
- * Público (usado por KioskGuard): Verifica que el token exista.
- * La validez depende ÚNICAMENTE de que el Device exista en BD.
+ * Público (usado por KioskGuard): Verifica que el token exista y esté activo/no bloqueado.
  */
 const verifyDeviceToken = async (req, res) => {
   try {
@@ -315,8 +334,31 @@ const verifyDeviceToken = async (req, res) => {
       });
     }
 
-    const rawIp = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.ip || req.connection?.remoteAddress || '127.0.0.1';
-    const ipAddress = rawIp.replace(/^.*:/, '');
+    // 1. Verificar si fue dado de baja
+    if (!device.isActive) {
+      return res.status(403).json({
+        valid: false,
+        deactivated: true,
+        reason: device.deactivatedReason,
+        error: device.deactivatedReason 
+          ? `Dispositivo dado de baja: ${device.deactivatedReason}`
+          : 'Este dispositivo ha sido dado de baja por el administrador.'
+      });
+    }
+
+    // 2. Verificar si está bloqueado temporalmente
+    if (device.isBlocked) {
+      return res.status(403).json({
+        valid: false,
+        blocked: true,
+        reason: device.blockedReason,
+        error: device.blockedReason 
+          ? `Dispositivo bloqueado temporalmente: ${device.blockedReason}`
+          : 'Este dispositivo se encuentra bloqueado temporalmente por el administrador.'
+      });
+    }
+
+    const ipAddress = getClientIp(req);
 
     // Actualizar telemetría (lastSeenAt, IP y status ONLINE)
     await prisma.device.update({
@@ -333,7 +375,9 @@ const verifyDeviceToken = async (req, res) => {
       device: {
         id: device.id,
         name: device.name,
-        type: device.type
+        type: device.type,
+        isBlocked: false,
+        isActive: true
       }
     });
   } catch (error) {
@@ -344,7 +388,7 @@ const verifyDeviceToken = async (req, res) => {
 
 /**
  * GET /api/v1/devices
- * Solo Super Administrador: Lista de todos los dispositivos registrados.
+ * Solo Super Administrador: Lista de todos los dispositivos registrados con altas, bajas y bloqueos.
  */
 const getDevices = async (req, res) => {
   try {
@@ -358,6 +402,12 @@ const getDevices = async (req, res) => {
         ipAddress: true,
         description: true,
         lastSeenAt: true,
+        isBlocked: true,
+        blockedAt: true,
+        blockedReason: true,
+        isActive: true,
+        deactivatedAt: true,
+        deactivatedReason: true,
         createdAt: true,
         updatedAt: true
       }
@@ -367,6 +417,118 @@ const getDevices = async (req, res) => {
   } catch (error) {
     console.error('Error al obtener dispositivos:', error);
     return res.status(500).json({ error: 'Error al obtener dispositivos' });
+  }
+};
+
+/**
+ * PATCH /api/v1/devices/:id/block
+ * Solo Super Administrador: Bloquear o desbloquear temporalmente un dispositivo.
+ */
+const toggleBlockDevice = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { isBlocked, reason } = req.body || {};
+
+    const existing = await prisma.device.findUnique({ where: { id } });
+    if (!existing) {
+      return res.status(404).json({ error: 'Dispositivo no encontrado' });
+    }
+
+    const willBlock = typeof isBlocked === 'boolean' ? isBlocked : !existing.isBlocked;
+
+    const updated = await prisma.device.update({
+      where: { id },
+      data: {
+        isBlocked: willBlock,
+        blockedAt: willBlock ? new Date() : null,
+        blockedReason: willBlock ? (reason?.trim() || 'Bloqueado por el administrador') : null
+      }
+    });
+
+    const io = getIo(req);
+    if (io) {
+      io.to('dashboard').emit('device_updated', updated);
+      io.to(`device_${id}`).emit('device_status_changed', {
+        deviceId: id,
+        isBlocked: updated.isBlocked,
+        blockedAt: updated.blockedAt,
+        isActive: updated.isActive,
+        reason: updated.blockedReason
+      });
+      io.emit('device_status_changed', {
+        deviceId: id,
+        isBlocked: updated.isBlocked,
+        blockedAt: updated.blockedAt,
+        isActive: updated.isActive,
+        reason: updated.blockedReason
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: willBlock ? 'Dispositivo bloqueado temporalmente' : 'Dispositivo desbloqueado exitosamente',
+      device: updated
+    });
+  } catch (error) {
+    console.error('Error al cambiar bloqueo de dispositivo:', error);
+    return res.status(500).json({ error: 'Error al cambiar bloqueo del dispositivo' });
+  }
+};
+
+/**
+ * PATCH /api/v1/devices/:id/status-toggle
+ * Solo Super Administrador: Dar de baja o reactivar un dispositivo.
+ */
+const toggleStatusDevice = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { isActive, reason } = req.body || {};
+
+    const existing = await prisma.device.findUnique({ where: { id } });
+    if (!existing) {
+      return res.status(404).json({ error: 'Dispositivo no encontrado' });
+    }
+
+    const willBeActive = typeof isActive === 'boolean' ? isActive : !existing.isActive;
+
+    const updated = await prisma.device.update({
+      where: { id },
+      data: {
+        isActive: willBeActive,
+        deactivatedAt: willBeActive ? null : new Date(),
+        deactivatedReason: willBeActive ? null : (reason?.trim() || 'Dado de baja por el administrador'),
+        // Si se reactiva, desbloquearlo por defecto
+        ...(willBeActive ? { isBlocked: false, blockedAt: null, blockedReason: null } : {})
+      }
+    });
+
+    const io = getIo(req);
+    if (io) {
+      io.to('dashboard').emit('device_updated', updated);
+      io.to(`device_${id}`).emit('device_status_changed', {
+        deviceId: id,
+        isBlocked: updated.isBlocked,
+        isActive: updated.isActive,
+        deactivatedAt: updated.deactivatedAt,
+        reason: updated.deactivatedReason
+      });
+      io.emit('device_status_changed', {
+        deviceId: id,
+        isBlocked: updated.isBlocked,
+        isActive: updated.isActive,
+        deactivatedAt: updated.deactivatedAt,
+        reason: updated.deactivatedReason
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: willBeActive ? 'Dispositivo reactivado exitosamente' : 'Dispositivo dado de baja exitosamente',
+      device: updated
+    });
+  } catch (error) {
+    console.error('Error al cambiar estado de alta/baja:', error);
+    return res.status(500).json({ error: 'Error al actualizar el estado del dispositivo' });
   }
 };
 
@@ -393,9 +555,16 @@ const createManualDevice = async (req, res) => {
         ipAddress: ipAddress || null,
         description: description || null,
         status: 'ONLINE',
-        lastSeenAt: new Date()
+        lastSeenAt: new Date(),
+        isActive: true,
+        isBlocked: false
       }
     });
+
+    const io = getIo(req);
+    if (io) {
+      io.to('dashboard').emit('device_created', device);
+    }
 
     return res.status(201).json(device);
   } catch (error) {
@@ -406,7 +575,7 @@ const createManualDevice = async (req, res) => {
 
 /**
  * DELETE /api/v1/devices/:id
- * Solo Super Administrador: Eliminar / Revocar dispositivo.
+ * Solo Super Administrador: Eliminar definitivamente un dispositivo.
  */
 const deleteDevice = async (req, res) => {
   try {
@@ -419,7 +588,22 @@ const deleteDevice = async (req, res) => {
 
     await prisma.device.delete({ where: { id } });
 
-    return res.json({ success: true, message: 'Dispositivo eliminado y acceso revocado' });
+    const io = getIo(req);
+    if (io) {
+      io.to('dashboard').emit('device_deleted', { id });
+      io.to(`device_${id}`).emit('device_status_changed', {
+        deviceId: id,
+        deleted: true,
+        error: 'Dispositivo revocado y eliminado del sistema'
+      });
+      io.emit('device_status_changed', {
+        deviceId: id,
+        deleted: true,
+        error: 'Dispositivo revocado y eliminado del sistema'
+      });
+    }
+
+    return res.json({ success: true, message: 'Dispositivo eliminado y acceso revocado definitivamente' });
   } catch (error) {
     console.error('Error al eliminar dispositivo:', error);
     return res.status(500).json({ error: 'Error al eliminar dispositivo' });
@@ -433,6 +617,8 @@ module.exports = {
   rejectDeviceAuth,
   verifyDeviceToken,
   getDevices,
+  toggleBlockDevice,
+  toggleStatusDevice,
   createManualDevice,
   deleteDevice
 };

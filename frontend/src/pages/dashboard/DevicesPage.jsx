@@ -1,8 +1,10 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Search, Filter, Plus, RefreshCw, AlertCircle, Wifi, 
-  Power, AlertTriangle, Eye, Video, MonitorSmartphone, Server,
-  Clock, Check, X, ShieldCheck, Trash2, ArrowRight, Laptop
+  Power, AlertTriangle, Video, MonitorSmartphone, Server,
+  Clock, X, ShieldCheck, Trash2, ArrowRight,
+  Lock, Unlock, Ban, CalendarPlus, CalendarX, RotateCcw,
+  Info, ShieldAlert, CheckCircle2
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNotifications } from '../../contexts/NotificationContext';
@@ -18,11 +20,19 @@ const DevicesPage = () => {
   const [selectedStatus, setSelectedStatus] = useState('Todos');
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   
-  // Modal State
+  // Modal de Añadir / Emparejar
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('kiosk'); // 'kiosk' | 'manual'
   
-  // Solicitudes Pendientes
+  // Modal de Acción (Bloquear / Dar de Baja con motivo opcional)
+  const [actionModal, setActionModal] = useState({
+    isOpen: false,
+    type: null, // 'block' | 'deactivate'
+    device: null,
+    reason: ''
+  });
+
+  // Solicitudes Pendientes de Kiosko
   const [pendingRequests, setPendingRequests] = useState([]);
   const [approvingId, setApprovingId] = useState(null);
   const [kioskCustomName, setKioskCustomName] = useState('');
@@ -84,7 +94,7 @@ const DevicesPage = () => {
     fetchPendingRequests();
   }, []);
 
-  // 3. Escuchar eventos Socket.io para solicitudes en tiempo real
+  // 3. Escuchar eventos Socket.io para actualizaciones en tiempo real
   useEffect(() => {
     if (!socket) return;
 
@@ -102,16 +112,34 @@ const DevicesPage = () => {
       setPendingRequests(prev => prev.filter(r => r.id !== id));
     };
 
+    const handleDeviceUpdated = (updatedDev) => {
+      setDevices(prev => prev.map(d => d.id === updatedDev.id ? { ...d, ...updatedDev } : d));
+    };
+
+    const handleDeviceCreated = (newDev) => {
+      setDevices(prev => [newDev, ...prev.filter(d => d.id !== newDev.id)]);
+    };
+
+    const handleDeviceDeleted = ({ id }) => {
+      setDevices(prev => prev.filter(d => d.id !== id));
+    };
+
     socket.on('new_device_auth_request', handleNewRequest);
     socket.on('device_auth_request_resolved', handleResolvedRequest);
+    socket.on('device_updated', handleDeviceUpdated);
+    socket.on('device_created', handleDeviceCreated);
+    socket.on('device_deleted', handleDeviceDeleted);
 
     return () => {
       socket.off('new_device_auth_request', handleNewRequest);
       socket.off('device_auth_request_resolved', handleResolvedRequest);
+      socket.off('device_updated', handleDeviceUpdated);
+      socket.off('device_created', handleDeviceCreated);
+      socket.off('device_deleted', handleDeviceDeleted);
     };
   }, [socket]);
 
-  // 4. Temporizador local para las solicitudes pendientes
+  // Temporizador local para tiempo restante de solicitudes pendientes
   const [, setTick] = useState(0);
   useEffect(() => {
     const timer = setInterval(() => {
@@ -120,7 +148,83 @@ const DevicesPage = () => {
     return () => clearInterval(timer);
   }, []);
 
-  // 5. Aprobar solicitud de Kiosko
+  // 4. Bloquear / Desbloquear Temporalmente
+  const handleToggleBlock = async (device, customReason = null) => {
+    const willBlock = !device.isBlocked;
+    try {
+      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+      const res = await fetch(`${baseUrl}/api/v1/devices/${device.id}/block`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ 
+          isBlocked: willBlock,
+          reason: customReason || (willBlock ? 'Bloqueado temporalmente por administración' : null)
+        })
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Error al actualizar bloqueo');
+      }
+
+      const data = await res.json();
+      setDevices(prev => prev.map(d => d.id === device.id ? data.device : d));
+      setActionModal({ isOpen: false, type: null, device: null, reason: '' });
+
+      if (willBlock) {
+        toast.warning('Dispositivo bloqueado temporalmente', {
+          description: `"${device.name}" no podrá operar hasta ser desbloqueado.`
+        });
+      } else {
+        toast.success('Dispositivo desbloqueado', {
+          description: `"${device.name}" ha sido reactivado para operaciones.`
+        });
+      }
+    } catch (err) {
+      toast.error('Error al cambiar bloqueo', { description: err.message });
+    }
+  };
+
+  // 5. Dar de Baja / Reactivar Dispositivo
+  const handleToggleStatus = async (device, customReason = null) => {
+    const willBeActive = !device.isActive;
+    try {
+      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+      const res = await fetch(`${baseUrl}/api/v1/devices/${device.id}/status-toggle`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          isActive: willBeActive,
+          reason: customReason || (willBeActive ? null : 'Dado de baja por el administrador')
+        })
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Error al cambiar estado');
+      }
+
+      const data = await res.json();
+      setDevices(prev => prev.map(d => d.id === device.id ? data.device : d));
+      setActionModal({ isOpen: false, type: null, device: null, reason: '' });
+
+      if (willBeActive) {
+        toast.success('Dispositivo reactivado (Alta)', {
+          description: `"${device.name}" volvió a estar activo.`
+        });
+      } else {
+        toast.info('Dispositivo dado de baja', {
+          description: `Se registró la baja de "${device.name}". Su historial de alta/baja queda guardado.`
+        });
+      }
+    } catch (err) {
+      toast.error('Error al actualizar estado', { description: err.message });
+    }
+  };
+
+  // 6. Aprobar solicitud de Kiosko
   const handleApprove = async (request) => {
     try {
       setIsSubmitting(true);
@@ -140,7 +244,7 @@ const DevicesPage = () => {
       }
 
       toast.success('Kiosko autorizado exitosamente', {
-        description: `Se vinculó como "${nameToSend}"`
+        description: `Se dio de alta como "${nameToSend}"`
       });
 
       setApprovingId(null);
@@ -154,7 +258,7 @@ const DevicesPage = () => {
     }
   };
 
-  // 6. Rechazar solicitud de Kiosko
+  // 7. Rechazar solicitud de Kiosko
   const handleReject = async (requestId) => {
     try {
       const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
@@ -172,9 +276,9 @@ const DevicesPage = () => {
     }
   };
 
-  // 7. Eliminar / Revocar Dispositivo
+  // 8. Eliminar permanentemente
   const handleDeleteDevice = async (deviceId, deviceName) => {
-    if (!window.confirm(`¿Estás seguro de revocar el acceso a "${deviceName}"? Si es un kiosko, será desvinculado inmediatamente.`)) {
+    if (!window.confirm(`¿Estás seguro de eliminar definitivamente "${deviceName}" de la base de datos?\n\nTip: Si solo deseas suspenderlo o retirarlo de servicio temporalmente, se recomienda usar "Bloquear" o "Dar de baja" para conservar la fecha de alta y baja.`)) {
       return;
     }
 
@@ -185,16 +289,16 @@ const DevicesPage = () => {
         credentials: 'include'
       });
 
-      if (!res.ok) throw new Error('Error al revocar dispositivo');
+      if (!res.ok) throw new Error('Error al eliminar dispositivo');
 
-      toast.success('Dispositivo revocado', { description: `Se eliminó "${deviceName}"` });
+      toast.success('Dispositivo eliminado', { description: `Se eliminó definitivamente "${deviceName}"` });
       setDevices(prev => prev.filter(d => d.id !== deviceId));
     } catch (err) {
       toast.error('Error al eliminar', { description: err.message });
     }
   };
 
-  // 8. Crear dispositivo manual (Cámara / Torniquete)
+  // 9. Crear dispositivo manual (Cámara / Torniquete)
   const handleSaveManual = async (e) => {
     e.preventDefault();
     if (!manualForm.name) {
@@ -217,7 +321,7 @@ const DevicesPage = () => {
         throw new Error(data.error || 'Error al guardar dispositivo');
       }
 
-      toast.success('Dispositivo registrado correctamente');
+      toast.success('Dispositivo registrado (Alta exitosa)');
       setIsAddModalOpen(false);
       setManualForm({ name: '', type: 'CAMERA', ipAddress: '', description: '' });
       fetchDevices();
@@ -227,6 +331,15 @@ const DevicesPage = () => {
       setIsSubmitting(false);
     }
   };
+
+  // Métricas rápidas
+  const metrics = useMemo(() => {
+    const total = devices.length;
+    const online = devices.filter(d => d.isActive && !d.isBlocked && d.status === 'ONLINE').length;
+    const blocked = devices.filter(d => d.isBlocked).length;
+    const deactivated = devices.filter(d => !d.isActive).length;
+    return { total, online, blocked, deactivated };
+  }, [devices]);
 
   // Filtrado de Dispositivos
   const filteredDevices = useMemo(() => {
@@ -238,15 +351,31 @@ const DevicesPage = () => {
       
       const matchStatus = 
         selectedStatus === 'Todos' ? true :
-        selectedStatus === 'En Línea' ? device.status === 'ONLINE' :
-        selectedStatus === 'Desconectado' ? device.status === 'OFFLINE' :
-        selectedStatus === 'Inestable' ? device.status === 'UNSTABLE' : true;
+        selectedStatus === 'Activos' ? device.isActive && !device.isBlocked :
+        selectedStatus === 'Bloqueados' ? device.isBlocked :
+        selectedStatus === 'Dados de Baja' ? !device.isActive :
+        selectedStatus === 'En Línea' ? device.isActive && !device.isBlocked && device.status === 'ONLINE' :
+        selectedStatus === 'Desconectados' ? device.status === 'OFFLINE' : true;
         
       return matchSearch && matchStatus;
     });
   }, [devices, searchTerm, selectedStatus]);
 
-  // Formateador de tiempo restante
+  // Formato de Fechas
+  const formatDateTime = (dateString) => {
+    if (!dateString) return 'No registrado';
+    const d = new Date(dateString);
+    if (isNaN(d.getTime())) return 'Fecha inválida';
+    return d.toLocaleString('es-MX', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+  };
+
   const getTimeRemaining = (expiresAt) => {
     const diff = new Date(expiresAt).getTime() - new Date().getTime();
     if (diff <= 0) return 'Expirado';
@@ -255,8 +384,20 @@ const DevicesPage = () => {
     return `${m}:${s < 10 ? '0' : ''}${s} min`;
   };
 
+  // Clasificador visual de IP
+  const getIpBadge = (ip) => {
+    if (!ip) return { text: 'Sin IP asignada', color: '#71717a' };
+    if (ip === '127.0.0.1' || ip === 'localhost') {
+      return { text: 'Localhost (Misma máquina)', color: '#a1a1aa' };
+    }
+    if (ip.startsWith('192.168.') || ip.startsWith('10.') || ip.startsWith('172.16.')) {
+      return { text: 'Red Local (LAN)', color: '#38bdf8' };
+    }
+    return { text: 'IP de Red / WAN', color: '#818cf8' };
+  };
+
   return (
-    <div className="fade-in" style={{ paddingBottom: '2rem' }}>
+    <div className="fade-in" style={{ paddingBottom: '2.5rem' }}>
       {/* Banner Superior Automático de Solicitudes Pendientes */}
       {pendingRequests.length > 0 && (
         <div 
@@ -319,11 +460,11 @@ const DevicesPage = () => {
       )}
 
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
           <h2 style={{ color: '#fff', margin: 0, fontSize: '1.8rem', fontWeight: 700 }}>Dispositivos y Nodos de Red</h2>
           <p style={{ color: '#a1a1aa', margin: '0.5rem 0 0 0', fontSize: '0.95rem' }}>
-            Gestiona la autorización de kioskos y monitorea la salud de cámaras y terminales.
+            Monitorea el ciclo de vida (altas y bajas), bloqueos temporales de seguridad y telemetría de red.
           </p>
         </div>
         <div style={{ display: 'flex', gap: '1rem' }}>
@@ -345,8 +486,64 @@ const DevicesPage = () => {
             }}
             style={{ ...btnPrimary, display: 'flex', alignItems: 'center', gap: '0.5rem' }}
           >
-            <Plus size={18} /> Añadir Nodo
+            <Plus size={18} /> Añadir Dispositivo
           </button>
+        </div>
+      </div>
+
+      {/* Tarjetas de Resumen / KPIs */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+        gap: '1rem',
+        marginBottom: '1.75rem'
+      }}>
+        <div style={kpiCardStyle}>
+          <div style={{ color: '#a1a1aa', fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            Total Registrados
+          </div>
+          <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#fff', marginTop: '0.3rem' }}>
+            {metrics.total}
+          </div>
+          <div style={{ fontSize: '0.75rem', color: '#71717a', marginTop: '0.2rem' }}>
+            Nodos en base de datos
+          </div>
+        </div>
+
+        <div style={kpiCardStyle}>
+          <div style={{ color: '#22c55e', fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            En Línea (Operativos)
+          </div>
+          <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#22c55e', marginTop: '0.3rem' }}>
+            {metrics.online}
+          </div>
+          <div style={{ fontSize: '0.75rem', color: '#71717a', marginTop: '0.2rem' }}>
+            Listos para checador
+          </div>
+        </div>
+
+        <div style={kpiCardStyle}>
+          <div style={{ color: '#eab308', fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            Bloqueados Temporalmente
+          </div>
+          <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#eab308', marginTop: '0.3rem' }}>
+            {metrics.blocked}
+          </div>
+          <div style={{ fontSize: '0.75rem', color: '#71717a', marginTop: '0.2rem' }}>
+            Pausados por administración
+          </div>
+        </div>
+
+        <div style={kpiCardStyle}>
+          <div style={{ color: '#ef4444', fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            Dados de Baja
+          </div>
+          <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#ef4444', marginTop: '0.3rem' }}>
+            {metrics.deactivated}
+          </div>
+          <div style={{ fontSize: '0.75rem', color: '#71717a', marginTop: '0.2rem' }}>
+            Fuera de servicio (Histórico)
+          </div>
         </div>
       </div>
 
@@ -356,7 +553,7 @@ const DevicesPage = () => {
           <Search size={18} style={{ position: 'absolute', left: '0.5rem', top: '50%', transform: 'translateY(-50%)', color: '#a1a1aa' }} />
           <input 
             type="text" 
-            placeholder="Buscar por ID, nombre o IP..." 
+            placeholder="Buscar por nombre, ID o dirección IP..." 
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             style={{ width: '100%', background: 'transparent', border: 'none', outline: 'none', color: '#fff', paddingLeft: '2.5rem', fontSize: '0.95rem', fontFamily: 'inherit' }}
@@ -368,15 +565,20 @@ const DevicesPage = () => {
             onClick={() => setIsFilterOpen(!isFilterOpen)}
             style={{ ...btnFilter, display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1rem' }}
           >
-            <Filter size={18} /> Estado
+            <Filter size={18} /> {selectedStatus}
           </button>
           
           {isFilterOpen && (
             <div style={dropdownMenu}>
-              {['Todos', 'En Línea', 'Desconectado', 'Inestable'].map(status => (
+              {['Todos', 'Activos', 'Bloqueados', 'Dados de Baja', 'En Línea', 'Desconectados'].map(status => (
                 <div 
                   key={status} 
-                  style={dropdownItem}
+                  style={{
+                    ...dropdownItem,
+                    backgroundColor: selectedStatus === status ? 'rgba(249, 115, 22, 0.2)' : 'transparent',
+                    color: selectedStatus === status ? '#f97316' : '#e4e4e7',
+                    fontWeight: selectedStatus === status ? 600 : 400
+                  }}
                   onClick={() => { setSelectedStatus(status); setIsFilterOpen(false); }}
                 >
                   {status}
@@ -414,9 +616,11 @@ const DevicesPage = () => {
       ) : filteredDevices.length === 0 ? (
         <div style={{ padding: '4rem 2rem', textAlign: 'center', background: '#1e1e1e', borderRadius: '16px', border: '1px solid #27272a' }}>
           <Server size={48} style={{ color: '#52525b', margin: '0 auto 1rem auto' }} />
-          <h3 style={{ color: '#fff', margin: '0 0 0.5rem 0', fontSize: '1.25rem' }}>No hay dispositivos registrados</h3>
+          <h3 style={{ color: '#fff', margin: '0 0 0.5rem 0', fontSize: '1.25rem' }}>No se encontraron dispositivos</h3>
           <p style={{ color: '#a1a1aa', margin: '0 0 1.5rem 0', maxWidth: '420px', marginLeft: 'auto', marginRight: 'auto', fontSize: '0.95rem' }}>
-            Para habilitar tu primer Kiosko, abre la URL del Kiosko en una tablet y apruébalo desde aquí.
+            {searchTerm || selectedStatus !== 'Todos'
+              ? 'Prueba cambiando los filtros de búsqueda o restableciendo el estado a "Todos".'
+              : 'Para habilitar tu primer Kiosko, abre la URL del Kiosko en una tablet y apruébalo desde aquí.'}
           </p>
           <button onClick={() => { setActiveTab('kiosk'); setIsAddModalOpen(true); }} style={btnPrimary}>
             <Plus size={16} style={{ display: 'inline', marginRight: '8px', verticalAlign: 'middle' }}/> Añadir Kiosko o Nodo
@@ -425,32 +629,41 @@ const DevicesPage = () => {
       ) : (
         <div style={gridStyle}>
           {filteredDevices.map(device => {
-            const isOnline = device.status === 'ONLINE';
-            const isOffline = device.status === 'OFFLINE';
-            const isUnstable = device.status === 'UNSTABLE';
+            const isBlocked = !!device.isBlocked;
+            const isDeactivated = !device.isActive;
+            const isOnline = device.status === 'ONLINE' && !isDeactivated && !isBlocked;
+            const isOffline = device.status === 'OFFLINE' && !isDeactivated && !isBlocked;
 
-            let glowColor = '249, 115, 22'; // Naranja
-            let badgeColor = '#f97316';
+            // Determinación del Estado Visual
+            let badgeBg = 'rgba(34, 197, 94, 0.15)';
+            let badgeBorder = 'rgba(34, 197, 94, 0.4)';
+            let badgeColor = '#4ade80';
             let BadgeIcon = Wifi;
             let badgeText = 'En Línea';
+            let cardGlow = '34, 197, 94';
 
-            if (isOffline) {
-              glowColor = '239, 68, 68';
-              badgeColor = '#ef4444';
+            if (isDeactivated) {
+              badgeBg = 'rgba(239, 68, 68, 0.15)';
+              badgeBorder = 'rgba(239, 68, 68, 0.35)';
+              badgeColor = '#f87171';
+              BadgeIcon = Ban;
+              badgeText = 'Dado de Baja';
+              cardGlow = '239, 68, 68';
+            } else if (isBlocked) {
+              badgeBg = 'rgba(234, 179, 8, 0.15)';
+              badgeBorder = 'rgba(234, 179, 8, 0.4)';
+              badgeColor = '#fde047';
+              BadgeIcon = Lock;
+              badgeText = 'Bloqueado Temporalmente';
+              cardGlow = '234, 179, 8';
+            } else if (isOffline) {
+              badgeBg = 'rgba(113, 113, 122, 0.15)';
+              badgeBorder = 'rgba(113, 113, 122, 0.3)';
+              badgeColor = '#a1a1aa';
               BadgeIcon = Power;
               badgeText = 'Desconectado';
-            } else if (isUnstable) {
-              glowColor = '234, 179, 8';
-              badgeColor = '#eab308';
-              BadgeIcon = AlertTriangle;
-              badgeText = 'Inestable';
+              cardGlow = '113, 113, 122';
             }
-
-            const cardStyle = {
-              ...deviceCard,
-              background: `linear-gradient(180deg, #18181b 0%, rgba(${glowColor}, 0.04) 100%)`,
-              border: `1px solid rgba(${glowColor}, 0.2)`,
-            };
 
             const typeLabel = 
               device.type === 'KIOSK' ? 'Kiosko Checador' :
@@ -460,68 +673,294 @@ const DevicesPage = () => {
               device.type === 'KIOSK' ? MonitorSmartphone :
               device.type === 'CAMERA' ? Video : Server;
 
+            const ipInfo = getIpBadge(device.ipAddress);
+
             return (
-              <div key={device.id} style={cardStyle}>
-                {/* Header */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
+              <div 
+                key={device.id} 
+                style={{
+                  ...deviceCard,
+                  background: `linear-gradient(180deg, #18181b 0%, rgba(${cardGlow}, 0.03) 100%)`,
+                  border: `1px solid rgba(${cardGlow}, 0.25)`,
+                  opacity: isDeactivated ? 0.75 : 1
+                }}
+              >
+                {/* Header del Card */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                     <div style={{
-                      backgroundColor: 'rgba(255,255,255,0.06)',
-                      padding: '0.4rem',
-                      borderRadius: '8px',
-                      color: '#f97316'
+                      backgroundColor: isBlocked ? 'rgba(234, 179, 8, 0.15)' : 'rgba(255,255,255,0.06)',
+                      padding: '0.45rem',
+                      borderRadius: '10px',
+                      color: isBlocked ? '#eab308' : '#f97316'
                     }}>
-                      <TypeIcon size={18} />
+                      <TypeIcon size={20} />
                     </div>
                     <div>
-                      <h3 style={{ margin: 0, color: '#fff', fontSize: '1.1rem', fontWeight: 600 }}>{device.name}</h3>
-                      <span style={{ fontSize: '0.75rem', color: '#71717a' }}>{typeLabel}</span>
+                      <h3 style={{ margin: 0, color: '#fff', fontSize: '1.1rem', fontWeight: 700 }}>
+                        {device.name}
+                      </h3>
+                      <span style={{ fontSize: '0.75rem', color: '#a1a1aa' }}>{typeLabel}</span>
                     </div>
                   </div>
                   <span style={{ 
                     display: 'flex', alignItems: 'center', gap: '0.35rem',
-                    padding: '0.2rem 0.5rem', 
+                    padding: '0.25rem 0.6rem', 
+                    backgroundColor: badgeBg,
                     color: badgeColor, 
-                    borderRadius: '4px', fontSize: '0.75rem', fontWeight: 500, 
-                    border: `1px solid rgba(${glowColor}, 0.3)` 
+                    borderRadius: '6px', fontSize: '0.75rem', fontWeight: 600, 
+                    border: `1px solid ${badgeBorder}` 
                   }}>
                     <BadgeIcon size={12} /> {badgeText}
                   </span>
                 </div>
 
-                <p style={{ color: '#a1a1aa', margin: '0.5rem 0 1.25rem 0', fontSize: '0.8rem', minHeight: '1.2rem' }}>
+                <p style={{ color: '#a1a1aa', margin: '0 0 1rem 0', fontSize: '0.8rem', minHeight: '1.2rem', lineHeight: '1.4' }}>
                   {device.description || 'Sin descripción asignada'}
                 </p>
 
-                {/* Network Data */}
-                <div style={{ display: 'flex', gap: '1.5rem', marginBottom: '1.5rem', background: '#121215', padding: '0.75rem 1rem', borderRadius: '10px' }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: '0.75rem', color: '#71717a', marginBottom: '0.25rem' }}>Dirección IP</div>
+                {/* Motivos de bloqueo o baja si existen */}
+                {isBlocked && device.blockedReason && (
+                  <div style={{
+                    backgroundColor: 'rgba(234, 179, 8, 0.1)',
+                    border: '1px solid rgba(234, 179, 8, 0.25)',
+                    color: '#fef08a',
+                    padding: '0.5rem 0.75rem',
+                    borderRadius: '8px',
+                    fontSize: '0.75rem',
+                    marginBottom: '1rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.4rem'
+                  }}>
+                    <ShieldAlert size={14} color="#eab308" />
+                    <span><strong>Motivo de bloqueo:</strong> {device.blockedReason}</span>
+                  </div>
+                )}
+
+                {isDeactivated && device.deactivatedReason && (
+                  <div style={{
+                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                    border: '1px solid rgba(239, 68, 68, 0.25)',
+                    color: '#fca5a5',
+                    padding: '0.5rem 0.75rem',
+                    borderRadius: '8px',
+                    fontSize: '0.75rem',
+                    marginBottom: '1rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.4rem'
+                  }}>
+                    <Ban size={14} color="#ef4444" />
+                    <span><strong>Motivo de baja:</strong> {device.deactivatedReason}</span>
+                  </div>
+                )}
+
+                {/* Ciclo de Vida: Fecha de Alta y Fecha de Baja */}
+                <div style={{
+                  background: '#121215',
+                  borderRadius: '10px',
+                  padding: '0.75rem 1rem',
+                  border: '1px solid #27272a',
+                  marginBottom: '1rem',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.5rem'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#22c55e', fontSize: '0.75rem', fontWeight: 600 }}>
+                      <CalendarPlus size={14} /> Fecha de Alta:
+                    </div>
+                    <div style={{ color: '#fff', fontSize: '0.8rem', fontWeight: 500 }}>
+                      {formatDateTime(device.createdAt)}
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: isDeactivated ? '#ef4444' : '#71717a', fontSize: '0.75rem', fontWeight: 600 }}>
+                      <CalendarX size={14} /> Fecha de Baja:
+                    </div>
+                    <div style={{ color: isDeactivated ? '#fca5a5' : '#71717a', fontSize: '0.8rem', fontWeight: 500 }}>
+                      {isDeactivated ? formatDateTime(device.deactivatedAt) : 'Activo (En servicio)'}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Network & Telemetría */}
+                <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.25rem', background: '#121215', padding: '0.75rem 1rem', borderRadius: '10px', border: '1px solid #27272a' }}>
+                  <div style={{ flex: 1.2 }}>
+                    <div style={{ fontSize: '0.7rem', color: '#71717a', marginBottom: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                      Dirección IP
+                    </div>
                     <div style={{ color: '#fff', fontWeight: 600, fontSize: '0.85rem', fontFamily: 'monospace' }}>
                       {device.ipAddress || 'Dinámica'}
                     </div>
+                    <span style={{ fontSize: '0.65rem', color: ipInfo.color }}>
+                      {ipInfo.text}
+                    </span>
                   </div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: '0.75rem', color: '#71717a', marginBottom: '0.25rem' }}>Último latido</div>
+                    <div style={{ fontSize: '0.7rem', color: '#71717a', marginBottom: '0.2rem' }}>Último latido</div>
                     <div style={{ color: '#d4d4d8', fontWeight: 500, fontSize: '0.85rem' }}>
                       {device.lastSeenAt ? new Date(device.lastSeenAt).toLocaleTimeString() : 'N/D'}
                     </div>
                   </div>
                 </div>
 
-                {/* Footer Buttons */}
-                <div style={{ display: 'flex', gap: '0.75rem', marginTop: 'auto' }}>
+                {/* Acciones del Dispositivo */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: 'auto' }}>
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    {/* Botón de Bloqueo Temporal */}
+                    {isBlocked ? (
+                      <button
+                        onClick={() => handleToggleBlock(device)}
+                        style={{ ...btnActionYellow, flex: 1, backgroundColor: 'rgba(34, 197, 94, 0.1)', color: '#4ade80', borderColor: 'rgba(34, 197, 94, 0.3)' }}
+                        title="Desbloquear este dispositivo para reactivar su operación"
+                      >
+                        <Unlock size={15} /> Desbloquear
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          setActionModal({
+                            isOpen: true,
+                            type: 'block',
+                            device,
+                            reason: ''
+                          });
+                        }}
+                        disabled={isDeactivated}
+                        style={{ 
+                          ...btnActionYellow, 
+                          flex: 1,
+                          opacity: isDeactivated ? 0.5 : 1,
+                          cursor: isDeactivated ? 'not-allowed' : 'pointer'
+                        }}
+                        title="Bloquear temporalmente para impedir checadas"
+                      >
+                        <Lock size={15} /> Bloquear Temp.
+                      </button>
+                    )}
+
+                    {/* Botón de Dar de Baja / Reactivar */}
+                    {isDeactivated ? (
+                      <button
+                        onClick={() => handleToggleStatus(device)}
+                        style={{ ...btnActionSecondary, flex: 1, color: '#38bdf8', borderColor: 'rgba(56, 189, 248, 0.3)' }}
+                        title="Reactivar y dar de alta nuevamente"
+                      >
+                        <RotateCcw size={15} /> Reactivar Alta
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          setActionModal({
+                            isOpen: true,
+                            type: 'deactivate',
+                            device,
+                            reason: ''
+                          });
+                        }}
+                        style={{ ...btnActionSecondary, flex: 1 }}
+                        title="Dar de baja y retirar de servicio (conservando registros)"
+                      >
+                        <Ban size={15} /> Dar de Baja
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Botón de Eliminación Definitiva */}
                   <button 
                     onClick={() => handleDeleteDevice(device.id, device.name)}
-                    style={{ ...btnDelete, flex: 1 }}
-                    title="Revocar acceso de este dispositivo"
+                    style={{
+                      ...btnDeleteMinimal
+                    }}
+                    title="Eliminar registro completamente de la base de datos"
                   >
-                    <Trash2 size={16} /> Revocar Dispositivo
+                    <Trash2 size={13} /> Eliminar registro definitivo
                   </button>
                 </div>
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Modal de Acción (Bloquear o Dar de Baja con Motivo) */}
+      {actionModal.isOpen && (
+        <div style={modalOverlay}>
+          <div style={modalContent} className="fade-in-up">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                {actionModal.type === 'block' ? (
+                  <div style={{ padding: '0.5rem', borderRadius: '10px', backgroundColor: 'rgba(234, 179, 8, 0.15)', color: '#eab308' }}>
+                    <Lock size={22} />
+                  </div>
+                ) : (
+                  <div style={{ padding: '0.5rem', borderRadius: '10px', backgroundColor: 'rgba(239, 68, 68, 0.15)', color: '#ef4444' }}>
+                    <Ban size={22} />
+                  </div>
+                )}
+                <div>
+                  <h3 style={{ margin: 0, color: '#fff', fontSize: '1.2rem', fontWeight: 700 }}>
+                    {actionModal.type === 'block' ? 'Bloquear Dispositivo Temporalmente' : 'Dar de Baja Dispositivo'}
+                  </h3>
+                  <span style={{ fontSize: '0.8rem', color: '#a1a1aa' }}>
+                    Dispositivo: {actionModal.device?.name}
+                  </span>
+                </div>
+              </div>
+              <button 
+                onClick={() => setActionModal({ isOpen: false, type: null, device: null, reason: '' })}
+                style={{ background: 'transparent', border: 'none', color: '#71717a', cursor: 'pointer' }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <p style={{ color: '#d4d4d8', fontSize: '0.9rem', lineHeight: '1.5', margin: '0 0 1.25rem 0' }}>
+              {actionModal.type === 'block' 
+                ? 'El kiosko se bloqueará de inmediato en pantalla y no permitirá registros de asistencia. Podrás desbloquearlo en cualquier momento con un solo clic.' 
+                : 'Se registrará formalmente la fecha y hora de baja del dispositivo. Las checadas previas se mantendrán intactas en los reportes.'}
+            </p>
+
+            <label style={modalLabel}>Motivo o justificación (opcional):</label>
+            <input 
+              type="text"
+              placeholder={actionModal.type === 'block' ? 'Ej. Mantenimiento, revisión de cámara, sospecha...' : 'Ej. Reemplazo por tablet nueva, fin de ciclo...'}
+              value={actionModal.reason}
+              onChange={(e) => setActionModal({ ...actionModal, reason: e.target.value })}
+              style={{ ...inputStyle, marginBottom: '1.5rem' }}
+              autoFocus
+            />
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+              <button
+                type="button"
+                onClick={() => setActionModal({ isOpen: false, type: null, device: null, reason: '' })}
+                style={btnSecondary}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (actionModal.type === 'block') {
+                    handleToggleBlock(actionModal.device, actionModal.reason);
+                  } else {
+                    handleToggleStatus(actionModal.device, actionModal.reason);
+                  }
+                }}
+                style={{
+                  ...btnPrimary,
+                  backgroundColor: actionModal.type === 'block' ? '#eab308' : '#ef4444',
+                  color: actionModal.type === 'block' ? '#000' : '#fff'
+                }}
+              >
+                {actionModal.type === 'block' ? 'Confirmar Bloqueo' : 'Confirmar Baja'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -534,7 +973,7 @@ const DevicesPage = () => {
               <div>
                 <h3 style={{ margin: 0, color: '#fff', fontSize: '1.3rem', fontWeight: 700 }}>Añadir Nodo de Red</h3>
                 <p style={{ margin: '0.25rem 0 0 0', color: '#a1a1aa', fontSize: '0.85rem' }}>
-                  Selecciona el tipo de dispositivo que deseas registrar.
+                  Selecciona el tipo de dispositivo que deseas dar de alta.
                 </p>
               </div>
               <button 
@@ -637,7 +1076,7 @@ const DevicesPage = () => {
                       Esperando solicitudes de kiosko...
                     </h4>
                     <p style={{ margin: '0 0 1.5rem 0', color: '#a1a1aa', fontSize: '0.85rem', lineHeight: '1.5' }}>
-                      Abre la URL <code style={{ color: '#f97316', backgroundColor: '#18181b', padding: '0.2rem 0.4rem', borderRadius: '4px' }}>/kiosk</code> en la tablet o navegador que deseas autorizar. La solicitud aparecerá aquí en tiempo real.
+                      Abre la URL <code style={{ color: '#f97316', backgroundColor: '#18181b', padding: '0.2rem 0.4rem', borderRadius: '4px' }}>/kiosk</code> en la tablet o navegador que deseas dar de alta. La solicitud aparecerá aquí en tiempo real.
                     </p>
                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', color: '#71717a', fontSize: '0.8rem' }}>
                       <span className="pulse-dot" /> Escuchando la red
@@ -720,7 +1159,7 @@ const DevicesPage = () => {
                                   disabled={isSubmitting}
                                   style={{ ...btnPrimary, padding: '0.4rem 1rem', fontSize: '0.8rem' }}
                                 >
-                                  {isSubmitting ? 'Autorizando...' : 'Confirmar y Vincular'}
+                                  {isSubmitting ? 'Dando de alta...' : 'Confirmar Alta'}
                                 </button>
                               </div>
                             </div>
@@ -762,7 +1201,7 @@ const DevicesPage = () => {
                                   gap: '0.4rem'
                                 }}
                               >
-                                <ShieldCheck size={16} /> Aprobar Kiosko
+                                <ShieldCheck size={16} /> Aprobar y Dar de Alta
                               </button>
                             </div>
                           )}
@@ -803,7 +1242,7 @@ const DevicesPage = () => {
                   </div>
                   
                   <div>
-                    <label style={modalLabel}>Dirección IP (Opcional)</label>
+                    <label style={modalLabel}>Dirección IP de Red (Opcional)</label>
                     <input 
                       type="text" 
                       placeholder="Ej. 192.168.1.120" 
@@ -838,7 +1277,7 @@ const DevicesPage = () => {
                     disabled={isSubmitting}
                     style={btnPrimary}
                   >
-                    {isSubmitting ? 'Guardando...' : 'Guardar Dispositivo'}
+                    {isSubmitting ? 'Registrando...' : 'Registrar y Dar de Alta'}
                   </button>
                 </div>
               </form>
@@ -927,20 +1366,52 @@ const btnFilter = {
   background: '#121212',
 };
 
-const btnDelete = {
-  padding: '0.6rem 1rem',
-  background: 'rgba(239, 68, 68, 0.08)',
-  color: '#ef4444',
-  border: '1px solid rgba(239, 68, 68, 0.25)',
+const btnActionYellow = {
+  padding: '0.55rem 0.75rem',
+  background: 'rgba(234, 179, 8, 0.1)',
+  color: '#eab308',
+  border: '1px solid rgba(234, 179, 8, 0.3)',
   borderRadius: '8px',
   cursor: 'pointer',
-  fontWeight: 500,
-  fontSize: '0.85rem',
+  fontWeight: 600,
+  fontSize: '0.8rem',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  gap: '0.5rem',
+  gap: '0.4rem',
   transition: 'all 0.2s'
+};
+
+const btnActionSecondary = {
+  padding: '0.55rem 0.75rem',
+  background: '#18181b',
+  color: '#d4d4d8',
+  border: '1px solid #3f3f46',
+  borderRadius: '8px',
+  cursor: 'pointer',
+  fontWeight: 600,
+  fontSize: '0.8rem',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: '0.4rem',
+  transition: 'all 0.2s'
+};
+
+const btnDeleteMinimal = {
+  padding: '0.4rem',
+  background: 'transparent',
+  color: '#71717a',
+  border: 'none',
+  borderRadius: '6px',
+  cursor: 'pointer',
+  fontSize: '0.75rem',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: '0.35rem',
+  transition: 'color 0.2s',
+  marginTop: '0.2rem'
 };
 
 const inputStyle = {
@@ -980,7 +1451,7 @@ const dropdownItem = {
 
 const gridStyle = {
   display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+  gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
   gap: '1.5rem'
 };
 
@@ -991,6 +1462,16 @@ const deviceCard = {
   flexDirection: 'column',
   transition: 'transform 0.2s, box-shadow 0.2s',
   boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2)',
+};
+
+const kpiCardStyle = {
+  background: '#18181b',
+  border: '1px solid #27272a',
+  borderRadius: '14px',
+  padding: '1.25rem',
+  display: 'flex',
+  flexDirection: 'column',
+  boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
 };
 
 const modalOverlay = {

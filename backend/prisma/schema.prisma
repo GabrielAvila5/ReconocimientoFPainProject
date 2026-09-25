@@ -258,16 +258,22 @@ enum AuthRequestStatus {
 }
 
 model Device {
-  id          String       @id @default(uuid())
-  name        String
-  type        DeviceType   @default(KIOSK)
-  status      DeviceStatus @default(ONLINE)
-  token       String?      @unique
-  ipAddress   String?
-  description String?
-  lastSeenAt  DateTime?
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  id                String       @id @default(uuid())
+  name              String
+  type              DeviceType   @default(KIOSK)
+  status            DeviceStatus @default(ONLINE)
+  token             String?      @unique
+  ipAddress         String?
+  description       String?
+  lastSeenAt        DateTime?
+  isBlocked         Boolean      @default(false)
+  blockedAt         DateTime?
+  blockedReason     String?
+  isActive          Boolean      @default(true)
+  deactivatedAt     DateTime?
+  deactivatedReason String?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
 
   attendances AttendanceRecord[]
 

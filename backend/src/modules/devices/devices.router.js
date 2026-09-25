@@ -6,6 +6,8 @@ const {
   rejectDeviceAuth,
   verifyDeviceToken,
   getDevices,
+  toggleBlockDevice,
+  toggleStatusDevice,
   createManualDevice,
   deleteDevice
 } = require('./devices.controller');
@@ -26,6 +28,8 @@ router.post('/auth-requests/:id/reject', ...requireSuperAdmin, rejectDeviceAuth)
 
 router.get('/', ...requireSuperAdmin, getDevices);
 router.post('/', ...requireSuperAdmin, createManualDevice);
+router.patch('/:id/block', ...requireSuperAdmin, toggleBlockDevice);
+router.patch('/:id/status-toggle', ...requireSuperAdmin, toggleStatusDevice);
 router.delete('/:id', ...requireSuperAdmin, deleteDevice);
 
 module.exports = router;
