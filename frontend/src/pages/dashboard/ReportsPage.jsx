@@ -132,51 +132,68 @@ const ReportsPage = () => {
         url += `?startDate=${startStr}&endDate=${endStr}`;
       }
 
-      const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
-      if (!res.ok) throw new Error('Error al obtener KPIs');
-      const data = await res.json();
-      
-      setAttKpis(data.kpis);
-      if (data.breakKpis) setBreakKpis(data.breakKpis);
-      setAttDistribution(data.distribution);
-      setAttTrendData(data.trend);
-      setPeakHoursData(data.peakHours);
-
-      // Fetch Table Data
-      let tableUrl = `${import.meta.env.VITE_API_URL || 'http://localhost:4000'}/api/v1/reports/attendance-consolidated?limit=200`;
-      if (startStr && endStr) {
-        tableUrl += `&startDate=${startStr}&endDate=${endStr}`;
-      }
-      const tableRes = await fetch(tableUrl, { headers: { 'Authorization': `Bearer ${token}` } });
-      if (tableRes.ok) {
-        const tableData = await tableRes.json();
-        setAttTableData(tableData.data);
+      // 1. Fetch KPIs
+      try {
+        const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.kpis) setAttKpis(data.kpis);
+          if (data.breakKpis) setBreakKpis(data.breakKpis);
+          if (data.distribution) setAttDistribution(data.distribution);
+          if (data.trend) setAttTrendData(data.trend);
+          if (data.peakHours) setPeakHoursData(data.peakHours);
+        }
+      } catch (e) {
+        console.error('Error fetching KPIs:', e);
       }
 
-      // Fetch Breaks Table Data
-      let breakTableUrl = `${import.meta.env.VITE_API_URL || 'http://localhost:4000'}/api/v1/reports/breaks-consolidated?limit=200`;
-      if (startStr && endStr) {
-        breakTableUrl += `&startDate=${startStr}&endDate=${endStr}`;
-      }
-      const breakTableRes = await fetch(breakTableUrl, { headers: { 'Authorization': `Bearer ${token}` } });
-      if (breakTableRes.ok) {
-        const breakData = await breakTableRes.json();
-        setBreakTableData(breakData.data);
+      // 2. Fetch Table Data
+      try {
+        let tableUrl = `${import.meta.env.VITE_API_URL || 'http://localhost:4000'}/api/v1/reports/attendance-consolidated?limit=200`;
+        if (startStr && endStr) {
+          tableUrl += `&startDate=${startStr}&endDate=${endStr}`;
+        }
+        const tableRes = await fetch(tableUrl, { headers: { 'Authorization': `Bearer ${token}` } });
+        if (tableRes.ok) {
+          const tableData = await tableRes.json();
+          setAttTableData(tableData.data || []);
+        }
+      } catch (e) {
+        console.error('Error fetching attendance table:', e);
       }
 
-      // Fetch Devices Consolidated Data
-      let devUrl = `${import.meta.env.VITE_API_URL || 'http://localhost:4000'}/api/v1/reports/devices-consolidated`;
-      if (startStr && endStr) {
-        devUrl += `?startDate=${startStr}&endDate=${endStr}`;
+      // 3. Fetch Breaks Table Data
+      try {
+        let breakTableUrl = `${import.meta.env.VITE_API_URL || 'http://localhost:4000'}/api/v1/reports/breaks-consolidated?limit=200`;
+        if (startStr && endStr) {
+          breakTableUrl += `&startDate=${startStr}&endDate=${endStr}`;
+        }
+        const breakTableRes = await fetch(breakTableUrl, { headers: { 'Authorization': `Bearer ${token}` } });
+        if (breakTableRes.ok) {
+          const breakData = await breakTableRes.json();
+          setBreakTableData(breakData.data || []);
+        }
+      } catch (e) {
+        console.error('Error fetching break table:', e);
       }
-      const devRes = await fetch(devUrl, { headers: { 'Authorization': `Bearer ${token}` } });
-      if (devRes.ok) {
-        const devData = await devRes.json();
-        if (devData.kpis) setDevKpis(devData.kpis);
-        if (devData.barData) setDevBarData(devData.barData);
-        if (devData.trendData) setDevTrendData(devData.trendData);
-        if (devData.deviceNames) setDevDeviceNames(devData.deviceNames);
-        if (devData.tableData) setDevTableData(devData.tableData);
+
+      // 4. Fetch Devices Consolidated Data
+      try {
+        let devUrl = `${import.meta.env.VITE_API_URL || 'http://localhost:4000'}/api/v1/reports/devices-consolidated`;
+        if (startStr && endStr) {
+          devUrl += `?startDate=${startStr}&endDate=${endStr}`;
+        }
+        const devRes = await fetch(devUrl, { headers: { 'Authorization': `Bearer ${token}` } });
+        if (devRes.ok) {
+          const devData = await devRes.json();
+          if (devData.kpis) setDevKpis(devData.kpis);
+          if (devData.barData) setDevBarData(devData.barData);
+          if (devData.trendData) setDevTrendData(devData.trendData);
+          if (devData.deviceNames) setDevDeviceNames(devData.deviceNames);
+          if (devData.tableData) setDevTableData(devData.tableData || []);
+        }
+      } catch (e) {
+        console.error('Error fetching devices report:', e);
       }
 
       // Fetch Departments for filter

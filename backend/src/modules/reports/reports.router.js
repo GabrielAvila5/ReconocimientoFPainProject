@@ -132,6 +132,8 @@ const buildEventMapForDateRange = async (start, end, employeeIds = null, departm
 // ============================================
 router.get('/kpis', async (req, res) => {
   try {
+    const settings = await prisma.systemSettings.findFirst();
+    const tz = settings?.timezone || DEFAULT_TZ;
     let { startDate, endDate } = req.query;
     
     if (!startDate || !endDate) {
@@ -277,6 +279,7 @@ router.get('/kpis', async (req, res) => {
           if (att.salida) {
             isNoTomado = true;
           } else {
+            const now = new Date();
             const nowParts = getTzParts(now, tz);
             const nowLocalMins = nowParts.totalMinutes;
             const nowLocalDateStr = nowParts.dateStr;
@@ -739,6 +742,8 @@ router.get('/breaks-consolidated', async (req, res) => {
 // --- Reportes Consolidado de Dispositivos ---
 router.get('/devices-consolidated', async (req, res) => {
   try {
+    const settings = await prisma.systemSettings.findFirst();
+    const tz = settings?.timezone || DEFAULT_TZ;
     let { startDate, endDate, deviceId } = req.query;
 
     if (!startDate || !endDate) {
