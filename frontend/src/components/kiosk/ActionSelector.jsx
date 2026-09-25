@@ -1,5 +1,6 @@
 import React from 'react';
 import { LogIn, LogOut, Coffee, Clock, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import KioskClock from './KioskClock';
 
 const ActionSelector = ({ context, employeeName, onAction, onCancel }) => {
   const { hasEntrada, hasReceso, hasSalida, hasHorasExtra, availableShifts, currentShiftId } = context;
@@ -36,9 +37,12 @@ const ActionSelector = ({ context, employeeName, onAction, onCancel }) => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', maxWidth: '800px', margin: '0 auto', padding: '2rem' }}>
-      <h2 style={{ fontSize: '2rem', fontWeight: 'bold', color: '#fff', marginBottom: '2rem', textAlign: 'center' }}>
+      <h2 style={{ fontSize: '2rem', fontWeight: 'bold', color: '#fff', marginBottom: '0.75rem', textAlign: 'center' }}>
         Confirmar asistencia de {employeeName || 'Empleado'}
       </h2>
+      
+      {/* Reloj y Fecha en Vivo al momento del registro */}
+      <KioskClock variant="badge" style={{ marginBottom: '2rem' }} />
       
       <div style={{ 
         display: 'grid', 

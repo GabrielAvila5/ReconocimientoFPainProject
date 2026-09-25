@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import CameraScanner from '../../components/FaceRecognition/CameraScanner';
 import ActionSelector from '../../components/kiosk/ActionSelector';
+import KioskClock from '../../components/kiosk/KioskClock';
 import { CheckCircle2, UserCircle2, Loader2, ArrowRight } from 'lucide-react';
 
 const STAGES = {
@@ -142,9 +143,10 @@ const KioskFlowPage = () => {
       <div className="absolute top-0 left-0 w-full h-64 bg-gradient-to-b from-blue-600 to-transparent opacity-20 dark:opacity-40"></div>
 
       {/* Header */}
-      <header className="p-6 relative z-10 text-center">
-        <h1 className="text-4xl font-extrabold text-blue-600 dark:text-blue-400 tracking-tight">Kiosko PAIN</h1>
-        <p className="text-gray-500 dark:text-gray-400 mt-2 text-lg">Sistema de Control de Asistencia</p>
+      <header className="p-6 relative z-10 text-center flex flex-col items-center">
+        <h1 className="text-4xl font-extrabold text-blue-600 dark:text-blue-400 tracking-tight mb-2">Kiosko PAIN</h1>
+        <KioskClock variant="badge" style={{ marginBottom: '0.75rem' }} />
+        <p className="text-gray-500 dark:text-gray-400 text-lg">Sistema de Control de Asistencia</p>
       </header>
 
       {/* Main Content Area */}

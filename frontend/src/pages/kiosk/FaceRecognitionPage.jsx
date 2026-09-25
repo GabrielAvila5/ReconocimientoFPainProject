@@ -8,6 +8,7 @@ import { io } from 'socket.io-client';
 import ActionSelector from '../../components/kiosk/ActionSelector';
 import OvertimeModal from '../../components/kiosk/OvertimeModal';
 import EarlyExitModal from '../../components/kiosk/EarlyExitModal';
+import KioskClock from '../../components/kiosk/KioskClock';
 
 const STAGES = {
   SCANNING: 'SCANNING',
@@ -362,9 +363,13 @@ const FaceRecognitionPage = () => {
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', width: '100vw', background: '#0f0f0f', padding: '2rem', boxSizing: 'border-box', overflowY: 'auto' }}>
       
       {/* HEADER SIEMPRE VISIBLE */}
-      <div style={{ textAlign: 'center', marginBottom: '2rem', marginTop: stage !== STAGES.SCANNING && stage !== STAGES.IDENTIFIED ? '2rem' : '0' }}>
-        <h1 style={{ color: '#fff', fontSize: '2.5rem', margin: '0 0 0.5rem 0', textTransform: 'uppercase', letterSpacing: '2px' }}>Kiosko de Asistencia</h1>
-        <p style={{ color: '#a1a1aa', fontSize: '1.2rem', margin: 0 }}>
+      <div style={{ textAlign: 'center', marginBottom: '1.5rem', marginTop: stage !== STAGES.SCANNING && stage !== STAGES.IDENTIFIED ? '2rem' : '0', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        <h1 style={{ color: '#fff', fontSize: '2.5rem', margin: '0 0 0.6rem 0', textTransform: 'uppercase', letterSpacing: '2px' }}>Kiosko de Asistencia</h1>
+        
+        {/* RELOJ Y FECHA EN VIVO */}
+        <KioskClock variant="badge" style={{ marginBottom: '0.85rem' }} />
+
+        <p style={{ color: '#a1a1aa', fontSize: '1.1rem', margin: 0 }}>
           {stage === STAGES.SCANNING ? statusText : stage === STAGES.PROCESSING ? 'Procesando...' : ''}
         </p>
       </div>
@@ -482,10 +487,11 @@ const FaceRecognitionPage = () => {
 
       {/* ETAPA 6: EXITO */}
       {stage === STAGES.SUCCESS && (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', background: 'rgba(16, 185, 129, 0.1)', padding: '3rem', borderRadius: '24px', border: '4px solid #10b981' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', background: 'rgba(16, 185, 129, 0.1)', padding: '3rem', borderRadius: '24px', border: '4px solid #10b981', maxWidth: '600px', width: '100%', textAlign: 'center' }}>
           <CheckCircle2 size={96} color="#10b981" style={{ marginBottom: '1.5rem' }} />
           <h2 style={{ fontSize: '2.5rem', color: '#10b981', marginBottom: '0.5rem' }}>¡Listo!</h2>
-          <p style={{ fontSize: '1.5rem', color: '#fff' }}>{successMessage}</p>
+          <p style={{ fontSize: '1.5rem', color: '#fff', marginBottom: '1.25rem' }}>{successMessage}</p>
+          <KioskClock variant="inline" style={{ background: 'rgba(0,0,0,0.4)', padding: '0.5rem 1.25rem', borderRadius: '50px', border: '1px solid rgba(16, 185, 129, 0.3)' }} />
         </div>
       )}
 
