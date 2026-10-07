@@ -58,9 +58,13 @@ const EnrollmentPage = () => {
       try {
         setLoading(true);
         // Load employee
-        const token = localStorage.getItem('token') || 'dev-token';
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/v1/employees/${employeeId}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
+        const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+        const token = localStorage.getItem('token') || '';
+        const res = await fetch(`${baseUrl}/api/v1/employees/${employeeId}`, {
+          headers: { 
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+          },
+          credentials: 'include'
         });
         if (!res.ok) throw new Error('Error al cargar datos del empleado');
         const empData = await res.json();
@@ -159,13 +163,15 @@ const EnrollmentPage = () => {
       const avgDescriptor = averageDescriptors(descriptors);
       const serialized = serializeDescriptor(avgDescriptor);
 
-      const token = localStorage.getItem('token') || 'dev-token';
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/v1/employees/${employeeId}/descriptor`, {
+      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+      const token = localStorage.getItem('token') || '';
+      const res = await fetch(`${baseUrl}/api/v1/employees/${employeeId}/descriptor`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
         },
+        credentials: 'include',
         body: JSON.stringify({ descriptor: serialized })
       });
 

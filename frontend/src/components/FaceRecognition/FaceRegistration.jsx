@@ -11,9 +11,11 @@ const FaceRegistration = ({ onComplete }) => {
   useEffect(() => {
     const fetchDeps = async () => {
       try {
+        const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
         const token = localStorage.getItem('token');
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/v1/departments`, {
-          headers: { 'Authorization': `Bearer ${token}` }
+        const res = await fetch(`${baseUrl}/api/v1/departments`, {
+          headers: { ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
+          credentials: 'include'
         });
         if (res.ok) {
           const data = await res.json();
@@ -34,13 +36,15 @@ const FaceRegistration = ({ onComplete }) => {
     setLoading(true);
     
     try {
-      const token = localStorage.getItem('token') || 'dev-token';
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/v1/employees`, {
+      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+      const token = localStorage.getItem('token') || '';
+      const response = await fetch(`${baseUrl}/api/v1/employees`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
         },
+        credentials: 'include',
         body: JSON.stringify(formData)
       });
 

@@ -45,9 +45,10 @@ const login = async (req, res) => {
       maxAge: 12 * 60 * 60 * 1000 // 12 horas en ms
     });
 
-    // Retornar datos del usuario (sin contraseña)
+    // Retornar datos del usuario (sin contraseña) y token
     res.json({
       message: 'Login exitoso',
+      token,
       user: {
         id: user.id,
         name: user.name,
@@ -133,6 +134,7 @@ const setupFirstAdmin = async (req, res) => {
 
     res.json({
       message: 'Configuración completada y login exitoso',
+      token,
       user: {
         id: user.id,
         name: user.name,

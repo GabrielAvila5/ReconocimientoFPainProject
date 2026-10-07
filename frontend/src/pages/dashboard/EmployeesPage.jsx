@@ -452,15 +452,39 @@ const EmployeesPage = () => {
                   
                   <div style={{ marginBottom: '1.5rem' }}>
                     <h5 style={{ margin: '0 0 0.5rem 0', color: '#a1a1aa', fontSize: '0.9rem' }}>Estado Biométrico</h5>
-                    {employeeDetails.faceDescriptor && employeeDetails.faceDescriptor !== '[]' && employeeDetails.faceDescriptor.length > 10 ? (
-                      <span style={{ padding: '0.3rem 0.8rem', background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', borderRadius: '999px', fontSize: '0.8rem', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
-                        Enrolado el {new Date(employeeDetails.enrolledAt).toLocaleDateString()}
-                      </span>
-                    ) : (
-                      <span style={{ padding: '0.3rem 0.8rem', background: 'rgba(234, 179, 8, 0.1)', color: '#eab308', borderRadius: '999px', fontSize: '0.8rem', border: '1px solid rgba(234, 179, 8, 0.2)' }}>
-                        Pendiente de enrolamiento
-                      </span>
-                    )}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                      {employeeDetails.faceDescriptor && employeeDetails.faceDescriptor !== '[]' && employeeDetails.faceDescriptor.length > 10 ? (
+                        <span style={{ padding: '0.3rem 0.8rem', background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', borderRadius: '999px', fontSize: '0.8rem', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
+                          Enrolado el {new Date(employeeDetails.enrolledAt).toLocaleDateString()}
+                        </span>
+                      ) : (
+                        <span style={{ padding: '0.3rem 0.8rem', background: 'rgba(234, 179, 8, 0.1)', color: '#eab308', borderRadius: '999px', fontSize: '0.8rem', border: '1px solid rgba(234, 179, 8, 0.2)' }}>
+                          Pendiente de enrolamiento
+                        </span>
+                      )}
+                      <button
+                        onClick={() => {
+                          setIsModalOpen(false);
+                          navigate(`/kiosk/enroll/${employeeDetails.id}`);
+                        }}
+                        style={{
+                          padding: '0.3rem 0.75rem',
+                          background: 'rgba(249, 115, 22, 0.15)',
+                          border: '1px solid rgba(249, 115, 22, 0.3)',
+                          color: '#f97316',
+                          borderRadius: '8px',
+                          fontSize: '0.8rem',
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.4rem',
+                          fontWeight: 500
+                        }}
+                      >
+                        <Camera size={14} />
+                        {employeeDetails.faceDescriptor && employeeDetails.faceDescriptor !== '[]' && employeeDetails.faceDescriptor.length > 10 ? 'Re-enrolar Biometría' : 'Enrolar Biometría'}
+                      </button>
+                    </div>
                   </div>
                   
                   <div style={{ marginBottom: '1.5rem' }}>

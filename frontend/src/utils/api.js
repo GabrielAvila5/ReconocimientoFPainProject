@@ -11,6 +11,15 @@ const api = axios.create({
   withCredentials: true // Important for sending/receiving httpOnly cookies
 });
 
+// Interceptor para agregar token si existe en localStorage
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
 // Interceptor para manejar respuestas
 api.interceptors.response.use(
   (response) => response,

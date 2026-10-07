@@ -101,11 +101,16 @@ function App() {
             <Route index element={<FaceRecognitionPage />} />
           </Route>
           
-          {/* KIOSK ENROLLMENT (Tablet) */}
+          {/* ENROLLMENT BIOMÉTRICO (Admin) */}
           <Route path="/kiosk/enroll/:employeeId" element={
-            <KioskGuard>
+            <ProtectedRoute>
               <EnrollmentPage />
-            </KioskGuard>
+            </ProtectedRoute>
+          } />
+          <Route path="/dashboard/employees/enroll/:employeeId" element={
+            <ProtectedRoute>
+              <EnrollmentPage />
+            </ProtectedRoute>
           } />
 
           {/* DASHBOARD MODULE (Admin) */}

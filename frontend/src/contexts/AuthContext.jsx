@@ -24,6 +24,7 @@ export const AuthProvider = ({ children }) => {
 
     // Escuchar el evento personalizado desde api.js cuando hay 401
     const handleUnauthorized = () => {
+      localStorage.removeItem('token');
       setUser(null);
     };
 
@@ -35,6 +36,9 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     const response = await api.post('/auth/login', { email, password });
+    if (response.data?.token) {
+      localStorage.setItem('token', response.data.token);
+    }
     setUser(response.data.user);
     return response.data.user;
   };
@@ -45,6 +49,7 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       console.error('Error logging out on backend', error);
     } finally {
+      localStorage.removeItem('token');
       setUser(null);
     }
   };
