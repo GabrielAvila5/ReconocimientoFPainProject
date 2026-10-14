@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import FaceRegistration from '../../components/FaceRecognition/FaceRegistration';
 import DepartmentsTab from '../../components/DepartmentsTab';
-import { Search, Filter, Users, Fingerprint, Clock, MoreVertical, Plus, AlertCircle, RefreshCw, Camera, Trash2, Edit, Calendar, X } from 'lucide-react';
+import { Search, Filter, Users, Fingerprint, Clock, MoreVertical, Plus, AlertCircle, RefreshCw, Camera, Trash2, Edit, Calendar, X, Shield } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
 
 const EmployeesPage = () => {
+  const { user } = useAuth();
   const [employees, setEmployees] = useState([]);
   const [showRegistration, setShowRegistration] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -375,24 +377,51 @@ const EmployeesPage = () => {
                             Pendiente (Sin depto)
                           </span>
                         )}
-                        {emp.position && emp.position.toLowerCase().includes('administrador') ? (
-                          <div style={{ marginTop: '0.25rem' }}>
-                            <span style={{ 
-                              display: 'inline-block',
-                              padding: '0.15rem 0.5rem', 
-                              background: emp.position.toLowerCase().includes('super') ? 'rgba(245, 158, 11, 0.15)' : 'rgba(59, 130, 246, 0.15)',
-                              color: emp.position.toLowerCase().includes('super') ? '#fbbf24' : '#60a5fa',
-                              border: emp.position.toLowerCase().includes('super') ? '1px solid rgba(245, 158, 11, 0.3)' : '1px solid rgba(59, 130, 246, 0.3)',
-                              borderRadius: '4px',
-                              fontSize: '0.75rem',
-                              fontWeight: 600
-                            }}>
-                              {emp.position}
-                            </span>
-                          </div>
-                        ) : (
-                          <div style={{ color: '#a1a1aa', fontSize: '0.8rem', marginTop: '0.25rem' }}>{emp.position || 'Sin cargo'}</div>
-                        )}
+                        {(() => {
+                          const empEmailLower = (emp.email || '').trim().toLowerCase();
+                          const empFullName = `${emp.firstName || ''} ${emp.lastName || ''}`.trim().toLowerCase();
+
+                          const isSuperAdmin = 
+                            emp.adminRole === 'SUPER_ADMIN' ||
+                            emp.position?.toLowerCase().includes('super') ||
+                            (user?.role === 'SUPER_ADMIN' && (
+                              (user.email && empEmailLower === user.email.trim().toLowerCase()) ||
+                              empEmailLower.includes('gabrielmorag') ||
+                              (empFullName.includes('gabriel') && empFullName.includes('avila'))
+                            ));
+
+                          const isAdmin = 
+                            isSuperAdmin ||
+                            emp.adminRole === 'ADMIN' ||
+                            emp.position?.toLowerCase().includes('administrador');
+
+                          if (isAdmin) {
+                            return (
+                              <div style={{ marginTop: '0.25rem', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                                <span style={{ 
+                                  display: 'inline-block',
+                                  padding: '0.15rem 0.5rem', 
+                                  background: isSuperAdmin ? 'rgba(245, 158, 11, 0.15)' : 'rgba(59, 130, 246, 0.15)',
+                                  color: isSuperAdmin ? '#fbbf24' : '#60a5fa',
+                                  border: isSuperAdmin ? '1px solid rgba(245, 158, 11, 0.3)' : '1px solid rgba(59, 130, 246, 0.3)',
+                                  borderRadius: '4px',
+                                  fontSize: '0.75rem',
+                                  fontWeight: 600,
+                                  width: 'fit-content'
+                                }}>
+                                  {isSuperAdmin ? 'Super Administrador' : 'Administrador'}
+                                </span>
+                                {emp.position && !emp.position.toLowerCase().includes('administrador') && (
+                                  <span style={{ color: '#a1a1aa', fontSize: '0.75rem' }}>{emp.position}</span>
+                                )}
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <div style={{ color: '#a1a1aa', fontSize: '0.8rem', marginTop: '0.25rem' }}>{emp.position || 'Sin cargo'}</div>
+                          );
+                        })()}
                       </td>
                       <td style={tdStyle}>
                         {hasBiometric ? (
@@ -463,7 +492,45 @@ const EmployeesPage = () => {
                     <div>
                       <h4 style={{ margin: 0, fontSize: '1.2rem', color: '#fff' }}>{employeeDetails.firstName} {employeeDetails.lastName}</h4>
                       <p style={{ margin: '0.2rem 0 0 0', color: '#a1a1aa', fontSize: '0.9rem' }}>{employeeDetails.email || employeeDetails.identifier}</p>
-                      <p style={{ margin: '0.2rem 0 0 0', color: '#e4e4e7', fontSize: '0.9rem' }}>{employeeDetails.department?.name || 'Sin departamento'} • {employeeDetails.position || 'Sin cargo'}</p>
+                      <p style={{ margin: '0.2rem 0 0 0', color: '#e4e4e7', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                        <span>{employeeDetails.department?.name || 'Sin departamento'}</span>
+                        <span>•</span>
+                        {(() => {
+                          const empEmailLower = (employeeDetails.email || '').trim().toLowerCase();
+                          const empFullName = `${employeeDetails.firstName || ''} ${employeeDetails.lastName || ''}`.trim().toLowerCase();
+
+                          const isSuperAdminModal = 
+                            employeeDetails.adminRole === 'SUPER_ADMIN' ||
+                            employeeDetails.position?.toLowerCase().includes('super') ||
+                            (user?.role === 'SUPER_ADMIN' && (
+                              (user.email && empEmailLower === user.email.trim().toLowerCase()) ||
+                              empEmailLower.includes('gabrielmorag') ||
+                              (empFullName.includes('gabriel') && empFullName.includes('avila'))
+                            ));
+
+                          const isAdminModal = 
+                            isSuperAdminModal ||
+                            employeeDetails.adminRole === 'ADMIN' ||
+                            employeeDetails.position?.toLowerCase().includes('administrador');
+
+                          if (isAdminModal) {
+                            return (
+                              <span style={{
+                                padding: '0.1rem 0.5rem',
+                                background: isSuperAdminModal ? 'rgba(245, 158, 11, 0.15)' : 'rgba(59, 130, 246, 0.15)',
+                                color: isSuperAdminModal ? '#fbbf24' : '#60a5fa',
+                                border: isSuperAdminModal ? '1px solid rgba(245, 158, 11, 0.3)' : '1px solid rgba(59, 130, 246, 0.3)',
+                                borderRadius: '4px',
+                                fontSize: '0.75rem',
+                                fontWeight: 600
+                              }}>
+                                {isSuperAdminModal ? 'Super Administrador' : 'Administrador'}
+                              </span>
+                            );
+                          }
+                          return <span>{employeeDetails.position || 'Sin cargo'}</span>;
+                        })()}
+                      </p>
                     </div>
                   </div>
                   

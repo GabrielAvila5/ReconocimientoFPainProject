@@ -43,15 +43,55 @@ router.use(requireJwt);
 
 router.get('/', async (req, res) => {
   try {
-    const employees = await prisma.employee.findMany({
-      include: { 
-        department: true,
-        shifts: {
-          include: { shift: true }
+    const [employees, admins] = await Promise.all([
+      prisma.employee.findMany({
+        include: { 
+          department: true,
+          shifts: {
+            include: { shift: true }
+          }
         }
-      }
+      }),
+      prisma.adminUser.findMany({
+        select: { id: true, email: true, name: true, role: true }
+      })
+    ]);
+
+    const adminByEmail = new Map();
+    admins.forEach(a => {
+      if (a.email) adminByEmail.set(a.email.trim().toLowerCase(), a);
     });
-    res.json(employees);
+
+    const enrichedEmployees = employees.map(emp => {
+      const empEmail = (emp.email || '').trim().toLowerCase();
+      let matchedAdmin = adminByEmail.get(empEmail);
+
+      // Si no coincide exactamente por email, verificar si es el Super Admin por prefijo o nombre (ej. gabrielmorag vs gabrielmorag07)
+      if (!matchedAdmin) {
+        matchedAdmin = admins.find(a => {
+          if (a.role === 'SUPER_ADMIN') {
+            const adminEmailPrefix = (a.email || '').split('@')[0].toLowerCase();
+            const empEmailPrefix = (emp.email || '').split('@')[0].toLowerCase();
+            if (adminEmailPrefix && empEmailPrefix && (adminEmailPrefix.includes(empEmailPrefix) || empEmailPrefix.includes(adminEmailPrefix))) {
+              return true;
+            }
+            const empFullName = `${emp.firstName || ''} ${emp.lastName || ''}`.toLowerCase();
+            const adminFullName = (a.name || '').toLowerCase();
+            if (empFullName.includes('gabriel') && empFullName.includes('avila')) {
+              return true;
+            }
+          }
+          return false;
+        });
+      }
+
+      return {
+        ...emp,
+        adminRole: matchedAdmin ? matchedAdmin.role : null
+      };
+    });
+
+    res.json(enrichedEmployees);
   } catch (error) {
     res.status(500).json({ error: 'Error al obtener empleados' });
   }
@@ -117,7 +157,30 @@ router.get('/:id', async (req, res) => {
       }
     });
     if (!employee) return res.status(404).json({ error: 'No encontrado' });
-    res.json(employee);
+
+    let adminRole = null;
+    if (employee.email) {
+      const admin = await prisma.adminUser.findUnique({
+        where: { email: employee.email }
+      });
+      if (admin) {
+        adminRole = admin.role;
+      } else {
+        const superAdmin = await prisma.adminUser.findFirst({
+          where: { role: 'SUPER_ADMIN' }
+        });
+        if (superAdmin) {
+          const empPrefix = employee.email.split('@')[0].toLowerCase();
+          const superPrefix = superAdmin.email.split('@')[0].toLowerCase();
+          const empFullName = `${employee.firstName || ''} ${employee.lastName || ''}`.toLowerCase();
+          if (empPrefix.includes('gabrielmorag') || superPrefix.includes('gabrielmorag') || (empFullName.includes('gabriel') && empFullName.includes('avila'))) {
+            adminRole = 'SUPER_ADMIN';
+          }
+        }
+      }
+    }
+
+    res.json({ ...employee, adminRole });
   } catch (error) {
     res.status(500).json({ error: 'Error al obtener empleado' });
   }

@@ -81,21 +81,51 @@ async function getDefaultAdminDepartmentId(prismaClient = prisma, preferredDeptI
 async function syncAdminToEmployee(adminUser, options = {}, prismaClient = prisma) {
   if (!adminUser || !adminUser.email) return null;
 
+  const adminEmail = adminUser.email.trim();
+
   // Buscar si ya existe un empleado con este correo
-  const existingEmployee = await prismaClient.employee.findUnique({
-    where: { email: adminUser.email }
+  let existingEmployee = await prismaClient.employee.findUnique({
+    where: { email: adminEmail }
   });
+
+  // Si no se encuentra y es SUPER_ADMIN, buscar por coincidencia de Gabriel Avila o variación de correo
+  if (!existingEmployee && adminUser.role === 'SUPER_ADMIN') {
+    existingEmployee = await prismaClient.employee.findFirst({
+      where: {
+        OR: [
+          { email: { contains: 'gabrielmorag' } },
+          {
+            AND: [
+              { firstName: { contains: 'Gabriel' } },
+              { lastName: { contains: 'Avila' } }
+            ]
+          }
+        ]
+      }
+    });
+  }
 
   const defaultPosition = adminUser.role === 'SUPER_ADMIN' ? 'Super Administrador' : 'Administrador';
 
   if (existingEmployee) {
-    // Si ya existe, nos aseguramos de que esté activo y con cargo asignado
+    const dataToUpdate = {
+      isActive: true
+    };
+
+    // Para el Super Administrador, asegurar que su cargo refleje su rol
+    if (adminUser.role === 'SUPER_ADMIN') {
+      dataToUpdate.position = 'Super Administrador';
+      // Si el email del empleado no coincidía exactamente con el del admin, alinearlo
+      if (existingEmployee.email !== adminEmail) {
+        dataToUpdate.email = adminEmail;
+      }
+    } else {
+      dataToUpdate.position = options.position || (existingEmployee.position?.toLowerCase().includes('administrador') ? existingEmployee.position : defaultPosition);
+    }
+
     const updated = await prismaClient.employee.update({
       where: { id: existingEmployee.id },
-      data: {
-        isActive: true,
-        position: existingEmployee.position || options.position || defaultPosition
-      }
+      data: dataToUpdate
     });
     return updated;
   }
@@ -140,22 +170,17 @@ async function syncAdminToEmployee(adminUser, options = {}, prismaClient = prism
 async function syncAllAdminsToEmployees(prismaClient = prisma) {
   try {
     const admins = await prismaClient.adminUser.findMany();
-    let createdCount = 0;
+    let syncCount = 0;
 
     for (const admin of admins) {
-      const existing = await prismaClient.employee.findUnique({
-        where: { email: admin.email }
-      });
-      if (!existing) {
-        await syncAdminToEmployee(admin, {}, prismaClient);
-        createdCount++;
-      }
+      await syncAdminToEmployee(admin, {}, prismaClient);
+      syncCount++;
     }
 
-    if (createdCount > 0) {
-      console.log(`[AdminSync] Se sincronizaron y crearon ${createdCount} empleado(s) a partir de administradores.`);
+    if (syncCount > 0) {
+      console.log(`[AdminSync] Se sincronizaron ${syncCount} administrador(es) con la tabla de personal.`);
     }
-    return { success: true, count: createdCount };
+    return { success: true, count: syncCount };
   } catch (error) {
     console.error('[AdminSync] Error al sincronizar administradores a empleados:', error);
     return { success: false, error: error.message };
