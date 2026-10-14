@@ -2,6 +2,7 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
+const { syncAdminToEmployee } = require('../../utils/adminEmployeeSync');
 
 const login = async (req, res) => {
   try {
@@ -114,6 +115,13 @@ const setupFirstAdmin = async (req, res) => {
         role: 'SUPER_ADMIN'
       }
     });
+
+    // Sincronizar automáticamente al Super Administrador como empleado/usuario del sistema
+    try {
+      await syncAdminToEmployee(user, req.body, prisma);
+    } catch (syncErr) {
+      console.error('[setupFirstAdmin] Error al sincronizar empleado:', syncErr);
+    }
 
     // Generar JWT y loguear automáticamente
     const secret = process.env.JWT_SECRET || 'HostingerFallbackSecretKey2026!';

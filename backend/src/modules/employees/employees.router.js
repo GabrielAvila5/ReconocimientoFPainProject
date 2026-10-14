@@ -277,11 +277,35 @@ router.post('/register-face', async (req, res) => {
 
 router.delete('/:id', async (req, res) => {
   try {
+    const employee = await prisma.employee.findUnique({
+      where: { id: req.params.id }
+    });
+
+    if (!employee) {
+      return res.status(404).json({ error: 'Empleado no encontrado' });
+    }
+
+    // Proteger al Super Administrador contra borrado accidental
+    if (employee.email) {
+      const admin = await prisma.adminUser.findUnique({
+        where: { email: employee.email }
+      });
+      if (admin && admin.role === 'SUPER_ADMIN') {
+        return res.status(403).json({ 
+          error: 'No se puede eliminar el perfil de personal del Super Administrador del sistema.' 
+        });
+      }
+    }
+
     // Eliminar registros asociados primero para evitar errores de llave foránea
     await prisma.attendanceRecord.deleteMany({
       where: { employeeId: req.params.id }
     });
     
+    await prisma.notification.deleteMany({
+      where: { employeeId: req.params.id }
+    });
+
     await prisma.notification.deleteMany({
       where: { entityId: req.params.id }
     });

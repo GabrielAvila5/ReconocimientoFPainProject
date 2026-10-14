@@ -375,7 +375,24 @@ const EmployeesPage = () => {
                             Pendiente (Sin depto)
                           </span>
                         )}
-                        <div style={{ color: '#a1a1aa', fontSize: '0.8rem', marginTop: '0.25rem' }}>{emp.position || 'Sin cargo'}</div>
+                        {emp.position && emp.position.toLowerCase().includes('administrador') ? (
+                          <div style={{ marginTop: '0.25rem' }}>
+                            <span style={{ 
+                              display: 'inline-block',
+                              padding: '0.15rem 0.5rem', 
+                              background: emp.position.toLowerCase().includes('super') ? 'rgba(245, 158, 11, 0.15)' : 'rgba(59, 130, 246, 0.15)',
+                              color: emp.position.toLowerCase().includes('super') ? '#fbbf24' : '#60a5fa',
+                              border: emp.position.toLowerCase().includes('super') ? '1px solid rgba(245, 158, 11, 0.3)' : '1px solid rgba(59, 130, 246, 0.3)',
+                              borderRadius: '4px',
+                              fontSize: '0.75rem',
+                              fontWeight: 600
+                            }}>
+                              {emp.position}
+                            </span>
+                          </div>
+                        ) : (
+                          <div style={{ color: '#a1a1aa', fontSize: '0.8rem', marginTop: '0.25rem' }}>{emp.position || 'Sin cargo'}</div>
+                        )}
                       </td>
                       <td style={tdStyle}>
                         {hasBiometric ? (

@@ -1,5 +1,5 @@
 const express = require('express');
-const { getAdmins, createAdmin, deleteAdmin, getAuditLogs } = require('./admins.controller');
+const { getAdmins, createAdmin, deleteAdmin, getAuditLogs, syncAdminsHandler } = require('./admins.controller');
 const { requireAuth, requireRole } = require('../auth/auth.middleware');
 
 const router = express.Router();
@@ -11,6 +11,7 @@ router.use(requireRole(['SUPER_ADMIN']));
 router.get('/', getAdmins);
 router.post('/', createAdmin);
 router.get('/audit-log', getAuditLogs);
+router.post('/sync-users', syncAdminsHandler);
 router.delete('/:id', deleteAdmin);
 
 // ENDPOINT MANUAL DE DESARROLLO/DEBUG
