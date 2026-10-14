@@ -198,10 +198,11 @@ const KioskSetupPage = () => {
         backgroundColor: '#18181b',
         border: '1px solid #27272a',
         borderRadius: '24px',
-        padding: '2.5rem',
+        padding: 'clamp(1.25rem, 4vw, 2.5rem)',
         boxShadow: '0 20px 40px rgba(0,0,0,0.5)',
         textAlign: 'center',
-        position: 'relative'
+        position: 'relative',
+        boxSizing: 'border-box'
       }}>
         {/* Icono de Cabecera */}
         <div style={{
@@ -313,9 +314,9 @@ const KioskSetupPage = () => {
                 Código de Emparejamiento
               </div>
               <div style={{
-                fontSize: '2.5rem',
+                fontSize: 'clamp(1.75rem, 6vw, 2.5rem)',
                 fontWeight: 800,
-                letterSpacing: '0.15em',
+                letterSpacing: 'clamp(0.06em, 2vw, 0.15em)',
                 color: '#f97316',
                 fontFamily: 'monospace'
               }}>
@@ -328,7 +329,8 @@ const KioskSetupPage = () => {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: '1.5rem',
+              flexWrap: 'wrap',
+              gap: '0.75rem 1.5rem',
               color: '#a1a1aa',
               fontSize: '0.85rem',
               marginBottom: '2rem'

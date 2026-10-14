@@ -125,6 +125,7 @@ const DashboardLayout = () => {
                   key={item.name} 
                   to={item.path}
                   end={item.path === '/dashboard'}
+                  onClick={() => setIsSidebarOpen(false)}
                   style={({ isActive }) => ({
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                     padding: '0.75rem 1rem', borderRadius: '12px', textDecoration: 'none',
@@ -157,6 +158,7 @@ const DashboardLayout = () => {
                 <NavLink 
                   key={item.name} 
                   to={item.path}
+                  onClick={() => setIsSidebarOpen(false)}
                   style={({ isActive }) => ({
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                     padding: '0.75rem 1rem', borderRadius: '12px', textDecoration: 'none',
@@ -237,9 +239,17 @@ const DashboardLayout = () => {
             </div>
           </div>
           
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
             <button onClick={() => window.open('/kiosk', '_blank')} className="btn-primary hidden-mobile">
               <Maximize size={16} /> Abrir Kiosko
+            </button>
+            <button 
+              onClick={() => window.open('/kiosk', '_blank')} 
+              className="btn-primary show-mobile"
+              style={{ padding: '0.5rem', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              title="Abrir Kiosko"
+            >
+              <Maximize size={18} />
             </button>
             <div 
               ref={dropdownRef}

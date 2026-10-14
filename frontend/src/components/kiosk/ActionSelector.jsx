@@ -36,19 +36,19 @@ const ActionSelector = ({ context, employeeName, onAction, onCancel }) => {
   const actions = getAvailableActions();
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', maxWidth: '800px', margin: '0 auto', padding: '2rem' }}>
-      <h2 style={{ fontSize: '2rem', fontWeight: 'bold', color: '#fff', marginBottom: '0.75rem', textAlign: 'center' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', maxWidth: '800px', margin: '0 auto', padding: 'clamp(1rem, 3vw, 2rem)', boxSizing: 'border-box' }}>
+      <h2 style={{ fontSize: 'clamp(1.4rem, 4.5vw, 2.2rem)', fontWeight: 'bold', color: '#fff', marginBottom: '0.85rem', textAlign: 'center', lineHeight: 1.2 }}>
         Confirmar asistencia de {employeeName || 'Empleado'}
       </h2>
       
       {/* Reloj y Fecha en Vivo al momento del registro */}
-      <KioskClock variant="badge" style={{ marginBottom: '2rem' }} />
+      <KioskClock variant="badge" style={{ marginBottom: 'clamp(1.5rem, 3vw, 2.25rem)' }} />
       
       <div style={{ 
         display: 'grid', 
-        gridTemplateColumns: `repeat(auto-fit, minmax(200px, ${actions.length === 1 ? '400px' : '1fr'}))`,
+        gridTemplateColumns: `repeat(auto-fit, minmax(min(100%, 200px), ${actions.length === 1 ? '400px' : '1fr'}))`,
         justifyContent: 'center',
-        gap: '1.5rem', 
+        gap: 'clamp(1rem, 2.5vw, 1.5rem)', 
         width: '100%' 
       }}>
         {actions.map(action => (
@@ -60,13 +60,13 @@ const ActionSelector = ({ context, employeeName, onAction, onCancel }) => {
               color: '#fff',
               border: 'none',
               borderRadius: '16px',
-              padding: '2rem',
+              padding: 'clamp(1.5rem, 3vw, 2rem)',
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
               cursor: 'pointer',
-              minHeight: '180px',
+              minHeight: 'clamp(140px, 20vw, 180px)',
               boxShadow: '0 4px 15px rgba(0,0,0,0.3)',
               transition: 'transform 0.2s, filter 0.2s'
             }}
@@ -81,8 +81,8 @@ const ActionSelector = ({ context, employeeName, onAction, onCancel }) => {
             onMouseDown={(e) => e.currentTarget.style.transform = 'scale(0.95)'}
             onMouseUp={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
           >
-            <div style={{ marginBottom: '1rem' }}>{action.icon}</div>
-            <span style={{ fontSize: '1.25rem', fontWeight: 'bold' }}>{action.label}</span>
+            <div style={{ marginBottom: '0.75rem' }}>{action.icon}</div>
+            <span style={{ fontSize: 'clamp(1.1rem, 2.5vw, 1.3rem)', fontWeight: 'bold', textAlign: 'center' }}>{action.label}</span>
             {action.subtitle && <span style={{ fontSize: '0.9rem', color: 'rgba(255,255,255,0.7)', marginTop: '0.5rem', fontWeight: 'normal' }}>{action.subtitle}</span>}
           </button>
         ))}
@@ -91,13 +91,13 @@ const ActionSelector = ({ context, employeeName, onAction, onCancel }) => {
       <button 
         onClick={onCancel}
         style={{
-          marginTop: '3rem',
-          padding: '1rem 2rem',
+          marginTop: 'clamp(1.5rem, 4vw, 3rem)',
+          padding: '0.85rem 2rem',
           backgroundColor: 'transparent',
           color: '#a1a1aa',
           border: '1px solid #3f3f46',
           borderRadius: '50px',
-          fontSize: '1.1rem',
+          fontSize: 'clamp(0.95rem, 2vw, 1.1rem)',
           fontWeight: 'bold',
           cursor: 'pointer',
           transition: 'background-color 0.2s'

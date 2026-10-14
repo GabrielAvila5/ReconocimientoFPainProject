@@ -360,16 +360,47 @@ const FaceRecognitionPage = () => {
   if (confidence < 60) confColor = '#ef4444';
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', width: '100vw', background: '#0f0f0f', padding: '2rem', boxSizing: 'border-box', overflowY: 'auto' }}>
+    <div style={{ 
+      display: 'flex', 
+      flexDirection: 'column', 
+      alignItems: 'center', 
+      justifyContent: 'center', 
+      minHeight: '100dvh', 
+      width: '100%', 
+      maxWidth: '100vw',
+      background: '#0f0f0f', 
+      padding: 'clamp(1rem, 3vw, 2rem)', 
+      boxSizing: 'border-box', 
+      overflowY: 'auto',
+      overflowX: 'hidden'
+    }}>
       
       {/* HEADER SIEMPRE VISIBLE */}
-      <div style={{ textAlign: 'center', marginBottom: '1.5rem', marginTop: stage !== STAGES.SCANNING && stage !== STAGES.IDENTIFIED ? '2rem' : '0', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-        <h1 style={{ color: '#fff', fontSize: '2.5rem', margin: '0 0 0.6rem 0', textTransform: 'uppercase', letterSpacing: '2px' }}>Kiosko de Asistencia</h1>
+      <div style={{ 
+        textAlign: 'center', 
+        marginBottom: '1.25rem', 
+        marginTop: stage !== STAGES.SCANNING && stage !== STAGES.IDENTIFIED ? '1rem' : '0', 
+        display: 'flex', 
+        flexDirection: 'column', 
+        alignItems: 'center',
+        width: '100%',
+        maxWidth: '800px'
+      }}>
+        <h1 style={{ 
+          color: '#fff', 
+          fontSize: 'clamp(1.6rem, 5vw, 2.5rem)', 
+          margin: '0 0 0.6rem 0', 
+          textTransform: 'uppercase', 
+          letterSpacing: '2px',
+          fontWeight: 800
+        }}>
+          Kiosko de Asistencia
+        </h1>
         
         {/* RELOJ Y FECHA EN VIVO */}
         <KioskClock variant="badge" style={{ marginBottom: '0.85rem' }} />
 
-        <p style={{ color: '#a1a1aa', fontSize: '1.1rem', margin: 0 }}>
+        <p style={{ color: '#a1a1aa', fontSize: 'clamp(0.95rem, 2.5vw, 1.15rem)', margin: 0, fontWeight: 500 }}>
           {stage === STAGES.SCANNING ? statusText : stage === STAGES.PROCESSING ? 'Procesando...' : ''}
         </p>
       </div>
@@ -377,7 +408,17 @@ const FaceRecognitionPage = () => {
       {/* ETAPAS 1 Y 2: CAMARA Y RECONOCIMIENTO */}
       <div style={{ 
         display: (stage === STAGES.SCANNING || stage === STAGES.IDENTIFIED) ? 'block' : 'none',
-        position: 'relative', width: '800px', height: '600px', borderRadius: '16px', overflow: 'hidden', border: `4px solid ${borderColor}`, transition: 'border-color 0.3s', backgroundColor: '#18181b', boxShadow: `0 0 30px ${borderColor}40` 
+        position: 'relative', 
+        width: '100%', 
+        maxWidth: '800px', 
+        aspectRatio: '4 / 3',
+        maxHeight: '65vh',
+        borderRadius: '16px', 
+        overflow: 'hidden', 
+        border: `4px solid ${borderColor}`, 
+        transition: 'border-color 0.3s', 
+        backgroundColor: '#18181b', 
+        boxShadow: `0 0 30px ${borderColor}40` 
       }}>
         <video 
           ref={videoRef}
@@ -395,40 +436,67 @@ const FaceRecognitionPage = () => {
         {/* Panel Inferior: Reconocimiento */}
         <div style={{ 
           position: 'absolute', 
-          bottom: stage === STAGES.IDENTIFIED ? 0 : '-150px', 
+          bottom: 0, 
           left: 0, 
           width: '100%', 
-          background: 'linear-gradient(to top, rgba(0,0,0,0.95), rgba(0,0,0,0.8))', 
-          padding: '1.5rem', 
-          transition: 'bottom 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+          background: 'linear-gradient(to top, rgba(0,0,0,0.96) 0%, rgba(0,0,0,0.85) 75%, rgba(0,0,0,0) 100%)', 
+          padding: 'clamp(0.85rem, 2.5vw, 1.5rem)', 
+          transform: stage === STAGES.IDENTIFIED ? 'translateY(0)' : 'translateY(105%)',
+          transition: 'transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
           display: 'flex',
           alignItems: 'center',
-          gap: '1.5rem',
-          borderTop: `2px solid ${borderColor}`
+          gap: 'clamp(0.75rem, 2vw, 1.5rem)',
+          flexWrap: 'wrap',
+          borderTop: `2px solid ${borderColor}`,
+          boxSizing: 'border-box'
         }}>
           {recognizedEmployee && (
             <>
-              <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'rgba(249, 115, 22, 0.2)', color: '#f97316', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '1.5rem', flexShrink: 0 }}>
+              <div style={{ 
+                width: 'clamp(48px, 8vw, 64px)', 
+                height: 'clamp(48px, 8vw, 64px)', 
+                borderRadius: '50%', 
+                background: 'rgba(249, 115, 22, 0.2)', 
+                color: '#f97316', 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center', 
+                fontWeight: 'bold', 
+                fontSize: 'clamp(1.1rem, 2.5vw, 1.5rem)', 
+                flexShrink: 0 
+              }}>
                 {getInitials(recognizedEmployee.name?.split(' ')[0], recognizedEmployee.name?.split(' ')[1] || recognizedEmployee.name?.split(' ')[0])}
               </div>
-              <div style={{ flex: 1 }}>
-                <h2 style={{ color: '#fff', fontSize: '1.8rem', margin: '0 0 0.25rem 0' }}>{recognizedEmployee.name}</h2>
-                <p style={{ color: '#a1a1aa', fontSize: '1.1rem', margin: 0 }}>{recognizedEmployee.department?.name || 'Sin departamento'} • {recognizedEmployee.position || 'Sin cargo'}</p>
+              <div style={{ flex: '1 1 200px', minWidth: '160px' }}>
+                <h2 style={{ color: '#fff', fontSize: 'clamp(1.2rem, 3.5vw, 1.8rem)', margin: '0 0 0.25rem 0', lineHeight: 1.2 }}>{recognizedEmployee.name}</h2>
+                <p style={{ color: '#a1a1aa', fontSize: 'clamp(0.85rem, 2vw, 1.1rem)', margin: 0 }}>{recognizedEmployee.department?.name || 'Sin departamento'} • {recognizedEmployee.position || 'Sin cargo'}</p>
               </div>
-              <div style={{ textAlign: 'right', marginRight: '1rem' }}>
-                <div style={{ color: '#a1a1aa', fontSize: '0.9rem', marginBottom: '0.25rem' }}>Confianza</div>
-                <div style={{ color: confColor, fontSize: '1.5rem', fontWeight: 'bold' }}>{confidence}%</div>
+              <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                <div style={{ color: '#a1a1aa', fontSize: '0.85rem', marginBottom: '0.2rem' }}>Confianza</div>
+                <div style={{ color: confColor, fontSize: 'clamp(1.2rem, 3vw, 1.5rem)', fontWeight: 'bold' }}>{confidence}%</div>
               </div>
-              <div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', flexShrink: 0, minWidth: '120px' }}>
                 <button 
                   onClick={handleConfirmIdentity}
-                  style={{ background: '#f97316', color: '#fff', border: 'none', padding: '0.75rem 1.5rem', borderRadius: '8px', fontSize: '1.1rem', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                  style={{ 
+                    background: '#f97316', 
+                    color: '#fff', 
+                    border: 'none', 
+                    padding: 'clamp(0.6rem, 1.8vw, 0.75rem) clamp(1rem, 2.5vw, 1.5rem)', 
+                    borderRadius: '8px', 
+                    fontSize: 'clamp(0.95rem, 2vw, 1.1rem)', 
+                    fontWeight: 'bold', 
+                    cursor: 'pointer', 
+                    display: 'flex', 
+                    alignItems: 'center',
+                    justifyContent: 'center' 
+                  }}
                 >
-                  Continuar <ArrowRight size={20} style={{ marginLeft: '0.5rem' }} />
+                  Continuar <ArrowRight size={18} style={{ marginLeft: '0.5rem' }} />
                 </button>
                 <button 
                   onClick={resetFlow}
-                  style={{ background: 'transparent', color: '#a1a1aa', border: 'none', fontSize: '0.9rem', marginTop: '0.5rem', cursor: 'pointer', textDecoration: 'underline', width: '100%' }}
+                  style={{ background: 'transparent', color: '#a1a1aa', border: 'none', fontSize: '0.85rem', cursor: 'pointer', textDecoration: 'underline', width: '100%', textAlign: 'center' }}
                 >
                   Cancelar
                 </button>
@@ -440,26 +508,26 @@ const FaceRecognitionPage = () => {
 
       {/* ETAPA 3: SELECCION DE TURNO */}
       {stage === STAGES.SELECT_SHIFT && context && (
-        <div style={{ width: '100%', maxWidth: '600px', background: '#18181b', borderRadius: '16px', padding: '2rem', border: '1px solid #27272a' }}>
-          <h2 style={{ fontSize: '1.8rem', color: '#fff', textAlign: 'center', marginBottom: '2rem' }}>Selecciona tu turno actual</h2>
+        <div style={{ width: '100%', maxWidth: '600px', background: '#18181b', borderRadius: '16px', padding: 'clamp(1.25rem, 3vw, 2rem)', border: '1px solid #27272a', boxSizing: 'border-box' }}>
+          <h2 style={{ fontSize: 'clamp(1.4rem, 4vw, 1.8rem)', color: '#fff', textAlign: 'center', marginBottom: '1.5rem' }}>Selecciona tu turno actual</h2>
           <div style={{ display: 'grid', gap: '1rem' }}>
             {context.availableShifts.map(shift => (
               <button
                 key={shift.id}
                 onClick={() => handleSelectShift(shift.id)}
-                style={{ background: '#27272a', border: '2px solid transparent', padding: '1.5rem', borderRadius: '12px', color: '#fff', textAlign: 'left', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
+                style={{ background: '#27272a', border: '2px solid transparent', padding: 'clamp(1rem, 2.5vw, 1.5rem)', borderRadius: '12px', color: '#fff', textAlign: 'left', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
                 onMouseOver={(e) => e.currentTarget.style.borderColor = '#f97316'}
                 onMouseOut={(e) => e.currentTarget.style.borderColor = 'transparent'}
               >
                 <div>
-                  <h3 style={{ fontSize: '1.3rem', margin: '0 0 0.5rem 0' }}>{shift.name}</h3>
-                  <p style={{ color: '#a1a1aa', margin: 0 }}>{shift.startTime} - {shift.endTime}</p>
+                  <h3 style={{ fontSize: 'clamp(1.1rem, 2.5vw, 1.3rem)', margin: '0 0 0.5rem 0' }}>{shift.name}</h3>
+                  <p style={{ color: '#a1a1aa', margin: 0, fontSize: 'clamp(0.85rem, 2vw, 0.95rem)' }}>{shift.startTime} - {shift.endTime}</p>
                 </div>
                 <ArrowRight color="#a1a1aa" />
               </button>
             ))}
           </div>
-          <div style={{ textAlign: 'center', marginTop: '2rem' }}>
+          <div style={{ textAlign: 'center', marginTop: '1.5rem' }}>
              <button onClick={resetFlow} style={{ background: 'transparent', border: 'none', color: '#a1a1aa', cursor: 'pointer', textDecoration: 'underline' }}>Cancelar</button>
           </div>
         </div>
@@ -481,26 +549,26 @@ const FaceRecognitionPage = () => {
       {stage === STAGES.PROCESSING && (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', color: '#f97316' }}>
           <Loader2 size={64} className="spin" style={{ marginBottom: '1rem' }} />
-          <h2 style={{ fontSize: '2rem' }}>Procesando...</h2>
+          <h2 style={{ fontSize: 'clamp(1.5rem, 4vw, 2rem)' }}>Procesando...</h2>
         </div>
       )}
 
       {/* ETAPA 6: EXITO */}
       {stage === STAGES.SUCCESS && (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', background: 'rgba(16, 185, 129, 0.1)', padding: '3rem', borderRadius: '24px', border: '4px solid #10b981', maxWidth: '600px', width: '100%', textAlign: 'center' }}>
-          <CheckCircle2 size={96} color="#10b981" style={{ marginBottom: '1.5rem' }} />
-          <h2 style={{ fontSize: '2.5rem', color: '#10b981', marginBottom: '0.5rem' }}>¡Listo!</h2>
-          <p style={{ fontSize: '1.5rem', color: '#fff', marginBottom: '1.25rem' }}>{successMessage}</p>
-          <KioskClock variant="inline" style={{ background: 'rgba(0,0,0,0.4)', padding: '0.5rem 1.25rem', borderRadius: '50px', border: '1px solid rgba(16, 185, 129, 0.3)' }} />
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', background: 'rgba(16, 185, 129, 0.1)', padding: 'clamp(1.5rem, 4vw, 3rem)', borderRadius: '24px', border: '4px solid #10b981', maxWidth: '600px', width: '100%', textAlign: 'center', boxSizing: 'border-box' }}>
+          <CheckCircle2 color="#10b981" style={{ width: 'clamp(64px, 12vw, 96px)', height: 'clamp(64px, 12vw, 96px)', marginBottom: '1rem' }} />
+          <h2 style={{ fontSize: 'clamp(1.8rem, 5vw, 2.5rem)', color: '#10b981', marginBottom: '0.5rem' }}>¡Listo!</h2>
+          <p style={{ fontSize: 'clamp(1.1rem, 3vw, 1.5rem)', color: '#fff', marginBottom: '1.25rem' }}>{successMessage}</p>
+          <KioskClock variant="inline" style={{ background: 'rgba(0,0,0,0.4)', padding: '0.6rem 1.4rem', borderRadius: '50px', border: '1px solid rgba(16, 185, 129, 0.3)' }} />
         </div>
       )}
 
       {/* ETAPA 7: ERROR */}
       {stage === STAGES.ERROR && (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', background: 'rgba(239, 68, 68, 0.1)', padding: '3rem', borderRadius: '24px', border: '4px solid #ef4444' }}>
-          <UserX size={96} color="#ef4444" style={{ marginBottom: '1.5rem' }} />
-          <h2 style={{ fontSize: '2.5rem', color: '#ef4444', marginBottom: '0.5rem' }}>Denegado</h2>
-          <p style={{ fontSize: '1.5rem', color: '#fff', textAlign: 'center', maxWidth: '600px' }}>{errorMessage}</p>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', background: 'rgba(239, 68, 68, 0.1)', padding: 'clamp(1.5rem, 4vw, 3rem)', borderRadius: '24px', border: '4px solid #ef4444', maxWidth: '600px', width: '100%', boxSizing: 'border-box' }}>
+          <UserX color="#ef4444" style={{ width: 'clamp(64px, 12vw, 96px)', height: 'clamp(64px, 12vw, 96px)', marginBottom: '1rem' }} />
+          <h2 style={{ fontSize: 'clamp(1.8rem, 5vw, 2.5rem)', color: '#ef4444', marginBottom: '0.5rem' }}>Denegado</h2>
+          <p style={{ fontSize: 'clamp(1.1rem, 3vw, 1.5rem)', color: '#fff', textAlign: 'center', maxWidth: '600px' }}>{errorMessage}</p>
         </div>
       )}
 

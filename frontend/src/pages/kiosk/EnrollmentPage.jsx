@@ -291,26 +291,26 @@ const EnrollmentPage = () => {
   if (captureStatus === 'fail') borderColor = '#ef4444';
 
   return (
-    <div style={{ ...pageStyle, display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: '2rem' }}>
-      <button onClick={() => { stopCamera(); navigate('/dashboard/employees'); }} style={{ ...btnSecondary, position: 'absolute', top: '2rem', left: '2rem', display: 'flex', alignItems: 'center', gap: '0.5rem', zIndex: 10 }}>
+    <div style={{ ...pageStyle, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: 'clamp(1rem, 3vw, 2rem)', boxSizing: 'border-box', position: 'relative' }}>
+      <button onClick={() => { stopCamera(); navigate('/dashboard/employees'); }} style={{ ...btnSecondary, position: 'absolute', top: '1rem', left: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', zIndex: 10 }}>
         <ArrowLeft size={18} /> Cancelar
       </button>
 
       {/* Progress Indicator */}
-      <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem' }}>
+      <div style={{ display: 'flex', gap: 'clamp(0.5rem, 1.5vw, 1rem)', marginBottom: '1.5rem', marginTop: '2.5rem', flexWrap: 'wrap', justifyContent: 'center' }}>
         {ENROLLMENT_STEPS.map((s, idx) => (
           <div key={s.id} style={{
-            width: '32px', height: '32px', borderRadius: '50%',
+            width: 'clamp(28px, 5vw, 36px)', height: 'clamp(28px, 5vw, 36px)', borderRadius: '50%',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             background: idx < currentStepIndex ? '#10b981' : (idx === currentStepIndex ? '#f97316' : '#3f3f46'),
-            color: '#fff', fontWeight: 'bold'
+            color: '#fff', fontWeight: 'bold', fontSize: '0.9rem'
           }}>
-            {idx < currentStepIndex ? <CheckCircle size={18} /> : (idx + 1)}
+            {idx < currentStepIndex ? <CheckCircle size={16} /> : (idx + 1)}
           </div>
         ))}
       </div>
 
-      <div style={{ position: 'relative', width: '640px', height: '480px', borderRadius: '16px', overflow: 'hidden', border: `4px solid ${borderColor}`, transition: 'border-color 0.3s' }}>
+      <div style={{ position: 'relative', width: '100%', maxWidth: '640px', aspectRatio: '4 / 3', maxHeight: '65vh', borderRadius: '16px', overflow: 'hidden', border: `4px solid ${borderColor}`, transition: 'border-color 0.3s' }}>
         <video 
           ref={videoRef}
           autoPlay 
@@ -378,32 +378,32 @@ const EnrollmentPage = () => {
         />
         
         {/* Overlay Instructions */}
-        <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.3)' }}>
+        <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.35)', padding: '1rem', boxSizing: 'border-box' }}>
           {captureStatus === 'fail' ? (
-            <h2 style={{ color: '#ef4444', fontSize: '2rem', textAlign: 'center', background: 'rgba(0,0,0,0.7)', padding: '1rem 2rem', borderRadius: '12px' }}>
+            <h2 style={{ color: '#ef4444', fontSize: 'clamp(1.2rem, 3.5vw, 2rem)', textAlign: 'center', background: 'rgba(0,0,0,0.8)', padding: '1rem 1.5rem', borderRadius: '12px' }}>
               No se detectó ningún rostro.<br/>Intenta de nuevo.
             </h2>
           ) : captureStatus === 'success' ? (
-            <div style={{ background: 'rgba(16, 185, 129, 0.8)', padding: '2rem', borderRadius: '50%', animation: 'pop 0.3s ease-out' }}>
-              <CheckCircle size={64} style={{ color: '#fff' }} />
+            <div style={{ background: 'rgba(16, 185, 129, 0.85)', padding: 'clamp(1rem, 3vw, 2rem)', borderRadius: '50%', animation: 'pop 0.3s ease-out' }}>
+              <CheckCircle style={{ color: '#fff', width: 'clamp(48px, 10vw, 64px)', height: 'clamp(48px, 10vw, 64px)' }} />
             </div>
           ) : (
             <>
               {step && (
                 <>
-                  <div style={{ fontSize: '4rem', marginBottom: '1rem', animation: 'bounce 2s infinite' }}>{step.icon}</div>
-                  <h2 style={{ color: '#fff', fontSize: '2.5rem', textAlign: 'center', textShadow: '0 2px 10px rgba(0,0,0,0.5)', margin: '0 0 0.5rem 0' }}>{step.instruction}</h2>
-                  <p style={{ color: '#e4e4e7', fontSize: '1.2rem', textShadow: '0 1px 5px rgba(0,0,0,0.5)' }}>{step.hint}</p>
+                  <div style={{ fontSize: 'clamp(2.5rem, 6vw, 4rem)', marginBottom: '0.5rem', animation: 'bounce 2s infinite' }}>{step.icon}</div>
+                  <h2 style={{ color: '#fff', fontSize: 'clamp(1.3rem, 4vw, 2.2rem)', textAlign: 'center', textShadow: '0 2px 10px rgba(0,0,0,0.7)', margin: '0 0 0.5rem 0' }}>{step.instruction}</h2>
+                  <p style={{ color: '#e4e4e7', fontSize: 'clamp(0.9rem, 2.5vw, 1.15rem)', textShadow: '0 1px 5px rgba(0,0,0,0.7)', textAlign: 'center' }}>{step.hint}</p>
                 </>
               )}
               
               {captureStatus === 'countdown' && (
-                <div style={{ fontSize: '5rem', color: '#f97316', fontWeight: 'bold', marginTop: '2rem', textShadow: '0 0 20px rgba(249, 115, 22, 0.5)' }}>
+                <div style={{ fontSize: 'clamp(3rem, 8vw, 5rem)', color: '#f97316', fontWeight: 'bold', marginTop: '1rem', textShadow: '0 0 20px rgba(249, 115, 22, 0.5)' }}>
                   {countdown > 0 ? countdown : ''}
                 </div>
               )}
               {captureStatus === 'validating' && (
-                <div style={{ fontSize: '1.5rem', color: '#f97316', fontWeight: 'bold', marginTop: '2rem', animation: 'bounce 1s infinite' }}>
+                <div style={{ fontSize: 'clamp(1.1rem, 2.5vw, 1.4rem)', color: '#f97316', fontWeight: 'bold', marginTop: '1rem', animation: 'bounce 1s infinite' }}>
                   Ajusta tu posición...
                 </div>
               )}

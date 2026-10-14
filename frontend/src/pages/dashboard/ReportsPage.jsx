@@ -546,7 +546,7 @@ const ReportsPage = () => {
             </div>
 
             {/* Table */}
-            <div style={{ ...cardStyle, padding: 0, overflow: 'hidden', marginBottom: '2rem' }}>
+            <div className="table-responsive-wrapper" style={{ ...cardStyle, padding: 0, overflowX: 'auto', marginBottom: '2rem' }}>
               <table style={tableStyle}>
                 <thead>
                   <tr style={{ background: COLORS.darker, borderBottom: `1px solid ${COLORS.border}` }}>
@@ -762,7 +762,7 @@ const ReportsPage = () => {
             </div>
 
             {/* Table */}
-            <div style={{ ...cardStyle, padding: 0, overflow: 'hidden', marginBottom: '2rem' }}>
+            <div className="table-responsive-wrapper" style={{ ...cardStyle, padding: 0, overflowX: 'auto', marginBottom: '2rem' }}>
               <table style={tableStyle}>
                 <thead>
                   <tr style={{ background: COLORS.darker, borderBottom: `1px solid ${COLORS.border}` }}>
@@ -909,7 +909,7 @@ const ReportsPage = () => {
             </div>
 
             {/* Table */}
-            <div style={{ ...cardStyle, padding: 0, overflow: 'hidden' }}>
+            <div className="table-responsive-wrapper" style={{ ...cardStyle, padding: 0, overflowX: 'auto' }}>
               <table style={tableStyle}>
                 <thead>
                   <tr style={{ background: COLORS.darker, borderBottom: `1px solid ${COLORS.border}` }}>

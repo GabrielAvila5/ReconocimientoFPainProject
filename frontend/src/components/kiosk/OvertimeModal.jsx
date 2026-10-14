@@ -32,9 +32,10 @@ const OvertimeModal = ({ onConfirm, onCancel }) => {
         boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
         width: '100%',
         maxWidth: '500px',
-        padding: '2.5rem',
+        padding: 'clamp(1.25rem, 4vw, 2.5rem)',
         position: 'relative',
-        border: '1px solid #27272a'
+        border: '1px solid #27272a',
+        boxSizing: 'border-box'
       }}>
         <button 
           onClick={onCancel} 

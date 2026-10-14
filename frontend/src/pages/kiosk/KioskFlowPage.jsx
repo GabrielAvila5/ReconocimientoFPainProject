@@ -143,23 +143,23 @@ const KioskFlowPage = () => {
       <div className="absolute top-0 left-0 w-full h-64 bg-gradient-to-b from-blue-600 to-transparent opacity-20 dark:opacity-40"></div>
 
       {/* Header */}
-      <header className="p-6 relative z-10 text-center flex flex-col items-center">
-        <h1 className="text-4xl font-extrabold text-blue-600 dark:text-blue-400 tracking-tight mb-2">Kiosko PAIN</h1>
+      <header className="p-4 sm:p-6 relative z-10 text-center flex flex-col items-center">
+        <h1 className="text-2xl sm:text-4xl font-extrabold text-blue-600 dark:text-blue-400 tracking-tight mb-2">Kiosko PAIN</h1>
         <KioskClock variant="badge" style={{ marginBottom: '0.75rem' }} />
-        <p className="text-gray-500 dark:text-gray-400 text-lg">Sistema de Control de Asistencia</p>
+        <p className="text-gray-500 dark:text-gray-400 text-sm sm:text-lg">Sistema de Control de Asistencia</p>
       </header>
 
       {/* Main Content Area */}
-      <main className="flex-1 flex flex-col items-center justify-center p-4 relative z-10">
+      <main className="flex-1 flex flex-col items-center justify-center p-3 sm:p-4 relative z-10 w-full max-w-full">
         
         {stage === STAGES.IDLE && (
           <div className="animate-fade-in w-full max-w-3xl">
-            <div className="bg-white dark:bg-gray-800 rounded-3xl p-8 shadow-2xl">
+            <div className="bg-white dark:bg-gray-800 rounded-3xl p-4 sm:p-8 shadow-2xl">
               <CameraScanner 
                 isActive={true} 
                 onEmployeeIdentified={handleEmployeeIdentified} 
               />
-              <div className="mt-8 text-center text-gray-500 dark:text-gray-400">
+              <div className="mt-6 sm:mt-8 text-center text-gray-500 dark:text-gray-400 text-sm sm:text-base">
                 <p>Por favor, mira a la cámara para iniciar tu registro</p>
               </div>
             </div>
@@ -167,24 +167,24 @@ const KioskFlowPage = () => {
         )}
 
         {stage === STAGES.IDENTIFIED && employee && (
-          <div className="animate-fade-in flex flex-col items-center bg-white dark:bg-gray-800 p-10 rounded-3xl shadow-2xl max-w-md w-full">
-            <div className="w-32 h-32 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center mb-6 text-blue-600 dark:text-blue-300">
-              <UserCircle2 size={80} />
+          <div className="animate-fade-in flex flex-col items-center bg-white dark:bg-gray-800 p-6 sm:p-10 rounded-3xl shadow-2xl max-w-md w-full">
+            <div className="w-24 h-24 sm:w-32 sm:h-32 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center mb-6 text-blue-600 dark:text-blue-300">
+              <UserCircle2 size={64} className="sm:w-20 sm:h-20" />
             </div>
-            <h2 className="text-3xl font-bold text-gray-800 dark:text-white mb-2 text-center">
+            <h2 className="text-2xl sm:text-3xl font-bold text-gray-800 dark:text-white mb-2 text-center">
               {employee.firstName} {employee.lastName}
             </h2>
-            <p className="text-gray-500 dark:text-gray-400 mb-8">{employee.identifier}</p>
+            <p className="text-gray-500 dark:text-gray-400 mb-6 sm:mb-8 text-sm sm:text-base">{employee.identifier}</p>
             
             <button 
               onClick={handleConfirmIdentity}
-              className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xl shadow-lg transition-transform transform hover:scale-105 flex items-center justify-center"
+              className="w-full py-3.5 sm:py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-lg sm:text-xl shadow-lg transition-transform transform hover:scale-105 flex items-center justify-center"
             >
               Sí, soy yo <ArrowRight className="ml-2" />
             </button>
             <button 
               onClick={resetFlow}
-              className="mt-4 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 underline"
+              className="mt-4 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 underline text-sm sm:text-base"
             >
               No soy yo, volver a intentar
             </button>
@@ -192,8 +192,8 @@ const KioskFlowPage = () => {
         )}
 
         {stage === STAGES.SELECT_SHIFT && context && (
-          <div className="animate-fade-in w-full max-w-2xl bg-white dark:bg-gray-800 rounded-3xl p-8 shadow-2xl">
-            <h2 className="text-2xl font-bold text-center mb-8 text-gray-800 dark:text-white">Selecciona tu turno actual</h2>
+          <div className="animate-fade-in w-full max-w-2xl bg-white dark:bg-gray-800 rounded-3xl p-4 sm:p-8 shadow-2xl">
+            <h2 className="text-xl sm:text-2xl font-bold text-center mb-6 sm:mb-8 text-gray-800 dark:text-white">Selecciona tu turno actual</h2>
             <div className="grid gap-4">
               {context.availableShifts.map(shift => (
                 <button

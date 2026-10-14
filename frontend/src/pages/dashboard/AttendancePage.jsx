@@ -341,37 +341,40 @@ const AttendancePage = () => {
         </div>
       ) : loading ? (
         <div style={{ background: '#1e1e1e', borderRadius: '12px', overflow: 'hidden', border: '1px solid #333' }}>
-          <table style={tableStyle}>
-            <thead>
-              <tr style={{ borderBottom: '1px solid #333' }}>
-                <th style={thStyle}>Empleado</th>
-                <th style={thStyle}>Hora de Entrada</th>
-                <th style={thStyle}>Hora de Salida</th>
-                <th style={thStyle}>Tipo</th>
-                <th style={thStyle}>Puntualidad</th>
-                <th style={thStyle}>Departamento</th>
-                <th style={thStyle}>Método / Cámara</th>
-              </tr>
-            </thead>
-            <tbody>
-              {[1, 2, 3, 4].map(i => (
-                <tr key={i} style={{ borderBottom: '1px solid #333' }}>
-                  <td style={tdStyle}><Skeleton height="40px" width="150px" /></td>
-                  <td style={tdStyle}><Skeleton height="20px" width="80px" /></td>
-                  <td style={tdStyle}><Skeleton height="20px" width="80px" /></td>
-                  <td style={tdStyle}><Skeleton height="20px" width="70px" /></td>
-                  <td style={tdStyle}><Skeleton height="24px" width="60px" borderRadius="12px" /></td>
-                  <td style={tdStyle}><Skeleton height="20px" width="100px" /></td>
-                  <td style={tdStyle}><Skeleton height="20px" width="120px" /></td>
+          <div className="table-responsive-wrapper">
+            <table style={tableStyle}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid #333' }}>
+                  <th style={thStyle}>Empleado</th>
+                  <th style={thStyle}>Hora de Entrada</th>
+                  <th style={thStyle}>Hora de Salida</th>
+                  <th style={thStyle}>Tipo</th>
+                  <th style={thStyle}>Puntualidad</th>
+                  <th style={thStyle}>Departamento</th>
+                  <th style={thStyle}>Método / Cámara</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {[1, 2, 3, 4].map(i => (
+                  <tr key={i} style={{ borderBottom: '1px solid #333' }}>
+                    <td style={tdStyle}><Skeleton height="40px" width="150px" /></td>
+                    <td style={tdStyle}><Skeleton height="20px" width="80px" /></td>
+                    <td style={tdStyle}><Skeleton height="20px" width="80px" /></td>
+                    <td style={tdStyle}><Skeleton height="20px" width="70px" /></td>
+                    <td style={tdStyle}><Skeleton height="24px" width="60px" borderRadius="12px" /></td>
+                    <td style={tdStyle}><Skeleton height="20px" width="100px" /></td>
+                    <td style={tdStyle}><Skeleton height="20px" width="120px" /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       ) : (
         <div style={{ background: '#1e1e1e', borderRadius: '12px', overflow: 'hidden', border: '1px solid #333' }}>
           {/* TODO: Turnos Nocturnos. El filtro strict 'date' puede cortar registros que entran en D y salen en D+1. */}
-          <table style={tableStyle}>
+          <div className="table-responsive-wrapper">
+            <table style={tableStyle}>
             <thead>
               <tr style={{ borderBottom: '1px solid #333', background: '#18181b' }}>
                 <th style={thStyle}>Empleado</th>
@@ -459,6 +462,7 @@ const AttendancePage = () => {
               )}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>

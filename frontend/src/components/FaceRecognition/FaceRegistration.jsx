@@ -69,9 +69,9 @@ const FaceRegistration = ({ onComplete }) => {
   };
 
   return (
-    <div style={{ padding: '2rem', background: '#1e1e1e', borderRadius: '12px', boxShadow: '0 4px 20px rgba(0,0,0,0.5)', color: '#fff', border: '1px solid #333' }}>
+    <div style={{ padding: 'clamp(1rem, 3vw, 2rem)', background: '#1e1e1e', borderRadius: '12px', boxShadow: '0 4px 20px rgba(0,0,0,0.5)', color: '#fff', border: '1px solid #333' }}>
       <h3 style={{ marginBottom: '1.5rem', color: '#fff', fontSize: '1.5rem' }}>Registrar Nuevo Empleado</h3>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 250px), 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
         <div>
           <label style={labelStyle}>Nombre</label>
           <input name="firstName" value={formData.firstName} onChange={handleInputChange} style={inputStyle} required />
