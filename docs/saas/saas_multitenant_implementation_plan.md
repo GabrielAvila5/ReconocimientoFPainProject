@@ -99,12 +99,13 @@ flowchart TB
 * **Tiempo Real de Restauración:** La base de datos actual (~5 MB) se restaura en **menos de 3 segundos**. Una base de 500 MB se restaura en ~35 segundos en el NVMe de Hostinger.
 
 ### 5. Política de Respaldos y Manejo de `ENCRYPTION_KEY`
-* **Respaldos Automáticos Diarios:**
+* **Respaldos Automáticos Diarios (Recuperación ante Desastres - DR):**
   * Script diario a las 02:00 AM ejecutando `mariadb-dump --single-transaction --quick` comprimido con `gzip`.
   * Cifrado del archivo de respaldo con GPG antes de salir del VPS.
   * Envío automático a almacenamiento externo fuera de Hostinger (AWS S3 / Backblaze B2).
-  * Retención: 7 respaldos diarios, 4 semanales y 12 mensuales.
-  * Prueba mensual automatizada de restauración en un contenedor efímero de prueba para validar que el respaldo sea legible y coherente.
+  * **Retención de DR Unificada (Ventana Rodante Máxima de 30 Días):** 7 respaldos diarios y 4 semanales (máximo 30 días acumulados). Al transcurrir el día 31, los respaldos antiguos se purgan criptográficamente de manera automática e irreversible, manteniendo estricta coherencia con el ciclo ARCO de la Sección 11.
+  * **Coherencia con el Art. 804 LFT (Conservación de 1 año):** La obligación laboral patronal se satisface directamente en la base de datos viva/operativa durante la vigencia de la relación. En caso de terminación y ejercicio de purga ARCO por el cliente, se le entrega previamente el paquete integral exportado en CSV/JSON firmado criptográficamente para su archivo legal propio; y si se restaurase un respaldo histórico de DR (<30 días), el hook post-restauración re-aplica la purga contra el registro inmutable `RevokedCompanyPurgeLedger`.
+  * Prueba mensual automatizada de restauración en un contenedor efímero de prueba para validar legibilidad y coherencia.
 * **Seguridad de `ENCRYPTION_KEY`:**
   * Almacenada exclusivamente en el archivo de entorno `.env` local del servidor con permisos de archivo estrictos (`chmod 600`), nunca dentro de la base de datos ni en Git.
   * Respaldo fuera de línea en una bóveda de contraseñas segura.
@@ -122,11 +123,13 @@ flowchart TB
   4. Alerta de seguridad en `AdminAuditLog` ante descargas anómalas (más de 30 descargas completas en 5 minutos) en lugar de bloqueo duro que interrumpa la operación laboral.
   5. Registro de auditoría obligatorio cada vez que se descargan descriptores (IP, fecha/hora, huella de dispositivo, cantidad de rostros entregados).
 
-### 7. Gestión Segura de Credenciales y Mínimo Privilegio
+### 7. Gestión Segura de Credenciales, Cliente Administrativo y Mínimo Privilegio
 * Se eliminan todas las contraseñas visibles de los scripts y documentación (sustituidas por `${DB_PASSWORD}`, `${JWT_SECRET}`).
 * **Usuario de Base de Datos de Mínimo Privilegio:** En producción, el backend de Node.js no se conecta como `root`. Se crea un usuario `saas_app_user` restringido con permisos estrictamente operativos:
   `GRANT SELECT, INSERT, UPDATE, DELETE ON ReconocimientoFacialProd.* TO 'saas_app_user'@'%';`
 * Las tareas de migración (DDL) se ejecutan mediante un usuario administrativo separado en una ventana de mantenimiento.
+* **Cliente Administrativo Separado (`prismaAdmin.js`):** Los scripts de migración, purga ARCO y el hook post-restauración utilizan un cliente administrativo independiente (`src/utils/prismaAdmin.js`). El cliente de la aplicación (`src/utils/prisma.js`) no expone `.$base` ni métodos raw al runtime de rutas y controladores, manteniendo bloqueados `$queryRaw` y `$executeRaw` de forma hermética.
+* **Salvaguarda de Protección de la Base de Datos Original (Orchestrator Safeguard):** Todo script de diagnóstico, prueba, migración o purga incluye una guarda de seguridad que evalúa la URL de conexión. Si detecta la base de datos original protegida (`reconocimiento_facial_db_pain`) en una ejecución destructiva o de prueba, el proceso aborta inmediatamente arrojando `CRITICAL_SAFETY_VIOLATION`. Todo script exige `--db=<url>` o `TEST_DATABASE_URL` explícito, sin fallback automático al `.env`.
 
 ### 8. Migración Transparente de Kioscos del Piloto (Zero-Downtime)
 * **Procedimiento para Kioscos Existentes:**
@@ -166,16 +169,39 @@ Dado que todas las tablas dependientes cuentan con `onDelete: Restrict` hacia `C
 4. **Período de Retención Preventiva:** Ventana de congelamiento de 30 días para atender posibles requerimientos de autoridades laborales (LFT / IMSS / SAT). Durante este período los datos permanecen inaccesibles para el usuario pero recuperables por el Super Admin.
 5. **Confirmación con Doble Factor (2FA):** El Super Admin debe ingresar su token de autenticación de dos factores y escribir una frase de confirmación unívoca: `PURGE-ENTERPRISE-[COMPANY_SLUG]-[FECHA]`.
 6. **Purga Topológica Criptográfica y Física (Script Administrativo Transaccional):**
-   - **Fase A (Biometría):** `UPDATE Employee SET faceDescriptor = NULL WHERE companyId = :cid;` (destrucción inmediata de vectores faciales sensibles).
-   - **Fase B (Asistencias y Eventos):** `DELETE FROM AttendanceRecord WHERE companyId = :cid;` y `DELETE FROM EventRequest WHERE companyId = :cid;`.
-   - **Fase D (Infraestructura y Notificaciones):** `DELETE FROM Device WHERE companyId = :cid;`, `DELETE FROM DeviceAuthRequest WHERE companyId = :cid;`, `DELETE FROM Notification WHERE companyId = :cid;`, `DELETE FROM SystemSettings WHERE companyId = :cid;`, `DELETE FROM AdminUser WHERE companyId = :cid;`.
-   - **Fase E (Tratamiento de AdminAuditLog):** `DELETE FROM AdminAuditLog WHERE companyId = :cid;` (se eliminan logs locales que contienen nombres y correos de sujetos ARCO).
-   - **Fase F (Entidad Principal):** `DELETE FROM Company WHERE id = :cid;`.
-   - **Fase G (Lápida Inmutable):** Inserción en `AdminAuditLog` global de plataforma (`companyId = NULL`) con acción `PURGE_COMPANY_ARCO`, identificador de acta, hash SHA-256 del archivo exportado y sello temporal inmutable.
-    - **Fase H (Política de Retención de Respaldos Coherente con ARCO):**
-      1. **Ciclo de Rotación Máxima de 30 Días:** Los respaldos completos y diferenciales de la base de datos se conservan bajo un esquema rotativo estricto con retención máxima de 30 días (RPO 24h, RTO 4h). Al cumplirse el día 31, los respaldos antiguos se destruyen criptográficamente de manera automática e irreversible.
-      2. **Libro Mayor de Revocaciones Inmutable (`RevokedCompanyPurgeLedger`):** Cada purga ARCO registra una entrada inmutable con `companyId`, `purgedAt`, `arcoRecordId` y hash SHA-256 de confirmación, almacenada en almacenamiento fuera del ciclo de rotación estándar.
-      3. **Hook Obligatorio Post-Restauración (Post-Restore Re-Purge Hook):** Si por contingencia de infraestructura se restaura un respaldo histórico (por ejemplo, un snapshot de hace 10 días), el script de arranque y restauración ejecuta automáticamente el hook de reconciliación ARCO contra el registro inmutable, re-aplicando de forma inmediata la purga sobre cualquier inquilino o sujeto cuyos derechos ARCO se hayan ejercido entre la fecha del snapshot y el momento de la restauración. Esto garantiza que ningún dato biométrico o personal purgado sea resucitado accidentalmente tras una restauración de desastre.
+   Para satisfacer las restricciones `onDelete: Restrict` en el grafo relacional sin colisiones, la secuencia se ejecuta dentro de una transacción administrativa estricta en el siguiente orden topológico:
+   - **Fase A (Destrucción Biometría Inmediata):**  
+     `UPDATE Employee SET faceDescriptor = NULL WHERE companyId = :cid;`  
+     *(Destrucción inmediata y sin retorno de los vectores matemáticos biométricos sensibles).*
+   - **Fase B (Entidades Transaccionales y Hojas):**  
+     `DELETE FROM AttendanceRecord WHERE companyId = :cid;`  
+     `DELETE FROM EventRequest WHERE companyId = :cid;`  
+     `DELETE FROM Notification WHERE companyId = :cid;`  
+     *(AttendanceRecord retiene FK Restrict hacia Employee, Shift y Device; EventRequest retiene FK Restrict hacia Employee y AdminUser. Deben purgarse antes que sus entidades padre).*
+   - **Fase C (Tablas Pivote de Turnos y Asignaciones):**  
+     `DELETE FROM EmployeeShift WHERE companyId = :cid;`  
+     `DELETE FROM DepartmentShift WHERE companyId = :cid;`  
+     *(Elimina las relaciones intermedias entre empleados/departamentos y turnos).*
+   - **Fase D (Entidades de Personal e Infraestructura Dependiente):**  
+     `DELETE FROM Employee WHERE companyId = :cid;`  
+     `DELETE FROM DeviceAuthRequest WHERE companyId = :cid;`  
+     `DELETE FROM Device WHERE companyId = :cid;`  
+     *(Employee retiene FK Restrict hacia Department; al eliminarse Employee aquí, se desbloquea la eliminación posterior de Department. Device ya no tiene dependencias activas de asistencia).*
+   - **Fase E (Estructura Organizacional, Cuentas y Configuración):**  
+     `DELETE FROM Department WHERE companyId = :cid;`  
+     `DELETE FROM Shift WHERE companyId = :cid;`  
+     `DELETE FROM AdminAuditLog WHERE companyId = :cid;` *(purga de logs locales con nombres/emails de la empresa purgada).*  
+     `DELETE FROM AdminUser WHERE companyId = :cid;` *(desbloqueado tras haber eliminado EventRequest en Fase B).*  
+     `DELETE FROM SystemSettings WHERE companyId = :cid;`
+   - **Fase F (Entidad Raíz):**  
+     `DELETE FROM Company WHERE id = :cid;`  
+     *(Al haberse vaciado con éxito las 13 tablas dependientes, la restricción Restrict se satisface al 100% y MariaDB autoriza el borrado físico de la empresa).*
+   - **Fase G (Lápida Inmutable Global de Auditoría):**  
+     Inserción en `AdminAuditLog` global de plataforma (`companyId = NULL`) con acción `PURGE_COMPANY_ARCO`, identificador del acta legal, hash SHA-256 del archivo exportado entregado y sello temporal inmutable.
+   - **Fase H (Libro Mayor y Re-Purga Post-Restauración):**
+     1. **Registro en Libro Mayor (`RevokedCompanyPurgeLedger`):** Cada purga ARCO registra de forma inmutable `companyId`, `purgedAt`, `arcoRecordId` y hash SHA-256 de confirmación.
+     2. **Ciclo de Rotación Máxima de 30 Días:** Respaldos automáticos con retención de 30 días máximos; al día 31 se destruyen automáticamente.
+     3. **Hook Obligatorio Post-Restauración (Post-Restore Re-Purge Hook):** Si por desastre se restaura un snapshot dentro de la ventana de 30 días, el hook de arranque coteja el `RevokedCompanyPurgeLedger` y re-ejecuta de forma inmediata la purga contra cualquier empresa revocada posterior al snapshot, impidiendo cualquier resurrección accidental de datos personales o biométricos.
 
 ### 12. Suite de Pruebas Parametrizada Integral (11 Módulos)
 En lugar de pruebas aisladas, se implementa una suite parametrizada que evalúa los 11 módulos del backend:
@@ -206,8 +232,8 @@ En lugar de pruebas aisladas, se implementa una suite parametrizada que evalúa 
 | `app.js` | `backend/src/app.js` | Modificar | Socket.io autenticado por salas aisladas `company_${companyId}` y `dashboard_${companyId}`. |
 | `requireJwt.js` | `backend/src/middlewares/requireJwt.js` | Modificar | Verificación estricta de token con `secrets.JWT_SECRET`. |
 | `departments.router.js`| `backend/src/modules/departments/departments.router.js`| Modificar | Captura de error P2003 de FK `Restrict` para mensajes de integridad claros. |
-| `shifts.router.js` | `backend/src/modules/shifts/shifts.router.js` | Modificar | Captura de error P2003 de FK `Restrict`; soporte de `isActive` para turnos históricos. |ria RAM particionada: `Map<companyId, Array>`; cifrado AES-256-GCM. |
-| `attendanceCron.js` | `backend/src/jobs/attendanceCron.js` | Modificar | Cron idempotente por empresa basado en `Company.timezone`. |
+| `shifts.router.js` | `backend/src/modules/shifts/shifts.router.js` | Modificar | Captura de error P2003 de FK `Restrict`; soporte de `isActive` para turnos históricos. |
+| `prismaAdmin.js` | `backend/src/utils/prismaAdmin.js` | Crear | Cliente administrativo aislado para scripts de migración, purga ARCO y hooks sin exponer consultas raw a la app. |
 
 ### 14. Plan de Pruebas de Carga con Volumen Realista (Stress & Ceiling Test)
 * **Base de Datos Sembrada de Carga Realista:**
@@ -223,25 +249,25 @@ En lugar de pruebas aisladas, se implementa una suite parametrizada que evalúa 
 
 ```mermaid
 gantt
-    title Cronograma de Ejecución y Soft Launch
+    title Cronograma de Ejecución y Soft Launch SaaS
     dateFormat  YYYY-MM-DD
     section Semana 1: Datos & Migración
-    Rama Git & Schema Prisma           :done, s1a, 2026-11-02, 2d
-    Migración Segura & Copia BD        :active, s1b, after s1a, 2d
-    Approval Gate 1 (DB Ready)         :milestone, after s1b, 0d
+    Rama Git & Schema Prisma           :done, s1a, 2026-10-21, 1d
+    Migración Segura & Copia BD        :done, s1b, 2026-10-21, 1d
+    Approval Gate 1 (DB Ready)         :milestone, 2026-10-21, 0d
     section Semana 2: Core Backend
-    AsyncLocalStorage & $extends       :s2a, after s1b, 2d
-    Auth JWT, Device Auth & WS Rooms   :s2b, after s2a, 3d
-    Approval Gate 2 (Core Ready)       :milestone, after s2b, 0d
+    AsyncLocalStorage & $extends       :done, s2a, 2026-10-22, 1d
+    Auth JWT, Device Auth & WS Rooms   :done, s2b, 2026-10-22, 1d
+    Approval Gate 2 (Core Ready)       :active, milestone, 2026-10-22, 0d
     section Semana 3: Módulos & Biometría
-    Aislamiento faceMath & Kioscos     :s3a, after s2b, 2d
-    CRUDs, Crons Multizona & Cifrado   :s3b, after s3a, 3d
+    Aislamiento faceMath & Kioscos     :s3a, 2026-10-23, 3d
+    CRUDs, Crons Multizona & Frontend  :s3b, after s3a, 4d
     Approval Gate 3 (Features Ready)   :milestone, after s3b, 0d
     section Semana 4: Testing & Hardening
-    Suite 11 Módulos & Stress Test k6  :s4a, after s3b, 3d
-    Colchón Técnico & Auditoría        :s4b, after s4a, 2d
+    Suite 11 Módulos & Stress Test k6  :s4a, 2026-10-30, 4d
+    Colchón Técnico & Auditoría        :s4b, after s4a, 3d
     Approval Gate 4 (Pre-Release)      :milestone, after s4b, 0d
     section Semana 5: Soft Launch
-    Piloto + 2 Clientes Beta Reales   :s5a, after s4b, 5d
+    Piloto + 2 Clientes Beta Reales    :s5a, 2026-11-06, 5d
     Approval Gate 5 (General Release)  :milestone, after s5a, 0d
 ```
