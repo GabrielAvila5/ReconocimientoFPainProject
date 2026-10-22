@@ -1,7 +1,7 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const prisma = require('../../utils/prisma');
+const { JWT_SECRET } = require('../../config/secrets');
 const { syncAdminToEmployee } = require('../../utils/adminEmployeeSync');
 
 const login = async (req, res) => {
@@ -12,13 +12,22 @@ const login = async (req, res) => {
       return res.status(400).json({ error: 'Email y contraseña son obligatorios' });
     }
 
-    // Buscar admin
-    const user = await prisma.adminUser.findUnique({
-      where: { email }
+    // Buscar admin deterministicamente por email global
+    const user = await prisma.$base.adminUser.findUnique({
+      where: { email },
+      include: { company: true }
     });
 
     if (!user) {
       return res.status(401).json({ error: 'Credenciales inválidas' });
+    }
+
+    // Verificar si la empresa está suspendida
+    if (user.company && !user.company.isActive) {
+      return res.status(403).json({
+        error: 'COMPANY_SUSPENDED',
+        message: 'La empresa se encuentra suspendida. Contacte al administrador.'
+      });
     }
 
     // Verificar contraseña
@@ -27,16 +36,14 @@ const login = async (req, res) => {
       return res.status(401).json({ error: 'Credenciales inválidas' });
     }
 
-    // Generar JWT
-    const secret = process.env.JWT_SECRET || 'HostingerFallbackSecretKey2026!';
+    // Generar JWT con companyId
     const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role },
-      secret,
+      { id: user.id, email: user.email, role: user.role, companyId: user.companyId },
+      JWT_SECRET,
       { expiresIn: '12h' }
     );
 
     // Configurar cookie
-    const isProduction = process.env.NODE_ENV === 'production';
     const isSecure = process.env.COOKIE_SECURE === 'true';
 
     res.cookie('jwt', token, {
@@ -54,7 +61,8 @@ const login = async (req, res) => {
         id: user.id,
         name: user.name,
         email: user.email,
-        role: user.role
+        role: user.role,
+        companyId: user.companyId
       }
     });
 
@@ -124,10 +132,9 @@ const setupFirstAdmin = async (req, res) => {
     }
 
     // Generar JWT y loguear automáticamente
-    const secret = process.env.JWT_SECRET || 'HostingerFallbackSecretKey2026!';
     const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role },
-      secret,
+      { id: user.id, email: user.email, role: user.role, companyId: user.companyId },
+      JWT_SECRET,
       { expiresIn: '12h' }
     );
 

@@ -2,6 +2,7 @@ const express = require('express');
 const {
   requestDeviceAuth,
   getPendingAuthRequests,
+  lookupAuthRequestByCode,
   approveDeviceAuth,
   rejectDeviceAuth,
   verifyDeviceToken,
@@ -19,12 +20,20 @@ const router = express.Router();
 router.post('/auth-request', requestDeviceAuth);
 router.post('/verify', verifyDeviceToken);
 
-// --- Rutas Protegidas (Exclusivas para SUPER_ADMIN) ---
+// --- Rutas de Emparejamiento (SUPER_ADMIN y ADMIN de empresa) ---
+const requireAdmin = [requireAuth, requireRole(['SUPER_ADMIN', 'ADMIN'])];
+
+// Paso 1: Administrador consulta el código y ve IP y User-Agent del kiosco
+router.post('/auth-requests/lookup', ...requireAdmin, lookupAuthRequestByCode);
+
+// Paso 2: Administrador confirma la aprobación
+router.post('/auth-requests/:id/approve', ...requireAdmin, approveDeviceAuth);
+router.post('/auth-requests/:id/reject', ...requireAdmin, rejectDeviceAuth);
+
+// --- Rutas Protegidas de Gestión (SUPER_ADMIN y ADMIN) ---
 const requireSuperAdmin = [requireAuth, requireRole(['SUPER_ADMIN'])];
 
 router.get('/auth-requests/pending', ...requireSuperAdmin, getPendingAuthRequests);
-router.post('/auth-requests/:id/approve', ...requireSuperAdmin, approveDeviceAuth);
-router.post('/auth-requests/:id/reject', ...requireSuperAdmin, rejectDeviceAuth);
 
 router.get('/', ...requireSuperAdmin, getDevices);
 router.post('/', ...requireSuperAdmin, createManualDevice);

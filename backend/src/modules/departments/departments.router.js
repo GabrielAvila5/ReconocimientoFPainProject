@@ -113,15 +113,6 @@ router.delete('/:id', requireJwt, async (req, res) => {
   try {
     const departmentId = parseInt(req.params.id);
 
-    // Verificar si hay empleados
-    const employeesCount = await prisma.employee.count({
-      where: { departmentId }
-    });
-
-    if (employeesCount > 0) {
-      return res.status(400).json({ error: 'No se puede eliminar el departamento porque tiene empleados asignados.' });
-    }
-
     const department = await prisma.department.findUnique({ where: { id: departmentId } });
     if (!department) return res.status(404).json({ error: 'Departamento no encontrado' });
 
@@ -140,6 +131,11 @@ router.delete('/:id', requireJwt, async (req, res) => {
 
     res.json({ success: true, message: 'Departamento eliminado exitosamente' });
   } catch (error) {
+    if (error.code === 'P2003') {
+      return res.status(409).json({ 
+        error: 'No se puede eliminar el departamento porque tiene empleados o turnos asignados. Reasigne al personal antes de borrar.' 
+      });
+    }
     console.error('Error deleting department:', error);
     res.status(500).json({ error: 'Error del servidor al eliminar departamento' });
   }

@@ -4,11 +4,40 @@ const requireJwt = require('../../middlewares/requireJwt');
 const prisma = require('../../utils/prisma');
 const { syncFaceCache } = require('../../utils/faceMath');
 
-// GET /api/v1/employees/descriptors - PÚBLICO (sin auth)
+// GET /api/v1/employees/descriptors
 router.get('/descriptors', async (req, res) => {
   try {
-    const employees = await prisma.employee.findMany({
+    const companyId = req.headers['x-tenant-id'] || req.query.companyId || req.user?.companyId || 'default-company-pain';
+    
+    // 1. Consultar versión actual de la empresa
+    const company = await prisma.$base.company.findUnique({
+      where: { id: companyId },
+      select: { id: true, descriptorsVersion: true, isActive: true }
+    });
+
+    if (!company) {
+      return res.status(404).json({ error: 'Empresa no encontrada' });
+    }
+
+    if (!company.isActive) {
+      return res.status(403).json({ error: 'COMPANY_SUSPENDED', message: 'Empresa suspendida' });
+    }
+
+    const currentVersion = company.descriptorsVersion || 1;
+    const etag = `W/"desc-v${currentVersion}-${companyId}"`;
+
+    // 2. Validación de ETag / If-None-Match
+    const clientEtag = req.headers['if-none-match'];
+    if (clientEtag && clientEtag === etag) {
+      res.setHeader('ETag', etag);
+      res.setHeader('X-Descriptors-Version', currentVersion);
+      return res.status(304).end();
+    }
+
+    // 3. Si no coincide el ETag, consultar descriptores de la empresa
+    const employees = await prisma.$base.employee.findMany({
       where: {
+        companyId,
         isActive: true,
         faceDescriptor: { not: null }
       },
@@ -22,18 +51,19 @@ router.get('/descriptors', async (req, res) => {
       }
     });
     
-    // Mapear para devolver nombre completo para conveniencia si se desea,
-    // o el frontend usa firstName y lastName.
     const mapped = employees.map(emp => ({
       id: emp.id,
-      name: `${emp.firstName} ${emp.lastName}`,
+      name: `${emp.firstName} ${emp.lastName}`.trim(),
       department: emp.department,
       position: emp.position,
       faceDescriptor: emp.faceDescriptor
     }));
     
+    res.setHeader('ETag', etag);
+    res.setHeader('X-Descriptors-Version', currentVersion);
     res.json(mapped);
   } catch (error) {
+    console.error('Error en /descriptors:', error);
     res.status(500).json({ error: 'Error al obtener descriptores' });
   }
 });

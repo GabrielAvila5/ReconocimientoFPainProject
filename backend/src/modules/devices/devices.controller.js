@@ -27,14 +27,17 @@ const getClientIp = (req) => {
   return ip;
 };
 
-// Generar un código de emparejamiento legible (ej: KIO-7492)
+// Generar un código de emparejamiento criptográficamente seguro (ej: K9X2-7M4P)
+// Base32 sin ambigüedades (excluye 0, O, 1, I) -> 32^8 = 1.09 billones de combinaciones
 const generatePairingCode = () => {
-  const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'; // Evitar 0/O, 1/I para evitar confusiones
-  let code = '';
+  const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+  let p1 = '';
+  let p2 = '';
   for (let i = 0; i < 4; i++) {
-    code += chars.charAt(Math.floor(Math.random() * chars.length));
+    p1 += chars.charAt(crypto.randomInt(0, chars.length));
+    p2 += chars.charAt(crypto.randomInt(0, chars.length));
   }
-  return `KIO-${code}`;
+  return `${p1}-${p2}`;
 };
 
 /**
@@ -113,7 +116,7 @@ const requestDeviceAuth = async (req, res) => {
       attempts++;
     }
 
-    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutos
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutos (expiración corta para mitigar ataques de fuerza bruta)
 
     const authRequest = await prisma.deviceAuthRequest.create({
       data: {
@@ -181,57 +184,181 @@ const getPendingAuthRequests = async (req, res) => {
   }
 };
 
+// Tracker de intentos fallidos de aprobación por admin/IP para mitigar fuerza bruta
+const failedApprovalAttempts = new Map();
+const MAX_FAILED_APPROVALS = 5;
+const LOCKOUT_WINDOW_MS = 15 * 60 * 1000; // 15 minutos
+
+function checkApprovalRateLimit(identifier) {
+  const record = failedApprovalAttempts.get(identifier);
+  if (!record) return { isLocked: false };
+  if (Date.now() > record.resetAt) {
+    failedApprovalAttempts.delete(identifier);
+    return { isLocked: false };
+  }
+  if (record.attempts >= MAX_FAILED_APPROVALS) {
+    const minutesLeft = Math.ceil((record.resetAt - Date.now()) / 60000);
+    return { isLocked: true, minutesLeft };
+  }
+  return { isLocked: false };
+}
+
+function recordFailedApproval(identifier) {
+  const now = Date.now();
+  const record = failedApprovalAttempts.get(identifier) || { attempts: 0, resetAt: now + LOCKOUT_WINDOW_MS };
+  record.attempts++;
+  failedApprovalAttempts.set(identifier, record);
+}
+
+function clearFailedApproval(identifier) {
+  failedApprovalAttempts.delete(identifier);
+}
+
+/**
+ * POST /api/v1/devices/auth-requests/lookup
+ * Paso 1 del emparejamiento: El administrador ingresa el código generado por el kiosco,
+ * y visualiza la IP y User-Agent del kiosco antes de autorizar.
+ */
+const lookupAuthRequestByCode = async (req, res) => {
+  const adminId = req.user?.id || getClientIp(req);
+
+  try {
+    const { pairingCode } = req.body || {};
+    if (!pairingCode || typeof pairingCode !== 'string') {
+      return res.status(400).json({ error: 'El código de emparejamiento es obligatorio.' });
+    }
+
+    const rateLimitCheck = checkApprovalRateLimit(adminId);
+    if (rateLimitCheck.isLocked) {
+      return res.status(429).json({
+        error: `Demasiados intentos fallidos. Acceso bloqueado temporalmente por ${rateLimitCheck.minutesLeft} minutos.`
+      });
+    }
+
+    const cleanCode = pairingCode.toUpperCase().trim();
+    const now = new Date();
+
+    const authRequest = await prisma.$base.deviceAuthRequest.findFirst({
+      where: {
+        pairingCode: cleanCode,
+        status: 'PENDING',
+        expiresAt: { gt: now }
+      }
+    });
+
+    if (!authRequest) {
+      recordFailedApproval(adminId);
+      return res.status(404).json({ error: 'Código de emparejamiento inválido, expirado o ya procesado.' });
+    }
+
+    // Validación Cross-Tenant en el Paso 1: Si ya estaba asignada a otra empresa
+    if (authRequest.companyId && req.user?.companyId && authRequest.companyId !== req.user.companyId && req.user.role !== 'SUPER_ADMIN') {
+      return res.status(403).json({ error: 'No autorizado para consultar solicitudes de otra empresa.' });
+    }
+
+    // Retorna datos de auditoría para verificación visual previa del admin
+    return res.status(200).json({
+      requestId: authRequest.id,
+      pairingCode: authRequest.pairingCode,
+      ipAddress: authRequest.ipAddress,
+      userAgent: authRequest.userAgent,
+      expiresAt: authRequest.expiresAt,
+      createdAt: authRequest.createdAt
+    });
+  } catch (error) {
+    console.error('Error en lookupAuthRequestByCode:', error);
+    return res.status(500).json({ error: 'Error al consultar código de emparejamiento' });
+  }
+};
+
 /**
  * POST /api/v1/devices/auth-requests/:id/approve
- * Solo Super Administrador: Aprueba la solicitud y genera el Device definitivo con su token.
+ * Paso 2 del emparejamiento: Aprueba la solicitud y genera el Device definitivo con su tokenHash.
  */
 const approveDeviceAuth = async (req, res) => {
+  const adminId = req.user?.id || getClientIp(req);
+
   try {
     const { id } = req.params;
-    const { name } = req.body;
+    const { name, companyId: requestedCompanyId } = req.body || {};
 
-    const authRequest = await prisma.deviceAuthRequest.findUnique({
+    // 1. Verificación de límite de intentos (anti-fuerza bruta)
+    const rateLimitCheck = checkApprovalRateLimit(adminId);
+    if (rateLimitCheck.isLocked) {
+      return res.status(429).json({
+        error: `Demasiados intentos fallidos de aprobación. Acceso bloqueado temporalmente por ${rateLimitCheck.minutesLeft} minutos.`
+      });
+    }
+
+    const authRequest = await prisma.$base.deviceAuthRequest.findUnique({
       where: { id }
     });
 
     if (!authRequest) {
+      recordFailedApproval(adminId);
       return res.status(404).json({ error: 'Solicitud no encontrada' });
     }
 
     if (authRequest.status !== 'PENDING') {
+      recordFailedApproval(adminId);
       return res.status(400).json({ error: `La solicitud ya fue ${authRequest.status.toLowerCase()}` });
     }
 
     if (new Date() > authRequest.expiresAt) {
-      await prisma.deviceAuthRequest.update({
+      recordFailedApproval(adminId);
+      await prisma.$base.deviceAuthRequest.update({
         where: { id },
         data: { status: 'EXPIRED' }
       });
       return res.status(400).json({ error: 'La solicitud ha expirado' });
     }
 
-    // Generar token criptográfico único para el Kiosko
+    // Determinar la empresa a la que pertenecerá el dispositivo
+    let targetCompanyId = req.user?.companyId;
+    if (req.user?.role === 'SUPER_ADMIN') {
+      targetCompanyId = requestedCompanyId || authRequest.companyId || 'default-company-pain';
+    }
+
+    if (!targetCompanyId) {
+      return res.status(400).json({ error: 'Se requiere una empresa asignada para el dispositivo.' });
+    }
+
+    // Validación Cross-Tenant Estricta: Un admin no puede aprobar solicitudes de otra empresa
+    if (authRequest.companyId && authRequest.companyId !== targetCompanyId && req.user?.role !== 'SUPER_ADMIN') {
+      return res.status(403).json({ error: 'No autorizado para aprobar solicitudes de otra empresa.' });
+    }
+
+    // Generar token criptográfico único para el Kiosko y su hash SHA-256
     const token = crypto.randomBytes(32).toString('hex');
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
     const deviceName = name?.trim() || `Kiosko ${authRequest.pairingCode}`;
 
-    // Transacción: Aprobar solicitud y crear Device
+    // Transacción: Aprobar solicitud y crear Device vinculado a la empresa
     const [_, device] = await prisma.$transaction([
       prisma.deviceAuthRequest.update({
         where: { id },
-        data: { status: 'APPROVED' }
+        data: { 
+          status: 'APPROVED',
+          companyId: targetCompanyId
+        }
       }),
       prisma.device.create({
         data: {
+          companyId: targetCompanyId,
           name: deviceName,
           type: 'KIOSK',
           status: 'ONLINE',
-          token,
+          token, // Ventana de gracia
+          tokenHash, // Hash seguro para validación
           ipAddress: authRequest.ipAddress,
           description: authRequest.userAgent,
           lastSeenAt: new Date()
         }
       })
     ]);
+
+    // Limpiar intentos fallidos al tener éxito
+    clearFailedApproval(adminId);
 
     // Emitir eventos Socket.io
     const io = getIo(req);
@@ -240,13 +367,15 @@ const approveDeviceAuth = async (req, res) => {
       io.to(`device_auth_${authRequest.id}`).emit('device_auth_approved', {
         token,
         deviceId: device.id,
-        name: device.name
+        name: device.name,
+        companyId: device.companyId
       });
 
       // Notificar al Dashboard que la solicitud fue resuelta
       io.to('dashboard').emit('device_auth_request_resolved', {
         id: authRequest.id,
-        status: 'APPROVED'
+        status: 'APPROVED',
+        companyId: device.companyId
       });
     }
 
@@ -256,10 +385,15 @@ const approveDeviceAuth = async (req, res) => {
       device: {
         id: device.id,
         name: device.name,
+        companyId: device.companyId,
         type: device.type,
         status: device.status,
-        ipAddress: device.ipAddress,
         createdAt: device.createdAt
+      },
+      kioskInfo: {
+        ipAddress: authRequest.ipAddress,
+        userAgent: authRequest.userAgent,
+        pairingCode: authRequest.pairingCode
       }
     });
   } catch (error) {
@@ -613,6 +747,7 @@ const deleteDevice = async (req, res) => {
 module.exports = {
   requestDeviceAuth,
   getPendingAuthRequests,
+  lookupAuthRequestByCode,
   approveDeviceAuth,
   rejectDeviceAuth,
   verifyDeviceToken,

@@ -97,6 +97,11 @@ router.delete('/:id', requireJwt, async (req, res) => {
 
     res.json({ message: 'Turno eliminado correctamente' });
   } catch (error) {
+    if (error.code === 'P2003') {
+      return res.status(409).json({ 
+        error: 'No se puede eliminar el turno porque está asignado a empleados, departamentos o tiene asistencias asociadas. Desactive el turno (isActive: false) en su lugar.' 
+      });
+    }
     console.error('Error deleting shift:', error);
     res.status(500).json({ error: 'Error interno del servidor al eliminar turno' });
   }
