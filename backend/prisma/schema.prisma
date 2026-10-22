@@ -18,6 +18,7 @@ model Company {
   maxDevices         Int              @default(3)
   timezone           String           @default("America/Mexico_City")
   lastAbsenceDateRun DateTime?        @db.Date
+  descriptorsVersion Int              @default(1)
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt
 
@@ -42,7 +43,7 @@ model Company {
 model Department {
   id        Int               @id @default(autoincrement())
   companyId String
-  company   Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company   Company           @relation(fields: [companyId], references: [id], onDelete: Restrict)
   name      String
   employees Employee[]
   shifts    DepartmentShift[]
@@ -57,7 +58,7 @@ model Department {
 model Employee {
   id             String             @id @default(uuid())
   companyId      String
-  company        Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company        Company            @relation(fields: [companyId], references: [id], onDelete: Restrict)
   firstName      String
   lastName       String
   identifier     String             // Número de empleado o DNI
@@ -86,9 +87,9 @@ model Employee {
 model AttendanceRecord {
   id           String    @id @default(uuid())
   companyId    String
-  company      Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company      Company   @relation(fields: [companyId], references: [id], onDelete: Restrict)
   employeeId   String
-  employee     Employee  @relation(fields: [employeeId, companyId], references: [id, companyId], onDelete: Cascade)
+  employee     Employee  @relation(fields: [employeeId, companyId], references: [id, companyId], onDelete: Restrict)
   date         DateTime  @db.Date
   entrada      DateTime?
   recesoInicio DateTime?
@@ -122,7 +123,7 @@ model AttendanceRecord {
 model Shift {
   id             Int     @id @default(autoincrement())
   companyId      String
-  company        Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company        Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   name           String
   startTime      String // "HH:mm"
   endTime        String // "HH:mm"
@@ -146,7 +147,7 @@ model Shift {
 model DepartmentShift {
   id           Int        @id @default(autoincrement())
   companyId    String
-  company      Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company      Company    @relation(fields: [companyId], references: [id], onDelete: Restrict)
   departmentId Int
   shiftId      Int
 
@@ -160,7 +161,7 @@ model DepartmentShift {
 model EmployeeShift {
   id         Int      @id @default(autoincrement())
   companyId  String
-  company    Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company    Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
   employeeId String
   shiftId    Int
 
@@ -180,7 +181,7 @@ enum AdminRole {
 model AdminUser {
   id            String          @id @default(uuid())
   companyId     String?         // Nullable for SaaS SUPER_ADMIN
-  company       Company?        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company       Company?        @relation(fields: [companyId], references: [id], onDelete: Restrict)
   name          String
   email         String          @unique // Email único globalmente para login directo
   password      String
@@ -200,7 +201,7 @@ model AdminUser {
 model AdminAuditLog {
   id              String   @id @default(uuid())
   companyId       String?  // Nullable para auditorías de Super Admin
-  company         Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company         Company? @relation(fields: [companyId], references: [id], onDelete: Restrict)
   action          String   // "CREATE_ADMIN" | "DELETE_ADMIN"
   performedById   String
   performedByName String
@@ -214,7 +215,7 @@ model AdminAuditLog {
 model Notification {
   id         String           @id @default(cuid())
   companyId  String
-  company    Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company    Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
   title      String
   message    String
   type       NotificationType
@@ -222,10 +223,11 @@ model Notification {
   entityId   String?          // ID del recurso relacionado
   isRead     Boolean          @default(false)
   createdAt  DateTime         @default(now())
-  employee   Employee?        @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employee   Employee?        @relation(fields: [employeeId, companyId], references: [id, companyId], onDelete: Cascade)
   employeeId String?
 
   @@index([companyId, isRead, createdAt])
+  @@index([employeeId, companyId])
 }
 
 enum NotificationType {
@@ -251,7 +253,7 @@ enum EventStatus {
 model EventRequest {
   id             String      @id @default(uuid())
   companyId      String
-  company        Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company        Company     @relation(fields: [companyId], references: [id], onDelete: Restrict)
   employeeId     String
   employee       Employee    @relation(fields: [employeeId, companyId], references: [id, companyId], onDelete: Restrict)
   type           EventType   
@@ -276,7 +278,7 @@ model EventRequest {
 model SystemSettings {
   id          Int     @id @default(autoincrement())
   companyId   String  @unique // 1 a 1 con Company
-  company     Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company     Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
 
   // General
   companyName String @default("PAIN")
@@ -340,11 +342,11 @@ enum AuthRequestStatus {
 model Device {
   id                String       @id @default(uuid())
   companyId         String
-  company           Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company           Company      @relation(fields: [companyId], references: [id], onDelete: Restrict)
   name              String
   type              DeviceType   @default(KIOSK)
   status            DeviceStatus @default(ONLINE)
-  token             String?      @unique
+  token             String?      @unique // Nullable: eliminado/purgado tras la ventana de gracia
   tokenHash         String?      @unique // SHA-256 para validación segura
   ipAddress         String?
   description       String?
