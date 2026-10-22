@@ -22,6 +22,10 @@ app.use(helmet());
 
 const frontendUrl = process.env.FRONTEND_URL || process.env.VITE_API_URL || 'http://localhost:5173';
 
+require('./config/secrets');
+const jwt = require('jsonwebtoken');
+const { JWT_SECRET } = require('./config/secrets');
+
 const io = new Server(server, {
   cors: {
     origin: process.env.NODE_ENV === 'production' ? true : [frontendUrl, 'http://localhost:8080', 'http://localhost'],
@@ -32,33 +36,50 @@ const io = new Server(server, {
 
 app.set('io', io);
 
-io.on('connection', (socket) => {
-  console.log('Client connected:', socket.id);
-  
-  // Unir al room "dashboard" por defecto o basado en algún evento
-  socket.join('dashboard');
+// Middleware de autenticación y aislamiento multi-tenant en Socket.io
+io.use((socket, next) => {
+  const token = socket.handshake.auth?.token || socket.handshake.query?.token;
+  if (!token) {
+    socket.isAnonymous = true;
+    return next();
+  }
 
-  // Unirse a sala de autorización de kiosko por UUID
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    socket.user = decoded;
+    socket.companyId = decoded.companyId || null;
+    return next();
+  } catch (err) {
+    return next(new Error('AUTHENTICATION_ERROR: Token inválido para Socket.io'));
+  }
+});
+
+io.on('connection', (socket) => {
+  // Unir exclusivamente a salas de su propia empresa
+  if (socket.companyId) {
+    socket.join(`company_${socket.companyId}`);
+    socket.join(`dashboard_${socket.companyId}`);
+  } else if (socket.user?.role === 'SUPER_ADMIN') {
+    socket.join('dashboard_global');
+  }
+
+  // Unirse a sala de autorización de kiosko por UUID (flujo de emparejamiento)
   socket.on('join_device_auth', (requestId) => {
     if (requestId) {
       const room = `device_auth_${requestId}`;
       socket.join(room);
-      console.log(`Socket ${socket.id} joined auth room: ${room}`);
     }
   });
 
-  // Unirse a sala de control directo del dispositivo por deviceId
+  // Unirse a sala de control directo del dispositivo
   socket.on('join_device', (deviceId) => {
     if (deviceId) {
       const room = `device_${deviceId}`;
       socket.join(room);
-      console.log(`Socket ${socket.id} joined device room: ${room}`);
     }
   });
 
-  socket.on('disconnect', () => {
-    console.log('Client disconnected:', socket.id);
-  });
+  socket.on('disconnect', () => {});
 });
 
 app.use(cors({ 
@@ -67,6 +88,10 @@ app.use(cors({
 }));
 app.use(cookieParser());
 app.use(express.json());
+
+// Middleware de Contexto de Inquilino Multi-Tenant (AsyncLocalStorage)
+const { tenantContextMiddleware } = require('./middlewares/tenantContext');
+app.use(tenantContextMiddleware);
 
 // Montar rutas
 app.use('/api/v1/auth', authRouter);
