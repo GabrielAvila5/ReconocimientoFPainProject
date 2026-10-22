@@ -96,7 +96,7 @@ async function tenantContextMiddleware(req, res, next) {
     // Regla de Empresa Suspendida: 403 Forbidden
     if (companyId && !isSuperAdmin) {
       const prisma = require('../utils/prisma');
-      const comp = await prisma.$base.company.findUnique({
+      const comp = await prisma.company.findUnique({
         where: { id: companyId },
         select: { isActive: true }
       });

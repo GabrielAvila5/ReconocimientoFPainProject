@@ -1,6 +1,7 @@
 /**
- * PRISMA CLIENT CON EXTENSIÓN DE AISLAMIENTO MULTI-TENANT (FASE 2)
+ * PRISMA CLIENT CON EXTENSIÓN DE AISLAMIENTO MULTI-TENANT (FASE 2 / GATE 3A)
  * Intercepta el 100% de operaciones en los 13 modelos que contienen companyId.
+ * Bloquea consultas raw no tipadas, inyecta filtros y sanitiza escrituras anidadas.
  */
 
 const { PrismaClient } = require('@prisma/client');
@@ -39,6 +40,75 @@ const MODELS_WITH_ID_COMPANY_ID = [
   'Device'
 ];
 
+/**
+ * Sanitiza escrituras anidadas (nested writes) para garantizar que cualquier
+ * relación anidada (create, createMany, connect, connectOrCreate) quede vinculada
+ * exclusivamente a la empresa activa del inquilino (cid).
+ */
+function sanitizeNestedWrites(data, companyId) {
+  if (!data || typeof data !== 'object') return data;
+  if (Array.isArray(data)) {
+    return data.map(item => sanitizeNestedWrites(item, companyId));
+  }
+
+  const sanitized = { ...data };
+  for (const [key, value] of Object.entries(sanitized)) {
+    if (value && typeof value === 'object') {
+      // 1. Inyección en nested create
+      if ('create' in value) {
+        if (Array.isArray(value.create)) {
+          value.create = value.create.map(c => ({ ...sanitizeNestedWrites(c, companyId), companyId }));
+        } else if (value.create && typeof value.create === 'object') {
+          value.create = { ...sanitizeNestedWrites(value.create, companyId), companyId };
+        }
+      }
+
+      // 2. Inyección en nested createMany
+      if ('createMany' in value && value.createMany?.data) {
+        if (Array.isArray(value.createMany.data)) {
+          value.createMany.data = value.createMany.data.map(c => ({ ...sanitizeNestedWrites(c, companyId), companyId }));
+        } else if (typeof value.createMany.data === 'object') {
+          value.createMany.data = { ...sanitizeNestedWrites(value.createMany.data, companyId), companyId };
+        }
+      }
+
+      // 3. Validación y transformación de connect a clave compuesta id_companyId
+      if ('connect' in value && value.connect && typeof value.connect === 'object') {
+        if (value.connect.id !== undefined && !value.connect.id_companyId) {
+          value.connect = { id_companyId: { id: value.connect.id, companyId } };
+        }
+      }
+
+      // 4. Validación de connectOrCreate
+      if ('connectOrCreate' in value && value.connectOrCreate) {
+        if (Array.isArray(value.connectOrCreate)) {
+          value.connectOrCreate = value.connectOrCreate.map(item => {
+            const where = (item.where?.id !== undefined && !item.where?.id_companyId)
+              ? { id_companyId: { id: item.where.id, companyId } }
+              : item.where;
+            return {
+              ...item,
+              where,
+              create: { ...sanitizeNestedWrites(item.create, companyId), companyId }
+            };
+          });
+        } else if (typeof value.connectOrCreate === 'object') {
+          const where = (value.connectOrCreate.where?.id !== undefined && !value.connectOrCreate.where?.id_companyId)
+            ? { id_companyId: { id: value.connectOrCreate.where.id, companyId } }
+            : value.connectOrCreate.where;
+          value.connectOrCreate = {
+            ...value.connectOrCreate,
+            where,
+            create: { ...sanitizeNestedWrites(value.connectOrCreate.create, companyId), companyId }
+          };
+        }
+      }
+    }
+  }
+
+  return sanitized;
+}
+
 function buildTenantPrisma(client) {
   return client.$extends({
     name: 'saas-multi-tenant-isolation',
@@ -67,20 +137,15 @@ function buildTenantPrisma(client) {
 
           // 1. Sin contexto o companyId undefined
           if (!ctx || ctx.companyId === undefined) {
-            // Se permite la creación anónima de solicitudes de emparejamiento por kioscos físicos no vinculados
-            if (model === 'DeviceAuthRequest' && operation === 'create') {
-              return query(args);
-            }
             throw new TenantContextRequiredError(`Operación '${operation}' en modelo '${model}' rechazada: no hay contexto de empresa activo.`);
           }
 
           const cid = ctx.companyId;
 
           // 2. Si companyId es null:
-          // Se permite para DeviceAuthRequest (kioscos en proceso de emparejamiento previo a tener empresa)
-          // y para SuperAdmin operando a nivel de plataforma (companyId null)
+          // Solo permitido para SuperAdmin operando a nivel de plataforma global
           if (cid === null) {
-            if (model === 'DeviceAuthRequest' || ctx.isSuperAdmin) {
+            if (ctx.isSuperAdmin) {
               return query(args);
             }
             throw new TenantContextRequiredError(`Operación '${operation}' en modelo '${model}' rechazada: companyId es nulo.`);
@@ -114,14 +179,15 @@ function buildTenantPrisma(client) {
 
             case 'create': {
               args.data = { ...(args.data || {}), companyId: cid };
+              args.data = sanitizeNestedWrites(args.data, cid);
               return query(args);
             }
 
             case 'createMany': {
               if (Array.isArray(args.data)) {
-                args.data = args.data.map(item => ({ ...item, companyId: cid }));
+                args.data = args.data.map(item => ({ ...sanitizeNestedWrites(item, cid), companyId: cid }));
               } else if (args.data) {
-                args.data = { ...args.data, companyId: cid };
+                args.data = { ...sanitizeNestedWrites(args.data, cid), companyId: cid };
               }
               return query(args);
             }
@@ -139,6 +205,9 @@ function buildTenantPrisma(client) {
                 args.where = { companyId: cid };
               } else {
                 args.where = { ...(args.where || {}), companyId: cid };
+              }
+              if (args.data) {
+                args.data = sanitizeNestedWrites(args.data, cid);
               }
               return query(args);
             }
@@ -162,8 +231,8 @@ function buildTenantPrisma(client) {
               } else {
                 args.where = { ...(args.where || {}), companyId: cid };
               }
-              args.create = { ...(args.create || {}), companyId: cid };
-              args.update = { ...(args.update || {}), companyId: cid };
+              args.create = { ...sanitizeNestedWrites(args.create || {}, cid), companyId: cid };
+              args.update = sanitizeNestedWrites(args.update || {}, cid);
               return query(args);
             }
 
@@ -177,8 +246,6 @@ function buildTenantPrisma(client) {
 }
 
 const prisma = buildTenantPrisma(basePrisma);
-prisma.$base = basePrisma;
 
 module.exports = prisma;
-module.exports.basePrisma = basePrisma;
 module.exports.buildTenantPrisma = buildTenantPrisma;

@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken');
 const prisma = require('../../utils/prisma');
 const { JWT_SECRET } = require('../../config/secrets');
 const { syncAdminToEmployee } = require('../../utils/adminEmployeeSync');
+const { findAdminByEmailForLogin } = require('../../utils/authHelpers');
 
 const login = async (req, res) => {
   try {
@@ -12,11 +13,8 @@ const login = async (req, res) => {
       return res.status(400).json({ error: 'Email y contraseña son obligatorios' });
     }
 
-    // Buscar admin deterministicamente por email global
-    const user = await prisma.$base.adminUser.findUnique({
-      where: { email },
-      include: { company: true }
-    });
+    // Buscar admin deterministicamente mediante helper estrecho
+    const user = await findAdminByEmailForLogin(email);
 
     if (!user) {
       return res.status(401).json({ error: 'Credenciales inválidas' });

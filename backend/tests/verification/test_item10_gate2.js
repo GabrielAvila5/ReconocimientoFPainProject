@@ -4,6 +4,7 @@ const http = require('http');
 const { io: ioClient } = require('socket.io-client');
 const { app, server } = require('../../src/app');
 const prisma = require('../../src/utils/prisma');
+const prismaAdmin = require('../../src/utils/prismaAdmin');
 const { JWT_SECRET } = require('../../src/config/secrets');
 
 const companyAlpha = 'default-company-pain';
@@ -15,29 +16,29 @@ async function main() {
   console.log('================================================================\n');
 
   // Asegurar empresas
-  await prisma.$base.company.upsert({
+  await prismaAdmin.company.upsert({
     where: { id: companyAlpha },
     create: { id: companyAlpha, name: 'Empresa Alpha', slug: 'alpha-g2', isActive: true },
     update: { isActive: true }
   });
-  await prisma.$base.company.upsert({
+  await prismaAdmin.company.upsert({
     where: { id: companyBeta },
     create: { id: companyBeta, name: 'Empresa Beta', slug: 'beta-g2', isActive: true },
     update: { isActive: true }
   });
 
   // Asegurar admin users
-  await prisma.$base.adminUser.upsert({
+  await prismaAdmin.adminUser.upsert({
     where: { id: 'admin-alpha-g2' },
     create: { id: 'admin-alpha-g2', name: 'Admin Alpha', email: 'admin.alpha.g2@test.com', password: 'hash', role: 'ADMIN', companyId: companyAlpha },
     update: { companyId: companyAlpha }
   });
-  await prisma.$base.adminUser.upsert({
+  await prismaAdmin.adminUser.upsert({
     where: { id: 'admin-beta-g2' },
     create: { id: 'admin-beta-g2', name: 'Admin Beta', email: 'admin.beta.g2@test.com', password: 'hash', role: 'ADMIN', companyId: companyBeta },
     update: { companyId: companyBeta }
   });
-  await prisma.$base.adminUser.upsert({
+  await prismaAdmin.adminUser.upsert({
     where: { id: 'superadmin-g2' },
     create: { id: 'superadmin-g2', name: 'Super Admin', email: 'super.g2@test.com', password: 'hash', role: 'SUPER_ADMIN', companyId: null },
     update: { companyId: null }
@@ -105,7 +106,7 @@ async function main() {
   // -------------------------------------------------------------------------
   console.log('\n[Prueba 3] Empresa suspendida responde con HTTP 403...');
   // Suspender temporalmente Empresa Beta
-  await prisma.$base.company.update({
+  await prismaAdmin.company.update({
     where: { id: companyBeta },
     data: { isActive: false }
   });
@@ -118,7 +119,7 @@ async function main() {
   console.log(`✓ Respuesta: ${JSON.stringify(resSuspended.body)}`);
 
   // Reactivar Empresa Beta
-  await prisma.$base.company.update({
+  await prismaAdmin.company.update({
     where: { id: companyBeta },
     data: { isActive: true }
   });
@@ -215,8 +216,11 @@ async function main() {
     throw new Error('Fallo de aislamiento en Socket.io: Cliente Beta recibió eventos de Empresa Alpha.');
   }
 
-  // Limpieza de usuarios de prueba
-  await prisma.$base.adminUser.deleteMany({
+  // Limpieza de usuarios y empleados de prueba
+  await prismaAdmin.employee.deleteMany({
+    where: { email: { in: ['admin.alpha.g2@test.com', 'admin.beta.g2@test.com', 'super.g2@test.com'] } }
+  });
+  await prismaAdmin.adminUser.deleteMany({
     where: { id: { in: ['admin-alpha-g2', 'admin-beta-g2', 'superadmin-g2'] } }
   });
 

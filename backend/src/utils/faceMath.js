@@ -62,8 +62,8 @@ async function syncFaceCache(companyId = null) {
     if (companyId) {
       await syncCompanyCache(companyId);
     } else {
-      // Arranque del sistema: Cargar empresas activas vía basePrisma y sincronizar por inquilino
-      const companies = await prisma.$base.company.findMany({
+      // Arranque del sistema: Cargar empresas activas y sincronizar por inquilino
+      const companies = await prisma.company.findMany({
         where: { isActive: true },
         select: { id: true, name: true }
       });

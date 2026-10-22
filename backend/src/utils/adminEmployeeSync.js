@@ -1,4 +1,5 @@
 const prisma = require('./prisma');
+const prismaAdmin = require('./prismaAdmin');
 const { runWithTenantContext } = require('../middlewares/tenantContext');
 
 /**
@@ -167,7 +168,7 @@ async function syncAdminToEmployee(adminUser, options = {}, prismaClient = prism
  */
 async function syncAllAdminsToEmployees(prismaClient = prisma) {
   try {
-    const admins = await prismaClient.$base.adminUser.findMany({
+    const admins = await prismaAdmin.adminUser.findMany({
       where: {
         companyId: { not: null }
       }

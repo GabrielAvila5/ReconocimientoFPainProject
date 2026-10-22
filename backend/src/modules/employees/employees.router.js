@@ -3,6 +3,8 @@ const router = express.Router();
 const requireJwt = require('../../middlewares/requireJwt');
 const prisma = require('../../utils/prisma');
 const { syncFaceCache } = require('../../utils/faceMath');
+const { getCompanyForDescriptors } = require('../../utils/authHelpers');
+const { runWithTenantContext } = require('../../middlewares/tenantContext');
 
 // GET /api/v1/employees/descriptors
 router.get('/descriptors', async (req, res) => {
@@ -10,10 +12,7 @@ router.get('/descriptors', async (req, res) => {
     const companyId = req.headers['x-tenant-id'] || req.query.companyId || req.user?.companyId || 'default-company-pain';
     
     // 1. Consultar versión actual de la empresa
-    const company = await prisma.$base.company.findUnique({
-      where: { id: companyId },
-      select: { id: true, descriptorsVersion: true, isActive: true }
-    });
+    const company = await getCompanyForDescriptors(companyId);
 
     if (!company) {
       return res.status(404).json({ error: 'Empresa no encontrada' });
@@ -35,9 +34,8 @@ router.get('/descriptors', async (req, res) => {
     }
 
     // 3. Si no coincide el ETag, consultar descriptores de la empresa
-    const employees = await prisma.$base.employee.findMany({
+    const employees = await runWithTenantContext({ companyId }, () => prisma.employee.findMany({
       where: {
-        companyId,
         isActive: true,
         faceDescriptor: { not: null }
       },
@@ -49,7 +47,7 @@ router.get('/descriptors', async (req, res) => {
         position: true,
         faceDescriptor: true
       }
-    });
+    }));
     
     const mapped = employees.map(emp => ({
       id: emp.id,

@@ -1,5 +1,6 @@
 const cron = require('node-cron');
 const prisma = require('../utils/prisma');
+const prismaAdmin = require('../utils/prismaAdmin');
 const { runWithTenantContext } = require('../middlewares/tenantContext');
 const { getStartOfDay, getShiftExpectedEndDate, DEFAULT_TZ } = require('../utils/timeUtils');
 
@@ -112,12 +113,12 @@ const processAutoCheckout = async (employeeId = null, targetCompanyId = null) =>
 
   try {
     if (targetCompanyId) {
-      const comp = await prisma.$base.company.findUnique({ where: { id: targetCompanyId } });
+      const comp = await prisma.company.findUnique({ where: { id: targetCompanyId } });
       if (comp) return await processAutoCheckoutForCompany(comp, employeeId);
       return 0;
     }
 
-    const companies = await prisma.$base.company.findMany({
+    const companies = await prisma.company.findMany({
       where: { isActive: true },
       select: { id: true, timezone: true }
     });
@@ -142,7 +143,7 @@ const processAutoCheckout = async (employeeId = null, targetCompanyId = null) =>
 const processAbsences = async () => {
   console.log('[CRON] Iniciando verificación de inasistencias...');
   try {
-    const companies = await prisma.$base.company.findMany({
+    const companies = await prisma.company.findMany({
       where: { isActive: true },
       select: { id: true, timezone: true }
     });
@@ -195,7 +196,7 @@ const processAbsences = async () => {
  */
 const cleanExpiredDeviceAuthRequests = async () => {
   try {
-    const res = await prisma.$base.deviceAuthRequest.updateMany({
+    const res = await prismaAdmin.deviceAuthRequest.updateMany({
       where: {
         status: 'PENDING',
         expiresAt: { lt: new Date() }

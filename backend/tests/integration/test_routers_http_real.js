@@ -8,6 +8,7 @@ const request = require('supertest');
 const jwt = require('jsonwebtoken');
 const { app } = require('../../src/app');
 const prisma = require('../../src/utils/prisma');
+const prismaAdmin = require('../../src/utils/prismaAdmin');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'HostingerFallbackSecretKey2026!';
 
@@ -29,7 +30,7 @@ async function runRealHttpTests() {
   console.log('\n* Test 7.1: Petición HTTP DELETE /api/v1/departments/:id (con empleados asignados -> P2003 capturado)...');
   
   // Buscar un departamento que tenga empleados en la base actual
-  const deptWithEmp = await (prisma.$base || prisma).department.findFirst({
+  const deptWithEmp = await prismaAdmin.department.findFirst({
     where: {
       employees: { some: {} }
     }
@@ -55,7 +56,7 @@ async function runRealHttpTests() {
 
   // Test 7.2: DELETE /api/v1/shifts/:id con asistencias vinculadas (regla de negocio: desactivar)
   console.log('\n* Test 7.2: Petición HTTP DELETE /api/v1/shifts/:id (con asistencias -> desactivar)...');
-  const shiftWithAtt = await (prisma.$base || prisma).shift.findFirst({
+  const shiftWithAtt = await prismaAdmin.shift.findFirst({
     where: {
       attendances: { some: {} }
     }

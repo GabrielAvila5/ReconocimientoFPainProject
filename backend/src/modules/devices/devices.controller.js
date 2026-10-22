@@ -1,5 +1,17 @@
 const crypto = require('crypto');
 const prisma = require('../../utils/prisma');
+const {
+  findActivePairingRequestForDevice,
+  expirePendingPairingRequests,
+  isPairingCodeInUse,
+  createPairingRequest,
+  lookupPairingRequest,
+  getPairingRequestById,
+  markPairingRequestExpired,
+  approvePairingRequest,
+  listPendingPairingRequests,
+  rejectPairingRequest
+} = require('../../utils/authHelpers');
 
 // Helper para obtener la instancia de Socket.io
 const getIo = (req) => {
@@ -53,14 +65,7 @@ const requestDeviceAuth = async (req, res) => {
     const now = new Date();
 
     // 1. Detección de solicitud previa existente y activa para este dispositivo
-    const existingCondition = deviceId 
-      ? { deviceId, status: 'PENDING', expiresAt: { gt: now } }
-      : { ipAddress, userAgent, status: 'PENDING', expiresAt: { gt: now } };
-
-    const existingRequest = await prisma.deviceAuthRequest.findFirst({
-      where: existingCondition,
-      orderBy: { createdAt: 'desc' }
-    });
+    const existingRequest = await findActivePairingRequestForDevice({ deviceId, ipAddress, userAgent });
 
     // Si ya existe una solicitud vigente y no se forzó una nueva, reutilizarla
     if (existingRequest && !forceNew) {
@@ -73,29 +78,15 @@ const requestDeviceAuth = async (req, res) => {
 
     // Si se pidió nueva o hay anteriores de este mismo cliente, marcarlas como EXPIRED
     const io = getIo(req);
-    const staleCondition = deviceId 
-      ? { deviceId, status: 'PENDING' } 
-      : { ipAddress, userAgent, status: 'PENDING' };
+    const previousPending = await expirePendingPairingRequests({ deviceId, ipAddress, userAgent });
 
-    const previousPending = await prisma.deviceAuthRequest.findMany({
-      where: staleCondition,
-      select: { id: true }
-    });
-
-    if (previousPending.length > 0) {
-      await prisma.deviceAuthRequest.updateMany({
-        where: staleCondition,
-        data: { status: 'EXPIRED' }
-      });
-
-      if (io) {
-        previousPending.forEach(p => {
-          io.to('dashboard').emit('device_auth_request_resolved', {
-            id: p.id,
-            status: 'EXPIRED'
-          });
+    if (previousPending.length > 0 && io) {
+      previousPending.forEach(p => {
+        io.to('dashboard').emit('device_auth_request_resolved', {
+          id: p.id,
+          status: 'EXPIRED'
         });
-      }
+      });
     }
 
     // 2. Generar código único que no esté en PENDING activo
@@ -105,28 +96,19 @@ const requestDeviceAuth = async (req, res) => {
 
     while (!isUnique && attempts < 10) {
       pairingCode = generatePairingCode();
-      const existing = await prisma.deviceAuthRequest.findFirst({
-        where: {
-          pairingCode,
-          status: 'PENDING',
-          expiresAt: { gt: now }
-        }
-      });
-      if (!existing) isUnique = true;
+      const inUse = await isPairingCodeInUse(pairingCode);
+      if (!inUse) isUnique = true;
       attempts++;
     }
 
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutos (expiración corta para mitigar ataques de fuerza bruta)
 
-    const authRequest = await prisma.deviceAuthRequest.create({
-      data: {
-        deviceId: deviceId || null,
-        pairingCode,
-        ipAddress,
-        userAgent,
-        status: 'PENDING',
-        expiresAt
-      }
+    const authRequest = await createPairingRequest({
+      deviceId: deviceId || null,
+      pairingCode,
+      ipAddress,
+      userAgent,
+      expiresAt
     });
 
     // Notificar al Dashboard en tiempo real
@@ -158,25 +140,7 @@ const requestDeviceAuth = async (req, res) => {
  */
 const getPendingAuthRequests = async (req, res) => {
   try {
-    const now = new Date();
-
-    // Limpieza oportunista de expiradas
-    await prisma.deviceAuthRequest.updateMany({
-      where: {
-        status: 'PENDING',
-        expiresAt: { lt: now }
-      },
-      data: { status: 'EXPIRED' }
-    });
-
-    const pendingRequests = await prisma.deviceAuthRequest.findMany({
-      where: {
-        status: 'PENDING',
-        expiresAt: { gt: now }
-      },
-      orderBy: { createdAt: 'desc' }
-    });
-
+    const pendingRequests = await listPendingPairingRequests();
     return res.json(pendingRequests);
   } catch (error) {
     console.error('Error al obtener solicitudes pendientes:', error);
@@ -236,15 +200,7 @@ const lookupAuthRequestByCode = async (req, res) => {
     }
 
     const cleanCode = pairingCode.toUpperCase().trim();
-    const now = new Date();
-
-    const authRequest = await prisma.$base.deviceAuthRequest.findFirst({
-      where: {
-        pairingCode: cleanCode,
-        status: 'PENDING',
-        expiresAt: { gt: now }
-      }
-    });
+    const authRequest = await lookupPairingRequest(cleanCode);
 
     if (!authRequest) {
       recordFailedApproval(adminId);
@@ -290,9 +246,7 @@ const approveDeviceAuth = async (req, res) => {
       });
     }
 
-    const authRequest = await prisma.$base.deviceAuthRequest.findUnique({
-      where: { id }
-    });
+    const authRequest = await getPairingRequestById(id);
 
     if (!authRequest) {
       recordFailedApproval(adminId);
@@ -306,10 +260,7 @@ const approveDeviceAuth = async (req, res) => {
 
     if (new Date() > authRequest.expiresAt) {
       recordFailedApproval(adminId);
-      await prisma.$base.deviceAuthRequest.update({
-        where: { id },
-        data: { status: 'EXPIRED' }
-      });
+      await markPairingRequestExpired(id);
       return res.status(400).json({ error: 'La solicitud ha expirado' });
     }
 
@@ -334,28 +285,20 @@ const approveDeviceAuth = async (req, res) => {
     const deviceName = name?.trim() || `Kiosko ${authRequest.pairingCode}`;
 
     // Transacción: Aprobar solicitud y crear Device vinculado a la empresa
-    const [_, device] = await prisma.$transaction([
-      prisma.deviceAuthRequest.update({
-        where: { id },
-        data: { 
-          status: 'APPROVED',
-          companyId: targetCompanyId
-        }
-      }),
-      prisma.device.create({
-        data: {
-          companyId: targetCompanyId,
-          name: deviceName,
-          type: 'KIOSK',
-          status: 'ONLINE',
-          token, // Ventana de gracia
-          tokenHash, // Hash seguro para validación
-          ipAddress: authRequest.ipAddress,
-          description: authRequest.userAgent,
-          lastSeenAt: new Date()
-        }
-      })
-    ]);
+    await approvePairingRequest({ id, companyId: targetCompanyId });
+    const device = await prisma.device.create({
+      data: {
+        companyId: targetCompanyId,
+        name: deviceName,
+        type: 'KIOSK',
+        status: 'ONLINE',
+        token, // Ventana de gracia
+        tokenHash, // Hash seguro para validación
+        ipAddress: authRequest.ipAddress,
+        description: authRequest.userAgent,
+        lastSeenAt: new Date()
+      }
+    });
 
     // Limpiar intentos fallidos al tener éxito
     clearFailedApproval(adminId);
@@ -410,18 +353,10 @@ const rejectDeviceAuth = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const authRequest = await prisma.deviceAuthRequest.findUnique({
-      where: { id }
-    });
-
-    if (!authRequest) {
+    const updated = await rejectPairingRequest(id);
+    if (!updated) {
       return res.status(404).json({ error: 'Solicitud no encontrada' });
     }
-
-    await prisma.deviceAuthRequest.update({
-      where: { id },
-      data: { status: 'REJECTED' }
-    });
 
     // Emitir eventos Socket.io
     const io = getIo(req);
