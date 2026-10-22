@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const { JWT_SECRET } = require('../config/secrets');
 
 const requireJwt = (req, res, next) => {
   // Bypass de autenticación para desarrollo
@@ -21,7 +22,7 @@ const requireJwt = (req, res, next) => {
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'HostingerFallbackSecretKey2026!');
+    const decoded = jwt.verify(token, JWT_SECRET);
     req.user = decoded;
     next();
   } catch (error) {
