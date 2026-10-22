@@ -128,22 +128,57 @@ router.get('/', async (req, res) => {
 // Crear empleado básico sin biometría
 router.post('/', async (req, res) => {
   try {
+    const companyId = req.user?.companyId;
+    if (!companyId) {
+      return res.status(400).json({ error: 'TENANT_REQUIRED', message: 'Se requiere contexto de empresa.' });
+    }
+
     const { firstName, lastName, identifier, email, departmentId, position } = req.body;
     
     if (!departmentId) {
       return res.status(400).json({ error: 'El departamento es obligatorio.' });
     }
 
+    // 1. Validar límite de plan (maxEmployees)
+    const company = await prisma.company.findUnique({
+      where: { id: companyId },
+      select: { maxEmployees: true, isActive: true }
+    });
+
+    const currentEmployeesCount = await prisma.employee.count({
+      where: { companyId }
+    });
+
+    const limit = company?.maxEmployees ?? 50;
+    if (currentEmployeesCount >= limit) {
+      return res.status(403).json({
+        error: 'PLAN_LIMIT_EXCEEDED',
+        message: `Límite del plan alcanzado (${limit} empleados permitidos). Actualice su suscripción.`
+      });
+    }
+
+    // 2. Validar que el departamento exista y pertenezca a la empresa
+    const parsedDeptId = parseInt(departmentId, 10);
+    const department = await prisma.department.findUnique({
+      where: { id_companyId: { id: parsedDeptId, companyId } }
+    });
+
+    if (!department) {
+      return res.status(400).json({
+        error: 'DEPARTMENT_NOT_FOUND',
+        message: 'El departamento especificado no existe o no pertenece a su empresa.'
+      });
+    }
+
     const employee = await prisma.employee.create({
       data: {
+        companyId,
         firstName,
         lastName,
         identifier,
-        email,
-        position,
-        department: {
-          connect: { id: parseInt(departmentId, 10) }
-        }
+        email: email || null,
+        position: position || null,
+        departmentId: parsedDeptId
       }
     });
     
@@ -159,6 +194,9 @@ router.post('/', async (req, res) => {
         return res.status(400).json({ error: 'El identificador (DNI) ya está registrado.' });
       }
       return res.status(400).json({ error: 'Un dato único ya se encuentra registrado (ej. correo o DNI).' });
+    }
+    if (error.code === 'P2003') {
+      return res.status(400).json({ error: 'DEPARTMENT_INVALID', message: 'El departamento especificado no es válido para su empresa.' });
     }
     res.status(500).json({ error: 'Error al crear empleado', details: error.message });
   }
@@ -184,7 +222,7 @@ router.get('/:id', async (req, res) => {
         }
       }
     });
-    if (!employee) return res.status(404).json({ error: 'No encontrado' });
+    if (!employee) return res.status(404).json({ error: 'Empleado no encontrado' });
 
     let adminRole = null;
     if (employee.email) {
@@ -217,22 +255,33 @@ router.get('/:id', async (req, res) => {
 // Editar empleado básico (sin biometría)
 router.put('/:id', async (req, res) => {
   try {
+    const companyId = req.user?.companyId;
     const { firstName, lastName, identifier, email, departmentId, position, isActive } = req.body;
     
     if (!departmentId) {
       return res.status(400).json({ error: 'El departamento es obligatorio.' });
     }
 
-    // Preparar data (departamento es obligatorio)
+    const parsedDeptId = parseInt(departmentId, 10);
+    if (companyId) {
+      const department = await prisma.department.findUnique({
+        where: { id_companyId: { id: parsedDeptId, companyId } }
+      });
+      if (!department) {
+        return res.status(400).json({
+          error: 'DEPARTMENT_NOT_FOUND',
+          message: 'El departamento especificado no existe o no pertenece a su empresa.'
+        });
+      }
+    }
+
     let data = {
       firstName,
       lastName,
       identifier,
-      email,
-      position,
-      department: {
-        connect: { id: parseInt(departmentId, 10) }
-      }
+      email: email || null,
+      position: position || null,
+      departmentId: parsedDeptId
     };
 
     if (isActive !== undefined) {
@@ -246,6 +295,9 @@ router.put('/:id', async (req, res) => {
 
     res.json(employee);
   } catch (error) {
+    if (error.code === 'P2025') {
+      return res.status(404).json({ error: 'Empleado no encontrado' });
+    }
     console.error(error);
     if (error.code === 'P2002') {
       const target = error.meta?.target || '';
@@ -256,6 +308,9 @@ router.put('/:id', async (req, res) => {
         return res.status(400).json({ error: 'El identificador (DNI) ya está registrado.' });
       }
       return res.status(400).json({ error: 'Un dato único ya se encuentra registrado (ej. correo o DNI).' });
+    }
+    if (error.code === 'P2003') {
+      return res.status(400).json({ error: 'DEPARTMENT_INVALID', message: 'El departamento especificado no es válido para su empresa.' });
     }
     res.status(500).json({ error: 'Error al actualizar empleado', details: error.message });
   }
@@ -283,6 +338,9 @@ router.post('/:id/descriptor', async (req, res) => {
     
     res.json({ success: true, enrolledAt });
   } catch (error) {
+    if (error.code === 'P2025') {
+      return res.status(404).json({ error: 'Empleado no encontrado' });
+    }
     console.error(error);
     res.status(500).json({ error: 'Error guardando descriptor' });
   }
@@ -304,6 +362,9 @@ router.delete('/:id/descriptor', async (req, res) => {
     
     res.json({ success: true });
   } catch (error) {
+    if (error.code === 'P2025') {
+      return res.status(404).json({ error: 'Empleado no encontrado' });
+    }
     console.error(error);
     res.status(500).json({ error: 'Error eliminando descriptor' });
   }
@@ -312,10 +373,29 @@ router.delete('/:id/descriptor', async (req, res) => {
 // Registra un empleado con su vector facial (legacy / opcional)
 router.post('/register-face', async (req, res) => {
   try {
+    const companyId = req.user?.companyId;
+    if (!companyId) {
+      return res.status(400).json({ error: 'TENANT_REQUIRED', message: 'Se requiere contexto de empresa.' });
+    }
+
     const { firstName, lastName, identifier, descriptors, email, department, position } = req.body;
 
     if (!descriptors || !Array.isArray(descriptors) || descriptors.length === 0) {
       return res.status(400).json({ error: 'Descriptores inválidos' });
+    }
+
+    // Validar límite del plan
+    const comp = await prisma.company.findUnique({
+      where: { id: companyId },
+      select: { maxEmployees: true }
+    });
+    const currentCount = await prisma.employee.count({ where: { companyId } });
+    const limit = comp?.maxEmployees ?? 50;
+    if (currentCount >= limit) {
+      return res.status(403).json({
+        error: 'PLAN_LIMIT_EXCEEDED',
+        message: `Límite del plan alcanzado (${limit} empleados permitidos). Actualice su suscripción.`
+      });
     }
 
     // Calcular promedio del array de descriptores (number[][])
@@ -331,21 +411,27 @@ router.post('/register-face', async (req, res) => {
       avgDescriptor[j] /= numDescriptors;
     }
 
+    let departmentId = null;
+    if (department) {
+      const dept = await prisma.department.upsert({
+        where: { companyId_name: { companyId, name: department } },
+        create: { companyId, name: department },
+        update: {}
+      });
+      departmentId = dept.id;
+    }
+
     const employee = await prisma.employee.create({
       data: {
+        companyId,
         firstName,
         lastName,
         identifier,
-        email,
-        position,
+        email: email || null,
+        position: position || null,
         faceDescriptor: JSON.stringify(avgDescriptor),
         enrolledAt: new Date(),
-        department: department ? {
-          connectOrCreate: {
-            where: { name: department },
-            create: { name: department }
-          }
-        } : undefined
+        departmentId
       }
     });
 

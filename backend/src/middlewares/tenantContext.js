@@ -77,6 +77,19 @@ async function tenantContextMiddleware(req, res, next) {
       }
     } else if (req.device) {
       companyId = req.device.companyId || null;
+    } else {
+      const deviceToken = req.headers['x-device-token'];
+      if (deviceToken) {
+        const prismaAdmin = require('../utils/prismaAdmin');
+        const dev = await prismaAdmin.device.findUnique({
+          where: { token: deviceToken },
+          select: { id: true, companyId: true, isActive: true, isBlocked: true, deactivatedReason: true, blockedReason: true }
+        });
+        if (dev) {
+          req.device = dev;
+          companyId = dev.companyId;
+        }
+      }
     }
 
     // Rutas públicas y de superadmin

@@ -63,63 +63,87 @@ router.post('/validate', requireApiKey, async (req, res) => {
 router.get('/context/:employeeId', requireApiKey, async (req, res) => {
   try {
     const { employeeId } = req.params;
+    const deviceToken = req.headers['x-device-token'] || req.query.deviceToken;
+    const prismaAdmin = require('../../utils/prismaAdmin');
+    const { runWithTenantContext } = require('../../middlewares/tenantContext');
 
-    // Self-Healing: cerrar automáticamente registros previos olvidados del empleado
-    await processAutoCheckout(employeeId);
-
-    const settings = await prisma.systemSettings.findFirst();
-    const tz = settings?.timezone || DEFAULT_TZ;
-    const startOfDay = getStartOfDay(new Date(), tz);
-
-    // 1. Obtener registro de hoy
-    const todayRecord = await prisma.attendanceRecord.findFirst({
-      where: {
-        employeeId,
-        date: startOfDay
-      }
-    });
-
-    // 2. Obtener empleado con sus turnos y departamento
-    const employee = await prisma.employee.findUnique({
-      where: { id: employeeId },
-      include: {
-        shifts: { include: { shift: true } },
-        department: {
-          include: { shifts: { include: { shift: true } } }
-        }
-      }
-    });
-
-    if (!employee) return res.status(404).json({ error: 'Empleado no encontrado' });
-
-    // 3. Resolver turnos disponibles (Cascada)
-    let availableShifts = [];
-    if (employee.shifts.length > 0) {
-      availableShifts = employee.shifts.map(es => es.shift);
-    } else if (employee.department && employee.department.shifts.length > 0) {
-      availableShifts = employee.department.shifts.map(ds => ds.shift);
-    } else {
-      // Fallback global
-      const settings = await prisma.systemSettings.findFirst();
-      availableShifts = [{
-        id: -1, // Turno virtual
-        name: 'Horario Global',
-        startTime: `${(settings?.workdayStartHour ?? 9).toString().padStart(2, '0')}:${(settings?.workdayStartMinute ?? 0).toString().padStart(2, '0')}`,
-        endTime: `${(settings?.workdayEndHour ?? 18).toString().padStart(2, '0')}:${(settings?.workdayEndMinute ?? 0).toString().padStart(2, '0')}`,
-        tolerance: settings?.latenessToleranceMin ?? 15
-      }];
+    let device = req.device;
+    if (!device && deviceToken) {
+      device = await prismaAdmin.device.findUnique({
+        where: { token: deviceToken },
+        select: { id: true, companyId: true, isActive: true, isBlocked: true }
+      });
     }
 
-    // 4. Armar contexto
-    res.json({
-      hasEntrada: !!(todayRecord && todayRecord.entrada),
-      hasReceso: !!(todayRecord && todayRecord.recesoInicio && !todayRecord.recesoFin),
-      hasSalida: !!(todayRecord && todayRecord.salida),
-      hasHorasExtra: !!(todayRecord && todayRecord.overtimeMinutes > 0),
-      salidaTime: todayRecord ? todayRecord.salida : null,
-      overtimeMinutes: todayRecord ? todayRecord.overtimeMinutes : 0,
-      availableShifts,
-      currentShiftId: todayRecord ? todayRecord.shiftId : null
+    const targetEmp = await prismaAdmin.employee.findUnique({
+      where: { id: employeeId },
+      select: { id: true, companyId: true }
+    });
+
+    if (!targetEmp) return res.status(404).json({ error: 'Empleado no encontrado' });
+
+    if (device && device.companyId !== targetEmp.companyId) {
+      return res.status(403).json({ error: 'CROSS_TENANT_NOT_ALLOWED', message: 'Acceso denegado a otra empresa' });
+    }
+
+    const companyId = device?.companyId || targetEmp.companyId;
+
+    return await runWithTenantContext({ companyId, deviceId: device?.id || null }, async () => {
+      // Self-Healing: cerrar automáticamente registros previos olvidados del empleado
+      await processAutoCheckout(employeeId);
+
+      const settings = await prisma.systemSettings.findFirst();
+      const tz = settings?.timezone || DEFAULT_TZ;
+      const startOfDay = getStartOfDay(new Date(), tz);
+
+      // 1. Obtener registro de hoy
+      const todayRecord = await prisma.attendanceRecord.findFirst({
+        where: {
+          employeeId,
+          date: startOfDay
+        }
+      });
+
+      // 2. Obtener empleado con sus turnos y departamento
+      const employee = await prisma.employee.findUnique({
+        where: { id: employeeId },
+        include: {
+          shifts: { include: { shift: true } },
+          department: {
+            include: { shifts: { include: { shift: true } } }
+          }
+        }
+      });
+
+      if (!employee) return res.status(404).json({ error: 'Empleado no encontrado' });
+
+      // 3. Resolver turnos disponibles (Cascada)
+      let availableShifts = [];
+      if (employee.shifts.length > 0) {
+        availableShifts = employee.shifts.map(es => es.shift);
+      } else if (employee.department && employee.department.shifts.length > 0) {
+        availableShifts = employee.department.shifts.map(ds => ds.shift);
+      } else {
+        availableShifts = [{
+          id: -1,
+          name: 'Horario Global',
+          startTime: `${(settings?.workdayStartHour ?? 9).toString().padStart(2, '0')}:${(settings?.workdayStartMinute ?? 0).toString().padStart(2, '0')}`,
+          endTime: `${(settings?.workdayEndHour ?? 18).toString().padStart(2, '0')}:${(settings?.workdayEndMinute ?? 0).toString().padStart(2, '0')}`,
+          tolerance: settings?.latenessToleranceMin ?? 15
+        }];
+      }
+
+      // 4. Armar contexto
+      res.json({
+        hasEntrada: !!(todayRecord && todayRecord.entrada),
+        hasReceso: !!(todayRecord && todayRecord.recesoInicio && !todayRecord.recesoFin),
+        hasSalida: !!(todayRecord && todayRecord.salida),
+        hasHorasExtra: !!(todayRecord && todayRecord.overtimeMinutes > 0),
+        salidaTime: todayRecord ? todayRecord.salida : null,
+        overtimeMinutes: todayRecord ? todayRecord.overtimeMinutes : 0,
+        availableShifts,
+        currentShiftId: todayRecord ? todayRecord.shiftId : null
+      });
     });
 
   } catch (error) {
@@ -137,137 +161,151 @@ router.post('/register', requireApiKey, async (req, res) => {
       return res.status(400).json({ error: 'employeeId y action son obligatorios' });
     }
 
-    const settings = await prisma.systemSettings.findFirst();
-    const tz = settings?.timezone || DEFAULT_TZ;
+    const prismaAdmin = require('../../utils/prismaAdmin');
+    const { runWithTenantContext } = require('../../middlewares/tenantContext');
 
-    // Self-Healing: Si va a registrar entrada, cerrar cualquier turno pendiente de días anteriores
-    if (action === 'entrada') {
-      await processAutoCheckout(employeeId);
+    const deviceToken = req.headers['x-device-token'] || req.body?.deviceToken;
+    let device = req.device;
+
+    if (!device && deviceToken) {
+      device = await prismaAdmin.device.findUnique({ 
+        where: { token: deviceToken }, 
+        select: { id: true, companyId: true, isActive: true, isBlocked: true, blockedReason: true, deactivatedReason: true } 
+      });
     }
 
-    const startOfDay = getStartOfDay(new Date(), tz);
-    let record = await prisma.attendanceRecord.findFirst({
-      where: { employeeId, date: startOfDay }
+    if (!device) {
+      return res.status(400).json({ error: 'DEVICE_TOKEN_REQUIRED', message: 'Se requiere dispositivo registrado para checadas.' });
+    }
+
+    if (!device.isActive) {
+      return res.status(403).json({
+        error: device.deactivatedReason 
+          ? `Dispositivo dado de baja: ${device.deactivatedReason}` 
+          : 'Este dispositivo checador ha sido dado de baja.'
+      });
+    }
+    if (device.isBlocked) {
+      return res.status(403).json({
+        error: device.blockedReason 
+          ? `Dispositivo bloqueado temporalmente: ${device.blockedReason}` 
+          : 'Este dispositivo checador se encuentra bloqueado temporalmente por administración.'
+      });
+    }
+
+    // Validar pertenencia del empleado a la empresa del dispositivo
+    const targetEmployee = await prismaAdmin.employee.findUnique({
+      where: { id: employeeId },
+      select: { id: true, companyId: true, firstName: true, lastName: true, identifier: true }
     });
 
-    const now = new Date();
-
-    // Resolving device from token or fallback
-    const deviceToken = req.headers['x-device-token'] || req.body?.deviceToken;
-    let deviceId = null;
-    if (deviceToken) {
-      const dev = await prisma.device.findUnique({ 
-        where: { token: deviceToken }, 
-        select: { id: true, isActive: true, isBlocked: true, blockedReason: true, deactivatedReason: true } 
+    if (!targetEmployee || targetEmployee.companyId !== device.companyId) {
+      return res.status(403).json({
+        error: 'CROSS_TENANT_NOT_ALLOWED',
+        message: 'El empleado no pertenece a la empresa de este dispositivo checador.'
       });
-      if (dev) {
-        if (!dev.isActive) {
-          return res.status(403).json({
-            error: dev.deactivatedReason 
-              ? `Dispositivo dado de baja: ${dev.deactivatedReason}` 
-              : 'Este dispositivo checador ha sido dado de baja.'
-          });
-        }
-        if (dev.isBlocked) {
-          return res.status(403).json({
-            error: dev.blockedReason 
-              ? `Dispositivo bloqueado temporalmente: ${dev.blockedReason}` 
-              : 'Este dispositivo checador se encuentra bloqueado temporalmente por administración.'
-          });
-        }
-        deviceId = dev.id;
-        await prisma.device.update({ where: { id: dev.id }, data: { lastSeenAt: now, status: 'ONLINE' } }).catch(() => {});
-      }
-    }
-    if (!deviceId) {
-      const fallbackDev = await prisma.device.findFirst({ 
-        where: { isActive: true, isBlocked: false },
-        orderBy: { lastSeenAt: 'desc' } 
-      });
-      if (fallbackDev) deviceId = fallbackDev.id;
     }
 
-    if (action === 'entrada') {
-      if (record && record.entrada) return res.status(400).json({ error: 'Ya tiene entrada registrada' });
+    const companyId = device.companyId;
+    const deviceId = device.id;
 
-      // Calcular isLate
-      let isLate = false;
-      let lateMinutes = null;
-      let resolvedShiftId = null;
+    return await runWithTenantContext({ companyId, deviceId }, async () => {
+      const now = new Date();
+      await prismaAdmin.device.update({ 
+        where: { id: deviceId }, 
+        data: { lastSeenAt: now, status: 'ONLINE' } 
+      }).catch(() => {});
 
-      // Buscar el turno a comparar
-      let targetShift = null;
-      if (shiftId && shiftId !== -1) {
-        targetShift = await prisma.shift.findUnique({ where: { id: shiftId } });
-        resolvedShiftId = shiftId;
-      } else {
-        // Horario global
-        targetShift = {
-          startTime: `${(settings?.workdayStartHour ?? 9).toString().padStart(2, '0')}:${(settings?.workdayStartMinute ?? 0).toString().padStart(2, '0')}`,
-          endTime: `${(settings?.workdayEndHour ?? 17).toString().padStart(2, '0')}:${(settings?.workdayEndMinute ?? 0).toString().padStart(2, '0')}`,
-          tolerance: settings?.latenessToleranceMin ?? 15
-        };
+      const settings = await prisma.systemSettings.findFirst();
+      const tz = settings?.timezone || DEFAULT_TZ;
+
+      // Self-Healing
+      if (action === 'entrada') {
+        await processAutoCheckout(employeeId);
       }
 
-      if (targetShift) {
-        const nowParts = getTzParts(now, tz);
-        const nowTotalMins = nowParts.totalMinutes;
+      const startOfDay = getStartOfDay(now, tz);
+      let record = await prisma.attendanceRecord.findFirst({
+        where: { employeeId, date: startOfDay }
+      });
 
-        const [shiftHour, shiftMinute] = targetShift.startTime.split(':').map(Number);
-        let expectedTotalMins = shiftHour * 60 + shiftMinute;
+      if (action === 'entrada') {
+        if (record && record.entrada) return res.status(400).json({ error: 'Ya tiene entrada registrada' });
 
-        // Check for LATE_ARRIVAL event
-        const lateEvent = await prisma.eventRequest.findFirst({
-          where: { employeeId, date: startOfDay, type: 'LATE_ARRIVAL', status: 'ACTIVE' },
-          orderBy: { createdAt: 'desc' }
-        });
+        let isLate = false;
+        let lateMinutes = null;
+        let resolvedShiftId = null;
 
-        if (lateEvent && lateEvent.startTime) {
-          const evParts = getTzParts(new Date(lateEvent.startTime), tz);
-          expectedTotalMins = evParts.totalMinutes;
+        let targetShift = null;
+        if (shiftId && shiftId !== -1) {
+          targetShift = await prisma.shift.findUnique({ where: { id: shiftId } });
+          resolvedShiftId = shiftId;
+        } else {
+          targetShift = {
+            startTime: `${(settings?.workdayStartHour ?? 9).toString().padStart(2, '0')}:${(settings?.workdayStartMinute ?? 0).toString().padStart(2, '0')}`,
+            endTime: `${(settings?.workdayEndHour ?? 17).toString().padStart(2, '0')}:${(settings?.workdayEndMinute ?? 0).toString().padStart(2, '0')}`,
+            tolerance: settings?.latenessToleranceMin ?? 15
+          };
         }
 
-        const tolerance = targetShift.tolerance !== null ? targetShift.tolerance : (settings?.latenessToleranceMin ?? 15);
-        const diffMins = nowTotalMins - expectedTotalMins;
+        if (targetShift) {
+          const nowParts = getTzParts(now, tz);
+          const nowTotalMins = nowParts.totalMinutes;
 
-        if (diffMins > tolerance) {
-          isLate = true;
-          lateMinutes = diffMins;
+          const [shiftHour, shiftMinute] = targetShift.startTime.split(':').map(Number);
+          let expectedTotalMins = shiftHour * 60 + shiftMinute;
+
+          const lateEvent = await prisma.eventRequest.findFirst({
+            where: { employeeId, date: startOfDay, type: 'LATE_ARRIVAL', status: 'ACTIVE' },
+            orderBy: { createdAt: 'desc' }
+          });
+
+          if (lateEvent && lateEvent.startTime) {
+            const evParts = getTzParts(new Date(lateEvent.startTime), tz);
+            expectedTotalMins = evParts.totalMinutes;
+          }
+
+          const tolerance = targetShift.tolerance !== null ? targetShift.tolerance : (settings?.latenessToleranceMin ?? 15);
+          const diffMins = nowTotalMins - expectedTotalMins;
+
+          if (diffMins > tolerance) {
+            isLate = true;
+            lateMinutes = diffMins;
+          }
         }
-      }
 
-      if (!record) {
-        record = await prisma.attendanceRecord.create({
-          data: {
-            employeeId,
-            date: startOfDay,
-            entrada: now,
-            shiftId: resolvedShiftId,
-            isLate,
-            lateMinutes,
-            deviceId
-          }
-        });
-      } else {
-        record = await prisma.attendanceRecord.update({
-          where: { id: record.id },
-          data: {
-            entrada: now,
-            shiftId: resolvedShiftId,
-            isLate,
-            lateMinutes,
-            ...(deviceId ? { deviceId } : {})
-          }
-        });
-      }
+        if (!record) {
+          record = await prisma.attendanceRecord.create({
+            data: {
+              companyId,
+              employeeId,
+              date: startOfDay,
+              entrada: now,
+              shiftId: resolvedShiftId,
+              isLate,
+              lateMinutes,
+              deviceId
+            }
+          });
+        } else {
+          record = await prisma.attendanceRecord.update({
+            where: { id: record.id },
+            data: {
+              entrada: now,
+              shiftId: resolvedShiftId,
+              isLate,
+              lateMinutes,
+              deviceId
+            }
+          });
+        }
 
-      if (isLate && lateMinutes > 0) {
-        const employee = await prisma.employee.findUnique({ where: { id: employeeId } });
-        if (employee) {
-          const msg = `${employee.firstName} ${employee.lastName} registró su entrada con ${lateMinutes} minuto${lateMinutes > 1 ? 's' : ''} de tardanza.`;
+        if (isLate && lateMinutes > 0) {
+          const msg = `${targetEmployee.firstName} ${targetEmployee.lastName} registró su entrada con ${lateMinutes} minuto${lateMinutes > 1 ? 's' : ''} de tardanza.`;
           
           await prisma.notification.create({
             data: {
+              companyId,
               title: 'Llegada Tardía',
               message: msg,
               type: 'WARNING',
@@ -283,120 +321,43 @@ router.post('/register', requireApiKey, async (req, res) => {
               message: msg,
               type: 'WARNING',
               category: 'attendance',
-              entityId: employeeId
+              entityId: employeeId,
+              companyId
             });
           }
         }
-      }
 
-    } else if (action === 'salida') {
-      if (!record) return res.status(400).json({ error: 'No hay registro de entrada' });
-      record = await prisma.attendanceRecord.update({
-        where: { id: record.id },
-        data: { salida: now, ...(deviceId ? { deviceId } : {}) }
-      });
-    } else if (action === 'recesoInicio') {
-      if (!record) return res.status(400).json({ error: 'No hay registro de entrada' });
-      record = await prisma.attendanceRecord.update({
-        where: { id: record.id },
-        data: { recesoInicio: now, ...(deviceId ? { deviceId } : {}) }
-      });
-    } else if (action === 'recesoFin') {
-      if (!record) return res.status(400).json({ error: 'No hay registro de entrada' });
-      record = await prisma.attendanceRecord.update({
-        where: { id: record.id },
-        data: { recesoFin: now, ...(deviceId ? { deviceId } : {}) }
-      });
-    } else if (action === 'salidaAnticipada') {
-      // Bloquear acceso vía kiosk
-      return res.status(403).json({ error: 'Registro manual desactivado. Acuda a un administrador.' });
-
-      if (!record) return res.status(400).json({ error: 'No hay registro de entrada' });
-      record = await prisma.attendanceRecord.update({
-        where: { id: record.id },
-        data: { salida: now, earlyExit: true, earlyExitReason: reason || 'Sin motivo' }
-      });
-
-      const employee = await prisma.employee.findUnique({ where: { id: employeeId } });
-      const msg = `${employee.firstName} ${employee.lastName} registró salida anticipada. Motivo: ${reason}`;
-      
-      await prisma.notification.create({
-        data: {
-          title: 'Salida Anticipada',
-          message: msg,
-          type: 'WARNING',
-          category: 'attendance',
-          entityId: employeeId
-        }
-      });
-
-      const appModule = require('../../app');
-      if (appModule.emitNotification) {
-        appModule.emitNotification({
-          title: 'Salida Anticipada',
-          message: msg,
-          type: 'WARNING',
-          category: 'attendance',
-          entityId: employeeId
+      } else if (action === 'salida') {
+        if (!record) return res.status(400).json({ error: 'No hay registro de entrada' });
+        record = await prisma.attendanceRecord.update({
+          where: { id: record.id },
+          data: { salida: now, deviceId }
         });
+      } else if (action === 'recesoInicio') {
+        if (!record) return res.status(400).json({ error: 'No hay registro de entrada' });
+        record = await prisma.attendanceRecord.update({
+          where: { id: record.id },
+          data: { recesoInicio: now, deviceId }
+        });
+      } else if (action === 'recesoFin') {
+        if (!record) return res.status(400).json({ error: 'No hay registro de entrada' });
+        record = await prisma.attendanceRecord.update({
+          where: { id: record.id },
+          data: { recesoFin: now, deviceId }
+        });
+      } else {
+        return res.status(400).json({ error: 'Acción inválida' });
       }
 
-    } else if (action === 'horasExtra') {
-      // Bloquear acceso vía kiosk
-      return res.status(403).json({ error: 'Registro manual desactivado. Acuda a un administrador.' });
+      res.json(record);
+    });
 
-      if (!record) return res.status(400).json({ error: 'No hay registro de entrada' });
-      if (!record.salida) return res.status(400).json({ error: 'Debe registrar salida antes de agregar horas extra' });
-      record = await prisma.attendanceRecord.update({
-        where: { id: record.id },
-        data: { overtimeMinutes: overtime || 0 }
-      });
-
-      const employee = await prisma.employee.findUnique({ where: { id: employeeId } });
-      
-      const formatOvertime = (totalMinutes) => {
-        const hours = Math.floor(totalMinutes / 60);
-        const minutes = totalMinutes % 60;
-        
-        if (hours > 0 && minutes > 0) {
-          return `${hours} hora${hours > 1 ? 's' : ''} y ${minutes} minuto${minutes > 1 ? 's' : ''}`;
-        } else if (hours > 0) {
-          return `${hours} hora${hours > 1 ? 's' : ''}`;
-        } else {
-          return `${minutes} minuto${minutes !== 1 ? 's' : ''}`;
-        }
-      };
-      
-      const msg = `${employee.firstName} ${employee.lastName} registró ${formatOvertime(overtime)} extra.`;
-      
-      await prisma.notification.create({
-        data: {
-          title: 'Horas Extra Registradas',
-          message: msg,
-          type: 'INFO',
-          category: 'attendance',
-          entityId: employeeId
-        }
-      });
-
-      emitNotification({
-        title: 'Horas Extra Registradas',
-        message: msg,
-        type: 'INFO',
-        category: 'attendance',
-        entityId: employeeId
-      });
-
-    } else {
-      return res.status(400).json({ error: 'Acción inválida' });
-    }
-
-    res.json(record);
   } catch (error) {
     console.error('Error in register:', error);
     res.status(500).json({ error: 'Error del servidor' });
   }
 });
+
 
 // Refrescar caché en memoria manualmente
 router.post('/refresh-cache', requireApiKey, async (req, res) => {

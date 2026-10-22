@@ -273,6 +273,24 @@ const approveDeviceAuth = async (req, res) => {
       return res.status(403).json({ error: 'No autorizado para aprobar solicitudes de otra empresa.' });
     }
 
+    // Validar límite del plan (maxDevices)
+    const company = await prisma.company.findUnique({
+      where: { id: targetCompanyId },
+      select: { maxDevices: true, isActive: true }
+    });
+
+    const currentDevicesCount = await prisma.device.count({
+      where: { companyId: targetCompanyId, isActive: true }
+    });
+
+    const limit = company?.maxDevices ?? 3;
+    if (currentDevicesCount >= limit) {
+      return res.status(403).json({
+        error: 'PLAN_LIMIT_EXCEEDED',
+        message: `Límite del plan alcanzado (${limit} dispositivos permitidos). Actualice su suscripción.`
+      });
+    }
+
     // Generar token criptográfico único para el Kiosko y su hash SHA-256
     const token = crypto.randomBytes(32).toString('hex');
     const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
@@ -605,6 +623,24 @@ const createManualDevice = async (req, res) => {
 
     if (!name || !type) {
       return res.status(400).json({ error: 'Nombre y tipo son obligatorios' });
+    }
+
+    const companyId = req.user?.companyId;
+    if (companyId) {
+      const company = await prisma.company.findUnique({
+        where: { id: companyId },
+        select: { maxDevices: true }
+      });
+      const currentDevicesCount = await prisma.device.count({
+        where: { companyId, isActive: true }
+      });
+      const limit = company?.maxDevices ?? 3;
+      if (currentDevicesCount >= limit) {
+        return res.status(403).json({
+          error: 'PLAN_LIMIT_EXCEEDED',
+          message: `Límite del plan alcanzado (${limit} dispositivos permitidos). Actualice su suscripción.`
+        });
+      }
     }
 
     if (type === 'KIOSK') {
