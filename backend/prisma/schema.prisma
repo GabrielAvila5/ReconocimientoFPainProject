@@ -32,6 +32,8 @@ model Company {
   events             EventRequest[]
   notifications      Notification[]
   auditLogs          AdminAuditLog[]
+  departmentShifts   DepartmentShift[]
+  employeeShifts     EmployeeShift[]
 
   @@index([isActive])
   @@index([slug])
@@ -62,7 +64,7 @@ model Employee {
   email          String?
   position       String?
   departmentId   Int?
-  department     Department?        @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  department     Department?        @relation(fields: [departmentId, companyId], references: [id, companyId], onDelete: Restrict)
   faceDescriptor String?            @db.Text // Cifrado AES-256-GCM
   enrolledAt     DateTime?
   isActive       Boolean            @default(true)
@@ -86,7 +88,7 @@ model AttendanceRecord {
   companyId    String
   company      Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
   employeeId   String
-  employee     Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employee     Employee  @relation(fields: [employeeId, companyId], references: [id, companyId], onDelete: Cascade)
   date         DateTime  @db.Date
   entrada      DateTime?
   recesoInicio DateTime?
@@ -95,15 +97,15 @@ model AttendanceRecord {
 
   // Turnos y Acciones Especiales
   shiftId         Int?
-  shift           Shift?  @relation(fields: [shiftId], references: [id], onDelete: SetNull)
-  earlyExit       Boolean @default(false)
-  earlyExitReason String? @db.Text
+  shift           Shift?   @relation(fields: [shiftId, companyId], references: [id, companyId], onDelete: Restrict)
+  earlyExit       Boolean  @default(false)
+  earlyExitReason String?  @db.Text
   overtimeMinutes Int?
-  isLate          Boolean @default(false)
+  isLate          Boolean  @default(false)
   lateMinutes     Int?
-  isAutoClosed    Boolean @default(false)
+  isAutoClosed    Boolean  @default(false)
   deviceId        String?
-  device          Device? @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  device          Device?  @relation(fields: [deviceId, companyId], references: [id, companyId], onDelete: Restrict)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -142,25 +144,31 @@ model Shift {
 }
 
 model DepartmentShift {
-  id           Int @id @default(autoincrement())
+  id           Int        @id @default(autoincrement())
+  companyId    String
+  company      Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
   departmentId Int
   shiftId      Int
 
-  department Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
-  shift      Shift      @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  department   Department @relation(fields: [departmentId, companyId], references: [id, companyId], onDelete: Cascade)
+  shift        Shift      @relation(fields: [shiftId, companyId], references: [id, companyId], onDelete: Cascade)
 
   @@unique([departmentId, shiftId])
+  @@index([companyId])
 }
 
 model EmployeeShift {
-  id         Int    @id @default(autoincrement())
+  id         Int      @id @default(autoincrement())
+  companyId  String
+  company    Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
   employeeId String
   shiftId    Int
 
-  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  shift    Shift    @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  employee   Employee @relation(fields: [employeeId, companyId], references: [id, companyId], onDelete: Cascade)
+  shift      Shift    @relation(fields: [shiftId, companyId], references: [id, companyId], onDelete: Cascade)
 
   @@unique([employeeId, shiftId])
+  @@index([companyId])
 }
 
 enum AdminRole {
@@ -245,7 +253,7 @@ model EventRequest {
   companyId      String
   company        Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
   employeeId     String
-  employee       Employee    @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  employee       Employee    @relation(fields: [employeeId, companyId], references: [id, companyId], onDelete: Restrict)
   type           EventType   
   status         EventStatus @default(ACTIVE) 
   date           DateTime    @db.Date
