@@ -54,21 +54,41 @@ function sanitizeNestedWrites(data, companyId) {
   const sanitized = { ...data };
   for (const [key, value] of Object.entries(sanitized)) {
     if (value && typeof value === 'object') {
-      // 1. Inyección en nested create
+      // 1. Verificación y sanitización en nested create
       if ('create' in value) {
+        const checkItem = (c) => {
+          if (c && typeof c === 'object') {
+            if (c.companyId && c.companyId !== companyId) {
+              throw new Error(`CROSS_TENANT_WRITE_DETECTED: Intento de escritura anidada con companyId '${c.companyId}' ajeno al inquilino activo '${companyId}'.`);
+            }
+            return sanitizeNestedWrites(c, companyId);
+          }
+          return c;
+        };
+
         if (Array.isArray(value.create)) {
-          value.create = value.create.map(c => ({ ...sanitizeNestedWrites(c, companyId), companyId }));
+          value.create = value.create.map(checkItem);
         } else if (value.create && typeof value.create === 'object') {
-          value.create = { ...sanitizeNestedWrites(value.create, companyId), companyId };
+          value.create = checkItem(value.create);
         }
       }
 
-      // 2. Inyección en nested createMany
+      // 2. Verificación en nested createMany
       if ('createMany' in value && value.createMany?.data) {
+        const checkManyItem = (c) => {
+          if (c && typeof c === 'object') {
+            if (c.companyId && c.companyId !== companyId) {
+              throw new Error(`CROSS_TENANT_WRITE_DETECTED: Intento de createMany anidado con companyId '${c.companyId}' ajeno al inquilino activo '${companyId}'.`);
+            }
+            return { ...sanitizeNestedWrites(c, companyId), companyId };
+          }
+          return c;
+        };
+
         if (Array.isArray(value.createMany.data)) {
-          value.createMany.data = value.createMany.data.map(c => ({ ...sanitizeNestedWrites(c, companyId), companyId }));
+          value.createMany.data = value.createMany.data.map(checkManyItem);
         } else if (typeof value.createMany.data === 'object') {
-          value.createMany.data = { ...sanitizeNestedWrites(value.createMany.data, companyId), companyId };
+          value.createMany.data = checkManyItem(value.createMany.data);
         }
       }
 
@@ -86,20 +106,26 @@ function sanitizeNestedWrites(data, companyId) {
             const where = (item.where?.id !== undefined && !item.where?.id_companyId)
               ? { id_companyId: { id: item.where.id, companyId } }
               : item.where;
+            if (item.create?.companyId && item.create.companyId !== companyId) {
+              throw new Error(`CROSS_TENANT_WRITE_DETECTED: Intento de connectOrCreate con companyId ajeno.`);
+            }
             return {
               ...item,
               where,
-              create: { ...sanitizeNestedWrites(item.create, companyId), companyId }
+              create: sanitizeNestedWrites(item.create, companyId)
             };
           });
         } else if (typeof value.connectOrCreate === 'object') {
           const where = (value.connectOrCreate.where?.id !== undefined && !value.connectOrCreate.where?.id_companyId)
             ? { id_companyId: { id: value.connectOrCreate.where.id, companyId } }
             : value.connectOrCreate.where;
+          if (value.connectOrCreate.create?.companyId && value.connectOrCreate.create.companyId !== companyId) {
+            throw new Error(`CROSS_TENANT_WRITE_DETECTED: Intento de connectOrCreate con companyId ajeno.`);
+          }
           value.connectOrCreate = {
             ...value.connectOrCreate,
             where,
-            create: { ...sanitizeNestedWrites(value.connectOrCreate.create, companyId), companyId }
+            create: sanitizeNestedWrites(value.connectOrCreate.create, companyId)
           };
         }
       }

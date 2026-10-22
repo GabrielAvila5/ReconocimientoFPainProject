@@ -111,18 +111,6 @@ const requestDeviceAuth = async (req, res) => {
       expiresAt
     });
 
-    // Notificar al Dashboard en tiempo real
-    if (io) {
-      io.to('dashboard').emit('new_device_auth_request', {
-        id: authRequest.id,
-        pairingCode: authRequest.pairingCode,
-        ipAddress: authRequest.ipAddress,
-        userAgent: authRequest.userAgent,
-        expiresAt: authRequest.expiresAt,
-        createdAt: authRequest.createdAt
-      });
-    }
-
     return res.status(201).json({
       requestId: authRequest.id,
       pairingCode: authRequest.pairingCode,
@@ -236,7 +224,7 @@ const approveDeviceAuth = async (req, res) => {
 
   try {
     const { id } = req.params;
-    const { name, companyId: requestedCompanyId } = req.body || {};
+    const { name, pairingCode, companyId: requestedCompanyId } = req.body || {};
 
     // 1. Verificación de límite de intentos (anti-fuerza bruta)
     const rateLimitCheck = checkApprovalRateLimit(adminId);
@@ -262,6 +250,12 @@ const approveDeviceAuth = async (req, res) => {
       recordFailedApproval(adminId);
       await markPairingRequestExpired(id);
       return res.status(400).json({ error: 'La solicitud ha expirado' });
+    }
+
+    // Validación de conocimiento del código físico: Obligatorio para vincular
+    if (!pairingCode || pairingCode.toUpperCase().trim() !== authRequest.pairingCode) {
+      recordFailedApproval(adminId);
+      return res.status(400).json({ error: 'Se requiere el código de emparejamiento físico para confirmar la vinculación.' });
     }
 
     // Determinar la empresa a la que pertenecerá el dispositivo
@@ -314,8 +308,8 @@ const approveDeviceAuth = async (req, res) => {
         companyId: device.companyId
       });
 
-      // Notificar al Dashboard que la solicitud fue resuelta
-      io.to('dashboard').emit('device_auth_request_resolved', {
+      // Notificar EXCLUSIVAMENTE a la sala de la empresa en el Dashboard
+      io.to(`company_${device.companyId}`).emit('device_auth_request_resolved', {
         id: authRequest.id,
         status: 'APPROVED',
         companyId: device.companyId

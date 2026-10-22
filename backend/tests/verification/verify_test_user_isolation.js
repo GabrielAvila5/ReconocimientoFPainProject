@@ -5,7 +5,7 @@ async function main() {
   console.log('>>> VERIFICACIÓN DE PRIVILEGIOS REALES DE saas_test_user');
   console.log('================================================================\n');
 
-  const testUserPass = 'TestSaaSUserPass2026!';
+  const testUserPass = process.env.SAAS_TEST_USER_PASSWORD || 'TestSaaSUserPass2026!';
   
   // 1. Conexión autorizada sobre base de pruebas
   console.log('[Prueba 1] Conexión a reconocimiento_test_copia_saas como saas_test_user...');

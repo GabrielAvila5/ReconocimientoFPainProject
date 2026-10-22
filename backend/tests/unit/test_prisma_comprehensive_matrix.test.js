@@ -21,7 +21,7 @@ const { runWithTenantContext, TenantContextRequiredError } = require('../../src/
 const { buildTenantPrisma } = require('../../src/utils/prisma');
 
 const basePrisma = new PrismaClient({
-  datasources: { db: { url: process.env.DATABASE_URL || 'mysql://saas_test_user:TestSaaSUserPass2026!@localhost:3307/reconocimiento_test_copia_saas' } }
+  datasources: { db: { url: process.env.TEST_DATABASE_URL || process.env.DATABASE_URL } }
 });
 
 const prisma = buildTenantPrisma(basePrisma);
@@ -402,16 +402,32 @@ async function main() {
     console.log(`  ✓ companyId en raíz: ${capturedArgs.data.companyId}`);
     if (capturedArgs.data.companyId !== 'company-nested-test') throw new Error('Fallo: companyId no inyectado en raíz');
 
-    console.log('2. Verificando sanitización en nested create:');
-    const nestedEmployee = capturedArgs.data.employees.create[0];
-    console.log(`  ✓ companyId en employees.create[0]: ${nestedEmployee.companyId}`);
-    if (nestedEmployee.companyId !== 'company-nested-test') throw new Error('Fallo: companyId no inyectado en nested create');
-
-    console.log('3. Verificando transformación de nested connect a clave compuesta:');
+    console.log('2. Verificando transformación de nested connect a clave compuesta:');
     console.log(`  ✓ connect transformado:`, JSON.stringify(capturedArgs.data.shifts.connect));
     if (!capturedArgs.data.shifts.connect.id_companyId || capturedArgs.data.shifts.connect.id_companyId.companyId !== 'company-nested-test') {
       throw new Error('Fallo: nested connect no fue transformado a id_companyId');
     }
+
+    console.log('3. Verificando rechazo estricto de companyId ajeno en nested create:');
+    let alienRejected = false;
+    try {
+      await mockedTenantPrisma.department.create({
+        data: {
+          name: 'Depto Con Intento Ajeno',
+          employees: {
+            create: [
+              { firstName: 'Alien', lastName: 'User', companyId: 'alien-company-999' }
+            ]
+          }
+        }
+      });
+    } catch (err) {
+      if (err.message.includes('CROSS_TENANT_WRITE_DETECTED')) {
+        alienRejected = true;
+        console.log(`  ✓ Rechazo exitoso: ${err.message}`);
+      }
+    }
+    if (!alienRejected) throw new Error('Fallo: no se rechazó companyId ajeno en nested create');
   });
 
   // =========================================================================
