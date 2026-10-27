@@ -11,6 +11,7 @@
 
 const request = require('supertest');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const { app } = require('../../src/app');
 const prismaAdmin = require('../../src/utils/prismaAdmin');
 const { JWT_SECRET } = require('../../src/config/secrets');
@@ -96,7 +97,8 @@ async function runDevicesIsolationTests() {
       data: {
         companyId: companyAlpha,
         name: 'Kiosco Alpha Principal',
-        token: 'token-dev-alpha-1-test',
+        token: null,
+        tokenHash: crypto.createHash('sha256').update('token-dev-alpha-1-test').digest('hex'),
         status: 'ONLINE',
         isActive: true
       }
@@ -107,7 +109,8 @@ async function runDevicesIsolationTests() {
       data: {
         companyId: companyBeta,
         name: 'Kiosco Beta Principal',
-        token: 'token-dev-beta-1-test',
+        token: null,
+        tokenHash: crypto.createHash('sha256').update('token-dev-beta-1-test').digest('hex'),
         status: 'ONLINE',
         isActive: true
       }

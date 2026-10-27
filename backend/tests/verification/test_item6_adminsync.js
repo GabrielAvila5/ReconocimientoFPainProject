@@ -1,29 +1,29 @@
-const prisma = require('../../src/utils/prisma');
+const prismaAdmin = require('../../src/utils/prismaAdmin');
 const { syncAdminToEmployee } = require('../../src/utils/adminEmployeeSync');
 
 async function main() {
   console.log('================================================================');
-  console.log('>>> ITEM 6: DEMOSTRACIÓN DE adminEmployeeSync.js Y SCOPING');
+  console.log('>>> ITEM 6: DEMOSTRACIÓN DE adminEmployeeSync.js Y SCOPING (OPCIÓN A)');
   console.log('================================================================\n');
 
   const companyA = 'default-company-pain';
   const companyB = 'company-beta-saas';
 
   // 1. Asegurar que ambas empresas existan en la BD
-  await prisma.$base.company.upsert({
+  await prismaAdmin.company.upsert({
     where: { id: companyA },
     create: { id: companyA, name: 'Empresa Alpha', slug: 'alpha-pain', isActive: true },
     update: {}
   });
 
-  await prisma.$base.company.upsert({
+  await prismaAdmin.company.upsert({
     where: { id: companyB },
     create: { id: companyB, name: 'Empresa Beta', slug: 'beta-saas', isActive: true },
     update: {}
   });
 
   // Limpiar empleados de prueba previos
-  await prisma.$base.employee.deleteMany({
+  await prismaAdmin.employee.deleteMany({
     where: {
       email: { in: ['admin.alpha@empresa-a.com', 'superadmin.global@saas.com'] }
     }
@@ -38,10 +38,10 @@ async function main() {
     role: 'SUPER_ADMIN',
     companyId: null
   };
-  const syncSuper = await syncAdminToEmployee(superAdmin);
-  console.log(`✓ Resultado de syncAdminToEmployee para admin sin empresa: ${syncSuper} (esperado: null)`);
+  const syncSuper = await syncAdminToEmployee(superAdmin, { syncEmployee: true }, prismaAdmin);
+  console.log(`✓ Resultado de syncAdminToEmployee para Super Admin: ${syncSuper} (esperado: null)`);
   if (syncSuper !== null) {
-    throw new Error('Fallo: SuperAdmin sin empresa no debió crear empleado.');
+    throw new Error('Fallo: SuperAdmin no debió crear empleado.');
   }
 
   // 3. Probar que Admin de Empresa Alpha crea empleado EXCLUSIVAMENTE en Empresa Alpha
@@ -54,7 +54,7 @@ async function main() {
     companyId: companyA
   };
 
-  const createdEmpA = await syncAdminToEmployee(adminAlpha);
+  const createdEmpA = await syncAdminToEmployee(adminAlpha, { syncEmployee: true }, prismaAdmin);
   console.log(`✓ Empleado creado exitosamente:`);
   console.log(`  - ID: ${createdEmpA.id}`);
   console.log(`  - Nombre: ${createdEmpA.firstName} ${createdEmpA.lastName}`);
@@ -66,11 +66,10 @@ async function main() {
   }
 
   // 4. Demostrar que NO puede crearse en Empresa Beta:
-  // Si adminAlpha tiene companyId === companyA, intentar forzar la creación en companyB
   console.log('\n[Paso 3] Demostrando que Admin Alpha NO puede crear empleados en Empresa Beta...');
   
   // Buscar en Empresa Beta si existe algún empleado con el correo de Admin Alpha
-  const empInBeta = await prisma.$base.employee.findFirst({
+  const empInBeta = await prismaAdmin.employee.findFirst({
     where: {
       email: adminAlpha.email,
       companyId: companyB
@@ -82,14 +81,14 @@ async function main() {
   }
 
   // Verificar que el empleado de Empresa Alpha está aislado y solo existe en Empresa Alpha
-  const totalEmployeesWithThisEmail = await prisma.$base.employee.findMany({
+  const totalEmployeesWithThisEmail = await prismaAdmin.employee.findMany({
     where: { email: adminAlpha.email }
   });
   console.log(`✓ Total de registros en toda la BD con email '${adminAlpha.email}': ${totalEmployeesWithThisEmail.length}`);
   console.log(`  - Registro 1: companyId = ${totalEmployeesWithThisEmail[0].companyId}`);
 
   // Limpieza
-  await prisma.$base.employee.deleteMany({
+  await prismaAdmin.employee.deleteMany({
     where: { email: 'admin.alpha@empresa-a.com' }
   });
 
@@ -101,4 +100,4 @@ async function main() {
 main().catch(err => {
   console.error('Error en prueba Item 6:', err);
   process.exit(1);
-}).finally(() => prisma.$disconnect());
+}).finally(() => prismaAdmin.$disconnect());

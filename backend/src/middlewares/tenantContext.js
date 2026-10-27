@@ -80,15 +80,28 @@ async function tenantContextMiddleware(req, res, next) {
     } else {
       const deviceToken = req.headers['x-device-token'];
       if (deviceToken) {
-        const prismaAdmin = require('../utils/prismaAdmin');
-        const dev = await prismaAdmin.device.findUnique({
-          where: { token: deviceToken },
-          select: { id: true, companyId: true, isActive: true, isBlocked: true, deactivatedReason: true, blockedReason: true }
-        });
-        if (dev) {
-          req.device = dev;
-          companyId = dev.companyId;
+        const { getDeviceByToken } = require('../utils/authHelpers');
+        const dev = await getDeviceByToken(deviceToken);
+        if (!dev) {
+          return res.status(401).json({
+            error: 'DEVICE_UNAUTHORIZED',
+            message: 'Token de dispositivo no válido.'
+          });
         }
+        if (!dev.isActive) {
+          return res.status(403).json({
+            error: 'DEVICE_DEACTIVATED',
+            message: dev.deactivatedReason || 'Dispositivo dado de baja.'
+          });
+        }
+        if (dev.isBlocked) {
+          return res.status(403).json({
+            error: 'DEVICE_BLOCKED',
+            message: dev.blockedReason || 'Dispositivo bloqueado temporalmente.'
+          });
+        }
+        req.device = dev;
+        companyId = dev.companyId;
       }
     }
 
@@ -127,6 +140,31 @@ async function tenantContextMiddleware(req, res, next) {
       isImpersonating,
       userId: req.user?.id || null
     };
+
+    // Auditoría automática de acciones de Super Admin operando con x-tenant-id sobre un inquilino
+    if (isSuperAdmin && isImpersonating && ['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method)) {
+      res.on('finish', async () => {
+        if (res.statusCode >= 200 && res.statusCode < 400) {
+          try {
+            const prisma = require('../utils/prisma');
+            await runWithTenantContext({ companyId }, async () => {
+              await prisma.adminAuditLog.create({
+                data: {
+                  action: `SUPER_ADMIN_${req.method}`,
+                  performedById: req.user.id,
+                  performedByName: req.user.name || req.user.email || 'Super Admin',
+                  targetName: `${req.method} ${req.originalUrl}`,
+                  targetEmail: req.user.email || 'superadmin@system.com',
+                  companyId
+                }
+              });
+            });
+          } catch (auditErr) {
+            console.error('[TenantContext] Error logging Super Admin audit:', auditErr);
+          }
+        }
+      });
+    }
 
     runWithTenantContext(context, () => next());
   } catch (error) {

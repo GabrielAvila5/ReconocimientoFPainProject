@@ -1,5 +1,4 @@
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const prisma = require('../../utils/prisma');
 const crypto = require('crypto');
 
 const getEvents = async (req, res) => {
@@ -127,7 +126,15 @@ const createEvent = async (req, res) => {
       });
       
     } else {
-      // Flujo individual
+      // Flujo individual: validar pertenencia del empleado a la empresa
+      const targetEmp = await prisma.employee.findUnique({
+        where: { id: employeeId },
+        select: { id: true, firstName: true, lastName: true }
+      });
+      if (!targetEmp) {
+        return res.status(404).json({ error: 'Empleado no encontrado' });
+      }
+
       const newEvent = await prisma.eventRequest.create({
         data: {
           employeeId,
@@ -172,12 +179,12 @@ const updateEvent = async (req, res) => {
     const { id } = req.params;
     const { date, dateTo, startTime, endTime, minutes, reason } = req.body;
 
-    const existingEvent = await prisma.eventRequest.findUnique({ where: { id } });
+    const existingEvent = await prisma.eventRequest.findFirst({ where: { id } });
     if (!existingEvent) {
       return res.status(404).json({ error: 'Evento no encontrado.' });
     }
 
-    const updatedEvent = await prisma.eventRequest.update({
+    await prisma.eventRequest.updateMany({
       where: { id },
       data: {
         date: date ? new Date(date) : undefined,
@@ -189,6 +196,7 @@ const updateEvent = async (req, res) => {
       }
     });
 
+    const updatedEvent = await prisma.eventRequest.findFirst({ where: { id } });
     res.json(updatedEvent);
   } catch (error) {
     console.error('Error updating event:', error);
@@ -200,7 +208,7 @@ const deleteEvent = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const existingEvent = await prisma.eventRequest.findUnique({ 
+    const existingEvent = await prisma.eventRequest.findFirst({ 
       where: { id },
       include: { employee: true }
     });
@@ -210,10 +218,12 @@ const deleteEvent = async (req, res) => {
     }
 
     // Soft delete (change status to CANCELLED)
-    const cancelledEvent = await prisma.eventRequest.update({
+    await prisma.eventRequest.updateMany({
       where: { id },
       data: { status: 'CANCELLED' }
     });
+
+    const cancelledEvent = await prisma.eventRequest.findFirst({ where: { id } });
 
     // Auditoría
     await prisma.adminAuditLog.create({

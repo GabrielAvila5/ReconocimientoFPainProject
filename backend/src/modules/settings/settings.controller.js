@@ -26,9 +26,7 @@ const DEFAULT_SETTINGS = {
 
 const getSettings = async (req, res) => {
   try {
-    const settings = await prisma.systemSettings.findUnique({
-      where: { id: 1 }
-    });
+    const settings = await prisma.systemSettings.findFirst();
     
     if (!settings) {
       return res.status(200).json(DEFAULT_SETTINGS);
@@ -66,19 +64,21 @@ const updateSettings = async (req, res) => {
     } = req.body;
 
     // Validaciones
-    if (latenessToleranceMin < 0 || latenessToleranceMin > 60) return res.status(400).json({ error: 'latenessToleranceMin debe estar entre 0 y 60' });
-    if (faceConfidenceThreshold < 0.5 || faceConfidenceThreshold > 1.0) return res.status(400).json({ error: 'faceConfidenceThreshold debe estar entre 0.5 y 1.0' });
-    if (workdayStartHour < 0 || workdayStartHour > 23) return res.status(400).json({ error: 'workdayStartHour debe estar entre 0 y 23' });
-    if (workdayStartMinute < 0 || workdayStartMinute > 59) return res.status(400).json({ error: 'workdayStartMinute debe estar entre 0 y 59' });
-    if (workdayEndHour < 0 || workdayEndHour > 23) return res.status(400).json({ error: 'workdayEndHour debe estar entre 0 y 23' });
-    if (workdayEndMinute < 0 || workdayEndMinute > 59) return res.status(400).json({ error: 'workdayEndMinute debe estar entre 0 y 59' });
-    if (photoRetentionDays < 0 || photoRetentionDays > 365) return res.status(400).json({ error: 'photoRetentionDays debe estar entre 0 y 365' });
-    if (notifyOnLatenessMin < 0 || notifyOnLatenessMin > 480) return res.status(400).json({ error: 'notifyOnLatenessMin debe estar entre 0 y 480' });
-    if (captureMode !== 'AUTO' && captureMode !== 'MANUAL') return res.status(400).json({ error: 'captureMode debe ser AUTO o MANUAL' });
-    if (defaultExportFormat !== 'CSV' && defaultExportFormat !== 'PDF') return res.status(400).json({ error: 'defaultExportFormat debe ser CSV o PDF' });
+    if (latenessToleranceMin !== undefined && (latenessToleranceMin < 0 || latenessToleranceMin > 60)) return res.status(400).json({ error: 'latenessToleranceMin debe estar entre 0 y 60' });
+    if (faceConfidenceThreshold !== undefined && (faceConfidenceThreshold < 0.5 || faceConfidenceThreshold > 1.0)) return res.status(400).json({ error: 'faceConfidenceThreshold debe estar entre 0.5 y 1.0' });
+    if (workdayStartHour !== undefined && (workdayStartHour < 0 || workdayStartHour > 23)) return res.status(400).json({ error: 'workdayStartHour debe estar entre 0 y 23' });
+    if (workdayStartMinute !== undefined && (workdayStartMinute < 0 || workdayStartMinute > 59)) return res.status(400).json({ error: 'workdayStartMinute debe estar entre 0 y 59' });
+    if (workdayEndHour !== undefined && (workdayEndHour < 0 || workdayEndHour > 23)) return res.status(400).json({ error: 'workdayEndHour debe estar entre 0 y 23' });
+    if (workdayEndMinute !== undefined && (workdayEndMinute < 0 || workdayEndMinute > 59)) return res.status(400).json({ error: 'workdayEndMinute debe estar entre 0 y 59' });
+    if (photoRetentionDays !== undefined && (photoRetentionDays < 0 || photoRetentionDays > 365)) return res.status(400).json({ error: 'photoRetentionDays debe estar entre 0 y 365' });
+    if (notifyOnLatenessMin !== undefined && (notifyOnLatenessMin < 0 || notifyOnLatenessMin > 480)) return res.status(400).json({ error: 'notifyOnLatenessMin debe estar entre 0 y 480' });
+    if (captureMode !== undefined && captureMode !== 'AUTO' && captureMode !== 'MANUAL') return res.status(400).json({ error: 'captureMode debe ser AUTO o MANUAL' });
+    if (defaultExportFormat !== undefined && defaultExportFormat !== 'CSV' && defaultExportFormat !== 'PDF') return res.status(400).json({ error: 'defaultExportFormat debe ser CSV o PDF' });
+
+    const companyId = req.user?.companyId;
 
     const settings = await prisma.systemSettings.upsert({
-      where: { id: 1 },
+      where: { companyId },
       update: {
         companyName,
         timezone,
@@ -101,7 +101,6 @@ const updateSettings = async (req, res) => {
         breakEndTime
       },
       create: {
-        id: 1,
         companyName,
         timezone,
         workdayStartHour,
@@ -133,9 +132,15 @@ const updateSettings = async (req, res) => {
 
 const getPublicSettings = async (req, res) => {
   try {
-    let settings = await prisma.systemSettings.findUnique({
-      where: { id: 1 }
-    });
+    const device = req.device;
+    let settings = null;
+    if (device && device.companyId) {
+      settings = await prisma.systemSettings.findUnique({
+        where: { companyId: device.companyId }
+      });
+    } else {
+      settings = await prisma.systemSettings.findFirst();
+    }
 
     if (!settings) {
       settings = DEFAULT_SETTINGS;

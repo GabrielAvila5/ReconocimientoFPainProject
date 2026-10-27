@@ -1,5 +1,4 @@
 const prisma = require('./prisma');
-const prismaAdmin = require('./prismaAdmin');
 const { runWithTenantContext } = require('../middlewares/tenantContext');
 
 /**
@@ -87,17 +86,22 @@ async function getDefaultAdminDepartmentId(companyId, prismaClient = prisma, pre
 }
 
 /**
- * Sincroniza un AdminUser hacia la tabla Employee de su propia empresa.
- * - No contiene dependencias a nombres propios o correos específicos.
- * - Rechaza sincronizaciones si el administrador no tiene una empresa asignada.
+ * Sincroniza un AdminUser hacia la tabla Employee de su propia empresa (OPCIÓN A).
+ * - Casilla opt-in desmarcada por defecto (syncEmployee === true).
+ * - Super Admin NUNCA genera empleado.
+ * - Administradores ya enlazados se respetan y mantienen sin consumir cuota adicional.
+ * - Si syncEmployee es true y no existe empleado previo, se valida límite de plan maxEmployees.
  */
 async function syncAdminToEmployee(adminUser, options = {}, prismaClient = prisma) {
   if (!adminUser || !adminUser.email) return null;
 
+  // REGLA INVIOLABLE: El Super Admin NUNCA genera empleado
+  if (adminUser.role === 'SUPER_ADMIN') {
+    return null;
+  }
+
   const targetCompanyId = adminUser.companyId || options.companyId;
   if (!targetCompanyId) {
-    // Los Super Administradores globales sin empresa asignada no se crean como empleados
-    // en ningún inquilino hasta que se les asigne una empresa explícitamente.
     return null;
   }
 
@@ -112,8 +116,9 @@ async function syncAdminToEmployee(adminUser, options = {}, prismaClient = prism
       }
     });
 
-    const defaultPosition = adminUser.role === 'SUPER_ADMIN' ? 'Super Administrador' : 'Administrador';
+    const defaultPosition = 'Administrador';
 
+    // Si ya existe un empleado enlazado, se respeta y se mantiene (no consume cuota nueva)
     if (existingEmployee) {
       const dataToUpdate = {
         isActive: true,
@@ -127,7 +132,31 @@ async function syncAdminToEmployee(adminUser, options = {}, prismaClient = prism
       return updated;
     }
 
-    // 2. Si no existe en la empresa, crearlo
+    // 2. Si no existe empleado previamente enlazado:
+    // Solo se crea si la casilla opt-in fue marcada explícitamente (syncEmployee === true)
+    if (!options.syncEmployee) {
+      return null;
+    }
+
+    // 3. Validar límite de empleados del plan (maxEmployees)
+    const company = await prisma.company.findUnique({
+      where: { id: targetCompanyId },
+      select: { maxEmployees: true }
+    });
+
+    if (company && company.maxEmployees !== null && company.maxEmployees !== undefined) {
+      const currentEmployeeCount = await prismaClient.employee.count({
+        where: { companyId: targetCompanyId }
+      });
+      if (currentEmployeeCount >= company.maxEmployees) {
+        const error = new Error('Límite de empleados alcanzado para el plan de su empresa.');
+        error.code = 'PLAN_LIMIT_EXCEEDED';
+        error.status = 403;
+        throw error;
+      }
+    }
+
+    // 4. Crear el nuevo empleado en el inquilino
     const { firstName, lastName } = splitFullName(adminUser.name);
     
     let identifier = options.identifier;
@@ -165,23 +194,32 @@ async function syncAdminToEmployee(adminUser, options = {}, prismaClient = prism
 
 /**
  * Sincroniza todos los administradores pertenecientes a empresas activas.
+ * Respeta la Opción A: los administradores ya enlazados a un empleado se mantienen.
  */
 async function syncAllAdminsToEmployees(prismaClient = prisma) {
   try {
-    const admins = await prismaAdmin.adminUser.findMany({
-      where: {
-        companyId: { not: null }
-      }
+    const admins = await runWithTenantContext({ companyId: null, isSuperAdmin: true }, async () => {
+      return prismaClient.adminUser.findMany({
+        where: {
+          companyId: { not: null },
+          role: { not: 'SUPER_ADMIN' }
+        }
+      });
     });
 
     let syncCount = 0;
     for (const admin of admins) {
-      await syncAdminToEmployee(admin, {}, prismaClient);
-      syncCount++;
+      const existing = await prismaClient.employee.findFirst({
+        where: { email: admin.email, companyId: admin.companyId }
+      });
+      if (existing) {
+        await syncAdminToEmployee(admin, { syncEmployee: true }, prismaClient);
+        syncCount++;
+      }
     }
 
     if (syncCount > 0) {
-      console.log(`[AdminSync] Se sincronizaron ${syncCount} administrador(es) con sus respectivas empresas.`);
+      console.log(`[AdminSync] Se respetaron y sincronizaron ${syncCount} administrador(es) enlazados a empleados.`);
     }
     return { success: true, count: syncCount };
   } catch (error) {

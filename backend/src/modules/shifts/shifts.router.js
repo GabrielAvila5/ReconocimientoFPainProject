@@ -44,6 +44,9 @@ router.post('/', requireJwt, async (req, res) => {
     
     res.status(201).json(newShift);
   } catch (error) {
+    if (error.code === 'P2002') {
+      return res.status(409).json({ error: 'Ya existe un turno con ese nombre en su empresa' });
+    }
     console.error('Error creating shift:', error);
     res.status(500).json({ error: 'Error interno del servidor al crear turno' });
   }
@@ -53,10 +56,18 @@ router.post('/', requireJwt, async (req, res) => {
 router.put('/:id', requireJwt, async (req, res) => {
   try {
     const { id } = req.params;
+    const shiftId = parseInt(id);
     const { name, startTime, endTime, tolerance, isActive } = req.body;
 
+    const existingShift = await prisma.shift.findUnique({
+      where: { id: shiftId }
+    });
+    if (!existingShift) {
+      return res.status(404).json({ error: 'Turno no encontrado' });
+    }
+
     const updatedShift = await prisma.shift.update({
-      where: { id: parseInt(id) },
+      where: { id: shiftId },
       data: {
         name,
         startTime,
@@ -68,6 +79,9 @@ router.put('/:id', requireJwt, async (req, res) => {
 
     res.json(updatedShift);
   } catch (error) {
+    if (error.code === 'P2002') {
+      return res.status(400).json({ error: 'Ya existe un turno con ese nombre en su empresa' });
+    }
     console.error('Error updating shift:', error);
     res.status(500).json({ error: 'Error interno del servidor al actualizar turno' });
   }
@@ -78,6 +92,13 @@ router.delete('/:id', requireJwt, async (req, res) => {
   try {
     const { id } = req.params;
     const shiftId = parseInt(id);
+
+    const shift = await prisma.shift.findUnique({
+      where: { id: shiftId }
+    });
+    if (!shift) {
+      return res.status(404).json({ error: 'Turno no encontrado' });
+    }
 
     const attendances = await prisma.attendanceRecord.count({
       where: { shiftId }

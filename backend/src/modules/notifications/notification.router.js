@@ -1,6 +1,9 @@
 const express = require('express');
 const router = express.Router();
+const requireJwt = require('../../middlewares/requireJwt');
 const notificationController = require('./notification.controller');
+
+router.use(requireJwt);
 
 // Obtener todas las notificaciones (paginadas)
 router.get('/', notificationController.getNotifications);

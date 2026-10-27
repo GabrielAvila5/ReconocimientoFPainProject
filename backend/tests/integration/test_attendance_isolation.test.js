@@ -9,6 +9,7 @@
 
 const request = require('supertest');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const { app } = require('../../src/app');
 const prismaAdmin = require('../../src/utils/prismaAdmin');
 const { JWT_SECRET } = require('../../src/config/secrets');
@@ -124,7 +125,8 @@ async function runAttendanceIsolationTests() {
       data: {
         companyId: companyAlpha,
         name: 'Kiosco Puerta Alpha',
-        token: tokenDevAlpha,
+        token: null,
+        tokenHash: crypto.createHash('sha256').update(tokenDevAlpha).digest('hex'),
         status: 'ONLINE',
         isActive: true
       }
@@ -134,7 +136,8 @@ async function runAttendanceIsolationTests() {
       data: {
         companyId: companyBeta,
         name: 'Kiosco Puerta Beta',
-        token: tokenDevBeta,
+        token: null,
+        tokenHash: crypto.createHash('sha256').update(tokenDevBeta).digest('hex'),
         status: 'ONLINE',
         isActive: true
       }
@@ -199,8 +202,8 @@ async function runAttendanceIsolationTests() {
       });
 
     assert(
-      resCrossClockin.status === 400 || resCrossClockin.status === 403 || resCrossClockin.status === 404,
-      `Checada cross-tenant rechazada con HTTP 400/403/404 (obtuvo ${resCrossClockin.status})`
+      resCrossClockin.status === 404,
+      `Checada cross-tenant rechazada con HTTP 404 indistinguible de no encontrado (obtuvo ${resCrossClockin.status})`
     );
 
     // 3. POST /api/v1/attendance/register - Checada legítima de salida

@@ -118,9 +118,20 @@ function getFaceCache(companyId) {
   return global.cachedUsersByCompany.get(companyId) || [];
 }
 
+/**
+ * Recarga exclusivamente la caché facial en RAM de una sola empresa,
+ * garantizando que ninguna otra empresa en memoria sea alterada.
+ */
+async function reloadCompanyFaceCache(companyId) {
+  if (!companyId) throw new Error('reloadCompanyFaceCache requiere un companyId válido');
+  return syncCompanyCache(companyId);
+}
+
 module.exports = {
   euclideanDistance,
   syncFaceCache,
+  syncCompanyCache,
+  reloadCompanyFaceCache,
   getFaceCache,
   decryptFaceDescriptor
 };

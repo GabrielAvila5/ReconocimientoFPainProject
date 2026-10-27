@@ -4,14 +4,14 @@ const { requireAuth, requireRole } = require('../auth/auth.middleware');
 
 const router = express.Router();
 
-// All routes here require the user to be authenticated and have SUPER_ADMIN role
+// En SaaS multi-tenant, administradores de inquilino y Super Admin pueden gestionar administradores de su empresa
 router.use(requireAuth);
-router.use(requireRole(['SUPER_ADMIN']));
+router.use(requireRole(['ADMIN', 'SUPER_ADMIN']));
 
 router.get('/', getAdmins);
 router.post('/', createAdmin);
 router.get('/audit-log', getAuditLogs);
-router.post('/sync-users', syncAdminsHandler);
+router.post('/sync-users', requireRole(['SUPER_ADMIN']), syncAdminsHandler);
 router.delete('/:id', deleteAdmin);
 
 // ENDPOINT MANUAL DE DESARROLLO/DEBUG

@@ -152,12 +152,12 @@ async function runPairingIsolationTests() {
       .set('Authorization', `Bearer ${tokenAdminBeta}`)
       .send({ name: 'Kiosko Secuestrado Beta', pairingCode: realPairingCode });
 
-    console.log(`  -> Status recibido: ${resReApprove.status} (esperado: 400 ya aprobada o 403 no autorizado)`);
+    console.log(`  -> Status recibido: ${resReApprove.status} (esperado: 404 Indistinguible de no existe)`);
     console.log(`  -> Mensaje: ${JSON.stringify(resReApprove.body)}`);
-    if (resReApprove.status !== 400 && resReApprove.status !== 403) {
-      throw new Error('Fallo de aislamiento: Admin de Beta pudo modificar solicitud de Alpha.');
+    if (resReApprove.status !== 404) {
+      throw new Error(`Fallo de aislamiento: Admin de Beta no recibió 404 al intentar interactuar con recurso de Alpha (obtuvo ${resReApprove.status}).`);
     }
-    console.log('  ✓ ÉXITO: Empresa B rechazada de forma estricta (Cross-Tenant denegado).');
+    console.log('  ✓ ÉXITO: Empresa B recibe HTTP 404 indistinguible (Cross-Tenant recurso ajeno).');
 
   } finally {
     // -----------------------------------------------------------------------

@@ -1,5 +1,4 @@
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const prisma = require('../../utils/prisma');
 
 // GET / - Listar notificaciones paginadas
 const getNotifications = async (req, res) => {
@@ -59,6 +58,13 @@ const getUnreadCount = async (req, res) => {
 const markAsRead = async (req, res) => {
   try {
     const { id } = req.params;
+    const existing = await prisma.notification.findUnique({
+      where: { id }
+    });
+    if (!existing) {
+      return res.status(404).json({ error: 'Notificación no encontrada' });
+    }
+
     const notification = await prisma.notification.update({
       where: { id },
       data: { isRead: true }
@@ -88,6 +94,13 @@ const markAllAsRead = async (req, res) => {
 const deleteNotification = async (req, res) => {
   try {
     const { id } = req.params;
+    const existing = await prisma.notification.findUnique({
+      where: { id }
+    });
+    if (!existing) {
+      return res.status(404).json({ error: 'Notificación no encontrada' });
+    }
+
     await prisma.notification.delete({
       where: { id }
     });

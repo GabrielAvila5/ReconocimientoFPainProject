@@ -226,6 +226,7 @@ model Notification {
   employee   Employee?        @relation(fields: [employeeId, companyId], references: [id, companyId], onDelete: Cascade)
   employeeId String?
 
+  @@unique([id, companyId])
   @@index([companyId, isRead, createdAt])
   @@index([employeeId, companyId])
 }
@@ -270,6 +271,7 @@ model EventRequest {
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
 
+  @@unique([id, companyId])
   @@index([companyId, date, status])
   @@index([companyId, employeeId, date, type])
   @@index([batchId])

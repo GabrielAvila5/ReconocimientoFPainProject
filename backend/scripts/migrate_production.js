@@ -380,6 +380,8 @@ async function runProductionMigration() {
       'ALTER TABLE `AttendanceRecord` ADD UNIQUE KEY `AttendanceRecord_id_companyId_key` (`id`, `companyId`);',
       'ALTER TABLE `Device` ADD UNIQUE KEY `Device_id_companyId_key` (`id`, `companyId`);',
       'ALTER TABLE `AdminUser` ADD UNIQUE KEY `AdminUser_id_companyId_key` (`id`, `companyId`);',
+      'ALTER TABLE `Notification` ADD UNIQUE KEY `Notification_id_companyId_key` (`id`, `companyId`);',
+      'ALTER TABLE `EventRequest` ADD UNIQUE KEY `EventRequest_id_companyId_key` (`id`, `companyId`);',
 
       'ALTER TABLE `Department` ADD UNIQUE KEY `Department_companyId_name_key` (`companyId`, `name`);',
       'ALTER TABLE `Shift` ADD UNIQUE KEY `Shift_companyId_name_key` (`companyId`, `name`);',

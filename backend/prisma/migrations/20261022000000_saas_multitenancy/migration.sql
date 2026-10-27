@@ -235,6 +235,8 @@ CREATE TABLE `Notification` (
     `employeeId` VARCHAR(191) NULL,
 
     INDEX `Notification_companyId_isRead_createdAt_idx`(`companyId`, `isRead`, `createdAt`),
+    INDEX `Notification_employeeId_companyId_idx`(`employeeId`, `companyId`),
+    UNIQUE INDEX `Notification_id_companyId_key`(`id`, `companyId`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -259,6 +261,7 @@ CREATE TABLE `EventRequest` (
     INDEX `EventRequest_companyId_date_status_idx`(`companyId`, `date`, `status`),
     INDEX `EventRequest_companyId_employeeId_date_type_idx`(`companyId`, `employeeId`, `date`, `type`),
     INDEX `EventRequest_batchId_idx`(`batchId`),
+    UNIQUE INDEX `EventRequest_id_companyId_key`(`id`, `companyId`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -400,7 +403,7 @@ ALTER TABLE `AdminAuditLog` ADD CONSTRAINT `AdminAuditLog_companyId_fkey` FOREIG
 ALTER TABLE `Notification` ADD CONSTRAINT `Notification_companyId_fkey` FOREIGN KEY (`companyId`) REFERENCES `Company`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE `Notification` ADD CONSTRAINT `Notification_employeeId_fkey` FOREIGN KEY (`employeeId`) REFERENCES `Employee`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE `Notification` ADD CONSTRAINT `Notification_employeeId_companyId_fkey` FOREIGN KEY (`employeeId`, `companyId`) REFERENCES `Employee`(`id`, `companyId`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `EventRequest` ADD CONSTRAINT `EventRequest_companyId_fkey` FOREIGN KEY (`companyId`) REFERENCES `Company`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;

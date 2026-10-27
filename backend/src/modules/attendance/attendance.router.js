@@ -64,31 +64,34 @@ router.get('/context/:employeeId', requireApiKey, async (req, res) => {
   try {
     const { employeeId } = req.params;
     const deviceToken = req.headers['x-device-token'] || req.query.deviceToken;
-    const prismaAdmin = require('../../utils/prismaAdmin');
+    const { getDeviceByToken } = require('../../utils/authHelpers');
     const { runWithTenantContext } = require('../../middlewares/tenantContext');
 
     let device = req.device;
     if (!device && deviceToken) {
-      device = await prismaAdmin.device.findUnique({
-        where: { token: deviceToken },
-        select: { id: true, companyId: true, isActive: true, isBlocked: true }
+      device = await getDeviceByToken(deviceToken);
+    }
+
+    if (!device) {
+      return res.status(401).json({ error: 'DEVICE_UNAUTHORIZED', message: 'Token de dispositivo no proporcionado o inválido.' });
+    }
+    if (!device.isActive) {
+      return res.status(403).json({ error: 'DEVICE_DEACTIVATED', message: 'Dispositivo dado de baja.' });
+    }
+    if (device.isBlocked) {
+      return res.status(403).json({ error: 'DEVICE_BLOCKED', message: 'Dispositivo bloqueado temporalmente.' });
+    }
+
+    const companyId = device.companyId;
+
+    return await runWithTenantContext({ companyId, deviceId: device.id }, async () => {
+      const targetEmp = await prisma.employee.findUnique({
+        where: { id: employeeId },
+        select: { id: true, companyId: true }
       });
-    }
 
-    const targetEmp = await prismaAdmin.employee.findUnique({
-      where: { id: employeeId },
-      select: { id: true, companyId: true }
-    });
+      if (!targetEmp) return res.status(404).json({ error: 'Empleado no encontrado' });
 
-    if (!targetEmp) return res.status(404).json({ error: 'Empleado no encontrado' });
-
-    if (device && device.companyId !== targetEmp.companyId) {
-      return res.status(403).json({ error: 'CROSS_TENANT_NOT_ALLOWED', message: 'Acceso denegado a otra empresa' });
-    }
-
-    const companyId = device?.companyId || targetEmp.companyId;
-
-    return await runWithTenantContext({ companyId, deviceId: device?.id || null }, async () => {
       // Self-Healing: cerrar automáticamente registros previos olvidados del empleado
       await processAutoCheckout(employeeId);
 
@@ -161,21 +164,18 @@ router.post('/register', requireApiKey, async (req, res) => {
       return res.status(400).json({ error: 'employeeId y action son obligatorios' });
     }
 
-    const prismaAdmin = require('../../utils/prismaAdmin');
+    const { getDeviceByToken } = require('../../utils/authHelpers');
     const { runWithTenantContext } = require('../../middlewares/tenantContext');
 
     const deviceToken = req.headers['x-device-token'] || req.body?.deviceToken;
     let device = req.device;
 
     if (!device && deviceToken) {
-      device = await prismaAdmin.device.findUnique({ 
-        where: { token: deviceToken }, 
-        select: { id: true, companyId: true, isActive: true, isBlocked: true, blockedReason: true, deactivatedReason: true } 
-      });
+      device = await getDeviceByToken(deviceToken);
     }
 
     if (!device) {
-      return res.status(400).json({ error: 'DEVICE_TOKEN_REQUIRED', message: 'Se requiere dispositivo registrado para checadas.' });
+      return res.status(401).json({ error: 'DEVICE_UNAUTHORIZED', message: 'Se requiere token de dispositivo válido para checadas.' });
     }
 
     if (!device.isActive) {
@@ -193,25 +193,24 @@ router.post('/register', requireApiKey, async (req, res) => {
       });
     }
 
-    // Validar pertenencia del empleado a la empresa del dispositivo
-    const targetEmployee = await prismaAdmin.employee.findUnique({
-      where: { id: employeeId },
-      select: { id: true, companyId: true, firstName: true, lastName: true, identifier: true }
-    });
-
-    if (!targetEmployee || targetEmployee.companyId !== device.companyId) {
-      return res.status(403).json({
-        error: 'CROSS_TENANT_NOT_ALLOWED',
-        message: 'El empleado no pertenece a la empresa de este dispositivo checador.'
-      });
-    }
-
     const companyId = device.companyId;
     const deviceId = device.id;
 
     return await runWithTenantContext({ companyId, deviceId }, async () => {
+      // Validar pertenencia del empleado a la empresa del dispositivo
+      const targetEmployee = await prisma.employee.findUnique({
+        where: { id: employeeId },
+        select: { id: true, companyId: true, firstName: true, lastName: true, identifier: true }
+      });
+
+      if (!targetEmployee) {
+        return res.status(404).json({
+          error: 'Empleado no encontrado'
+        });
+      }
+
       const now = new Date();
-      await prismaAdmin.device.update({ 
+      await prisma.device.update({ 
         where: { id: deviceId }, 
         data: { lastSeenAt: now, status: 'ONLINE' } 
       }).catch(() => {});

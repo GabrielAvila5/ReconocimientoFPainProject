@@ -5,6 +5,7 @@
  * Cada helper tiene un único propósito restringido y validado.
  */
 
+const crypto = require('crypto');
 const prismaAdmin = require('./prismaAdmin');
 
 /**
@@ -204,28 +205,6 @@ async function approvePairingRequest({ id, companyId }) {
 }
 
 /**
- * Lista solicitudes de emparejamiento pendientes no expiradas (para superadmin / plataforma).
- */
-async function listPendingPairingRequests() {
-  const now = new Date();
-  await prismaAdmin.deviceAuthRequest.updateMany({
-    where: {
-      status: 'PENDING',
-      expiresAt: { lt: now }
-    },
-    data: { status: 'EXPIRED' }
-  });
-
-  return prismaAdmin.deviceAuthRequest.findMany({
-    where: {
-      status: 'PENDING',
-      expiresAt: { gt: now }
-    },
-    orderBy: { createdAt: 'desc' }
-  });
-}
-
-/**
  * Rechaza una solicitud de emparejamiento por su ID.
  * 
  * @param {string} id UUID de la solicitud
@@ -262,6 +241,50 @@ async function getCompanyForDescriptors(companyId) {
   });
 }
 
+/**
+ * Obtiene un dispositivo por su token criptográfico para autenticación de kioscos.
+ * Calcula el hash SHA-256 del token plano recibido y busca exclusivamente por tokenHash.
+ * 
+ * @param {string} rawToken Token recibido en cabecera x-device-token
+ * @returns {Promise<object|null>} Dispositivo
+ */
+async function getDeviceByToken(rawToken) {
+  if (!rawToken || typeof rawToken !== 'string') return null;
+
+  const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+
+  return prismaAdmin.device.findUnique({
+    where: { tokenHash },
+    select: {
+      id: true,
+      companyId: true,
+      name: true,
+      type: true,
+      isActive: true,
+      isBlocked: true,
+      deactivatedReason: true,
+      blockedReason: true
+    }
+  });
+}
+
+/**
+ * Limpia solicitudes de emparejamiento de kioscos expiradas.
+ * 
+ * @returns {Promise<{count: number}>}
+ */
+async function cleanExpiredPairingRequests() {
+  return prismaAdmin.deviceAuthRequest.updateMany({
+    where: {
+      status: 'PENDING',
+      expiresAt: { lt: new Date() }
+    },
+    data: {
+      status: 'EXPIRED'
+    }
+  });
+}
+
 module.exports = {
   findAdminByEmailForLogin,
   findActivePairingRequestForDevice,
@@ -272,7 +295,8 @@ module.exports = {
   getPairingRequestById,
   markPairingRequestExpired,
   approvePairingRequest,
-  listPendingPairingRequests,
   rejectPairingRequest,
-  getCompanyForDescriptors
+  getCompanyForDescriptors,
+  getDeviceByToken,
+  cleanExpiredPairingRequests
 };

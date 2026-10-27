@@ -68,7 +68,7 @@ router.post('/', requireJwt, async (req, res) => {
     res.status(201).json(department);
   } catch (error) {
     if (error.code === 'P2002') {
-      return res.status(400).json({ error: 'Ya existe un departamento con ese nombre' });
+      return res.status(409).json({ error: 'Ya existe un departamento con ese nombre en su empresa' });
     }
     console.error('Error creating department:', error);
     res.status(500).json({ error: 'Error del servidor al crear departamento' });
@@ -81,6 +81,13 @@ router.put('/:id', requireJwt, async (req, res) => {
     const departmentId = parseInt(req.params.id);
     const { name } = req.body;
     if (!name) return res.status(400).json({ error: 'El nombre es obligatorio' });
+
+    const existing = await prisma.department.findUnique({
+      where: { id: departmentId }
+    });
+    if (!existing) {
+      return res.status(404).json({ error: 'Departamento no encontrado' });
+    }
 
     const department = await prisma.department.update({
       where: { id: departmentId },
@@ -162,7 +169,6 @@ router.put('/:id/shift', requireJwt, async (req, res) => {
         await prisma.departmentShift.delete({
           where: { id: currentDepShift.id }
         });
-        // Opcional: borrar el turno si nadie más lo usa, pero por ahora lo dejamos
       }
       return res.json({ success: true, message: 'Horario personalizado desactivado' });
     }
@@ -172,8 +178,8 @@ router.put('/:id/shift', requireJwt, async (req, res) => {
 
     let shiftRecord;
     
-    // Primero, buscar si ya existe el turno con ese nombre
-    const existingShift = await prisma.shift.findUnique({ where: { name: shiftName } });
+    // Primero, buscar si ya existe el turno con ese nombre en este inquilino
+    const existingShift = await prisma.shift.findFirst({ where: { name: shiftName } });
 
     if (existingShift) {
       shiftRecord = await prisma.shift.update({

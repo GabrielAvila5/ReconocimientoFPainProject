@@ -70,7 +70,13 @@ const getAdmins = async (req, res) => {
 
 const createAdmin = async (req, res) => {
   try {
-    const { name, email, password, identifier, departmentId, position } = req.body;
+    const { name, email, password, identifier, departmentId, position, syncEmployee, role } = req.body;
+    const isSyncOptIn = syncEmployee === true || syncEmployee === 'true';
+
+    // Prohibir escalamiento o creación de SUPER_ADMIN por parte de administradores de inquilino
+    if (role === 'SUPER_ADMIN' && req.user?.role !== 'SUPER_ADMIN') {
+      return res.status(403).json({ error: 'Solo un Super Admin puede asignar o crear usuarios con rol SUPER_ADMIN.' });
+    }
 
     if (!name || !email || !password) {
       return res.status(400).json({ error: 'Todos los campos (nombre, email, password) son requeridos.' });
@@ -107,6 +113,7 @@ const createAdmin = async (req, res) => {
         name: true,
         email: true,
         role: true,
+        companyId: true,
         createdAt: true,
         createdByUser: {
           select: {
@@ -116,15 +123,25 @@ const createAdmin = async (req, res) => {
       }
     });
 
-    // Sincronizar automáticamente como Empleado (usuario del sistema)
+    // Sincronizar como Empleado según Opción A (opt-in desmarcado por defecto)
     let syncedEmployee = null;
     try {
       syncedEmployee = await syncAdminToEmployee(newAdmin, {
+        companyId: newAdmin.companyId || req.user.companyId,
         identifier,
         departmentId,
-        position
+        position,
+        syncEmployee: isSyncOptIn
       }, prisma);
     } catch (syncErr) {
+      if (syncErr.code === 'PLAN_LIMIT_EXCEEDED') {
+        // Rollback creación de administrador ante falta de cupo de empleado solicitado
+        await prisma.adminUser.delete({ where: { id: newAdmin.id } });
+        return res.status(403).json({
+          error: 'PLAN_LIMIT_EXCEEDED',
+          message: syncErr.message || 'Límite de empleados alcanzado para el plan de su empresa.'
+        });
+      }
       console.error('[createAdmin] Error al sincronizar administrador como empleado:', syncErr);
     }
 
@@ -148,6 +165,9 @@ const createAdmin = async (req, res) => {
       } : null
     });
   } catch (error) {
+    if (error.code === 'P2002') {
+      return res.status(409).json({ error: 'El correo electrónico ya está registrado.' });
+    }
     console.error('Error creating admin:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
@@ -186,7 +206,7 @@ const deleteAdmin = async (req, res) => {
     });
 
     // Gestionar la baja o desactivación del empleado vinculado
-    await handleAdminDeleted(targetAdmin.email, prisma);
+    await handleAdminDeleted(targetAdmin.email, targetAdmin.companyId, prisma);
 
     res.json({ message: 'Administrador eliminado exitosamente.' });
   } catch (error) {

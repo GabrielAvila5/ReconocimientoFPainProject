@@ -9,7 +9,6 @@ const {
   getPairingRequestById,
   markPairingRequestExpired,
   approvePairingRequest,
-  listPendingPairingRequests,
   rejectPairingRequest
 } = require('../../utils/authHelpers');
 
@@ -127,13 +126,7 @@ const requestDeviceAuth = async (req, res) => {
  * Solo Super Administrador: Lista de solicitudes pendientes no expiradas.
  */
 const getPendingAuthRequests = async (req, res) => {
-  try {
-    const pendingRequests = await listPendingPairingRequests();
-    return res.json(pendingRequests);
-  } catch (error) {
-    console.error('Error al obtener solicitudes pendientes:', error);
-    return res.status(500).json({ error: 'Error al consultar solicitudes pendientes' });
-  }
+  return res.status(404).json({ error: 'Endpoint descontinuado. Utilice el emparejamiento físico por código de 8 caracteres.' });
 };
 
 // Tracker de intentos fallidos de aprobación por admin/IP para mitigar fuerza bruta
@@ -197,7 +190,7 @@ const lookupAuthRequestByCode = async (req, res) => {
 
     // Validación Cross-Tenant en el Paso 1: Si ya estaba asignada a otra empresa
     if (authRequest.companyId && req.user?.companyId && authRequest.companyId !== req.user.companyId && req.user.role !== 'SUPER_ADMIN') {
-      return res.status(403).json({ error: 'No autorizado para consultar solicitudes de otra empresa.' });
+      return res.status(404).json({ error: 'Código de emparejamiento inválido, expirado o ya procesado.' });
     }
 
     // Retorna datos de auditoría para verificación visual previa del admin
@@ -241,6 +234,22 @@ const approveDeviceAuth = async (req, res) => {
       return res.status(404).json({ error: 'Solicitud no encontrada' });
     }
 
+    // Determinar la empresa a la que pertenecerá el dispositivo
+    let targetCompanyId = req.user?.companyId;
+    if (req.user?.role === 'SUPER_ADMIN') {
+      targetCompanyId = requestedCompanyId || authRequest.companyId || 'default-company-pain';
+    }
+
+    if (!targetCompanyId) {
+      return res.status(400).json({ error: 'Se requiere una empresa asignada para el dispositivo.' });
+    }
+
+    // Validación Cross-Tenant Estricta: Un admin no puede ver ni aprobar solicitudes de otra empresa (404 indistinguible)
+    if (authRequest.companyId && authRequest.companyId !== targetCompanyId && req.user?.role !== 'SUPER_ADMIN') {
+      recordFailedApproval(adminId);
+      return res.status(404).json({ error: 'Solicitud no encontrada' });
+    }
+
     if (authRequest.status !== 'PENDING') {
       recordFailedApproval(adminId);
       return res.status(400).json({ error: `La solicitud ya fue ${authRequest.status.toLowerCase()}` });
@@ -256,21 +265,6 @@ const approveDeviceAuth = async (req, res) => {
     if (!pairingCode || pairingCode.toUpperCase().trim() !== authRequest.pairingCode) {
       recordFailedApproval(adminId);
       return res.status(400).json({ error: 'Se requiere el código de emparejamiento físico para confirmar la vinculación.' });
-    }
-
-    // Determinar la empresa a la que pertenecerá el dispositivo
-    let targetCompanyId = req.user?.companyId;
-    if (req.user?.role === 'SUPER_ADMIN') {
-      targetCompanyId = requestedCompanyId || authRequest.companyId || 'default-company-pain';
-    }
-
-    if (!targetCompanyId) {
-      return res.status(400).json({ error: 'Se requiere una empresa asignada para el dispositivo.' });
-    }
-
-    // Validación Cross-Tenant Estricta: Un admin no puede aprobar solicitudes de otra empresa
-    if (authRequest.companyId && authRequest.companyId !== targetCompanyId && req.user?.role !== 'SUPER_ADMIN') {
-      return res.status(403).json({ error: 'No autorizado para aprobar solicitudes de otra empresa.' });
     }
 
     // Validar límite del plan (maxDevices)
@@ -304,7 +298,7 @@ const approveDeviceAuth = async (req, res) => {
         name: deviceName,
         type: 'KIOSK',
         status: 'ONLINE',
-        token, // Ventana de gracia
+        token: null, // Anulado: Solo tokenHash SHA-256
         tokenHash, // Hash seguro para validación
         ipAddress: authRequest.ipAddress,
         description: authRequest.userAgent,

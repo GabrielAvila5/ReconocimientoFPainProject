@@ -33,11 +33,10 @@ const MODELS_WITH_ID_COMPANY_ID = [
   'Employee',
   'AttendanceRecord',
   'Shift',
-  'DepartmentShift',
-  'EmployeeShift',
   'AdminUser',
-  'EventRequest',
-  'Device'
+  'Device',
+  'Notification',
+  'EventRequest'
 ];
 
 /**

@@ -1,6 +1,6 @@
 const cron = require('node-cron');
 const prisma = require('../utils/prisma');
-const prismaAdmin = require('../utils/prismaAdmin');
+const { cleanExpiredPairingRequests } = require('../utils/authHelpers');
 const { runWithTenantContext } = require('../middlewares/tenantContext');
 const { getStartOfDay, getShiftExpectedEndDate, DEFAULT_TZ } = require('../utils/timeUtils');
 
@@ -138,36 +138,52 @@ const processAutoCheckout = async (employeeId = null, targetCompanyId = null) =>
 };
 
 /**
- * Procesa inasistencias iterando las empresas activas
+ * Procesa inasistencias iterando las empresas activas con garantía de idempotencia (lastAbsenceDateRun).
  */
-const processAbsences = async () => {
+const processAbsences = async (targetCompanyId = null) => {
   console.log('[CRON] Iniciando verificación de inasistencias...');
   try {
+    const whereClause = { isActive: true };
+    if (targetCompanyId) {
+      whereClause.id = targetCompanyId;
+    }
+
     const companies = await prisma.company.findMany({
-      where: { isActive: true },
-      select: { id: true, timezone: true }
+      where: whereClause,
+      select: { id: true, timezone: true, lastAbsenceDateRun: true }
     });
 
     let totalAbsences = 0;
     for (const comp of companies) {
-      await runWithTenantContext({ companyId: comp.id }, async () => {
+      const absencesInComp = await runWithTenantContext({ companyId: comp.id }, async () => {
         const settings = await prisma.systemSettings.findFirst({ where: { companyId: comp.id } });
         const tz = settings?.timezone || comp.timezone || DEFAULT_TZ;
         const now = new Date();
         const startOfDay = getStartOfDay(now, tz);
+
+        // 1. Verificación de Idempotencia: Si ya corrió hoy en la fecha de la empresa, omitir
+        if (comp.lastAbsenceDateRun) {
+          const lastRunStr = new Date(comp.lastAbsenceDateRun).toISOString().split('T')[0];
+          const todayStr = startOfDay.toISOString().split('T')[0];
+          if (lastRunStr === todayStr) {
+            console.log(`[CRON] Inasistencias ya procesadas hoy (${todayStr}) para empresa ${comp.id}. Omitiendo.`);
+            return 0;
+          }
+        }
 
         const employees = await prisma.employee.findMany({
           where: { isActive: true, companyId: comp.id },
           select: { id: true, firstName: true, lastName: true }
         });
 
+        let compAbsences = 0;
         for (const emp of employees) {
           const record = await prisma.attendanceRecord.findFirst({
             where: { employeeId: emp.id, date: startOfDay, companyId: comp.id }
           });
 
           if (!record) {
-            totalAbsences++;
+            compAbsences++;
             await prisma.notification.create({
               data: {
                 title: 'Falta por Inasistencia',
@@ -180,7 +196,17 @@ const processAbsences = async () => {
             });
           }
         }
+
+        // 2. Registrar fecha de ejecución para idempotencia
+        await prisma.company.update({
+          where: { id: comp.id },
+          data: { lastAbsenceDateRun: startOfDay }
+        });
+
+        return compAbsences;
       });
+
+      totalAbsences += absencesInComp;
     }
 
     console.log(`[CRON] Verificación de inasistencias finalizada. Total registradas: ${totalAbsences}`);
@@ -192,19 +218,11 @@ const processAbsences = async () => {
 };
 
 /**
- * Limpieza de solicitudes de emparejamiento expiradas
+ * Limpieza de solicitudes de emparejamiento expiradas (usa helper pre-auth)
  */
 const cleanExpiredDeviceAuthRequests = async () => {
   try {
-    const res = await prismaAdmin.deviceAuthRequest.updateMany({
-      where: {
-        status: 'PENDING',
-        expiresAt: { lt: new Date() }
-      },
-      data: {
-        status: 'EXPIRED'
-      }
-    });
+    const res = await cleanExpiredPairingRequests();
     if (res.count > 0) {
       console.log(`[CRON] Se marcaron ${res.count} solicitudes de emparejamiento como EXPIRED.`);
     }
