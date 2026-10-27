@@ -2,10 +2,10 @@ const { execSync } = require('child_process');
 const { PrismaClient } = require('@prisma/client');
 const crypto = require('crypto');
 
-const DB_PORT = 3307;
-const DB_USER = 'root';
-const DB_PASS = 'admin123';
-const DB_HOST = '127.0.0.1';
+const DB_PORT = process.env.DB_PORT || 3307;
+const DB_USER = process.env.DB_USER || 'root';
+const DB_PASS = process.env.DB_PASSWORD || process.env.SAAS_TEST_USER_PASSWORD || '';
+const DB_HOST = process.env.DB_HOST || '127.0.0.1';
 const SOURCE_DB = 'reconocimiento_facial_db_pain';
 const CLONE_DB = 'reconocimiento_test_clone_fiel';
 const CLONE_URL = `mysql://${DB_USER}:${DB_PASS}@${DB_HOST}:${DB_PORT}/${CLONE_DB}`;

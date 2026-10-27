@@ -82,12 +82,41 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {});
 });
 
+app.set('trust proxy', 1);
+
+const getAllowedOrigins = () => {
+  const envOrigins = process.env.CORS_ALLOWED_ORIGINS
+    ? process.env.CORS_ALLOWED_ORIGINS.split(',').map(o => o.trim()).filter(Boolean)
+    : [];
+  
+  const defaults = [
+    frontendUrl,
+    'http://localhost:8080',
+    'http://localhost:5173',
+    'http://localhost:4000',
+    'http://localhost:3000',
+    'http://localhost'
+  ];
+  return Array.from(new Set([...envOrigins, ...defaults]));
+};
+
 app.use(cors({ 
-  origin: process.env.NODE_ENV === 'production' ? true : [frontendUrl, 'http://localhost:8080', 'http://localhost'],
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+    const allowed = getAllowedOrigins();
+    if (allowed.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error(`CORS_NOT_ALLOWED: Origen no autorizado (${origin})`));
+  },
   credentials: true 
 }));
 app.use(cookieParser());
 app.use(express.json());
+
+// Protección CSRF para mutaciones basadas en cookie de sesión
+const { csrfProtection } = require('./middlewares/csrfProtection');
+app.use(csrfProtection);
 
 // Middleware de Contexto de Inquilino Multi-Tenant (AsyncLocalStorage)
 const { tenantContextMiddleware } = require('./middlewares/tenantContext');
@@ -111,6 +140,16 @@ const eventsRouter = require('./modules/events/events.router');
 app.use('/api/v1/events', eventsRouter);
 const devicesRouter = require('./modules/devices/devices.router');
 app.use('/api/v1/devices', devicesRouter);
+const companiesRouter = require('./modules/companies/companies.router');
+app.use('/api/v1/companies', companiesRouter);
+
+// Manejo de errores de CORS y seguridad
+app.use((err, req, res, next) => {
+  if (err && err.message && err.message.startsWith('CORS_NOT_ALLOWED')) {
+    return res.status(403).json({ error: 'CORS_NOT_ALLOWED', message: err.message });
+  }
+  next(err);
+});
 
 // Manejo de errores 404 para la API
 app.use('/api', (req, res) => {

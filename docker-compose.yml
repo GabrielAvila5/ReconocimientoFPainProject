@@ -5,7 +5,7 @@ services:
     image: mariadb:10.11
     restart: unless-stopped
     environment:
-      MARIADB_ROOT_PASSWORD: ${DB_PASSWORD:-admin123}
+      MARIADB_ROOT_PASSWORD: ${DB_PASSWORD}
       MARIADB_DATABASE: ReconocimientoFacialProd
     volumes:
       - db_data:/var/lib/mysql
@@ -15,12 +15,12 @@ services:
       context: ./backend
     restart: unless-stopped
     environment:
-      - DATABASE_URL=mysql://root:${DB_PASSWORD:-admin123}@db:3306/ReconocimientoFacialProd
+      - DATABASE_URL=mysql://root:${DB_PASSWORD}@db:3306/ReconocimientoFacialProd
       - PORT=4000
-      - JWT_SECRET=${JWT_SECRET:-super-secret-key-for-jwt-change-me}
-      - KIOSK_API_KEY=${KIOSK_API_KEY:-kiosk-secret-key-123}
+      - JWT_SECRET=${JWT_SECRET}
+      - KIOSK_API_KEY=${KIOSK_API_KEY}
       - COOKIE_SECURE=${COOKIE_SECURE:-false}
-      - DEFAULT_ADMIN_PASSWORD=${DEFAULT_ADMIN_PASSWORD:-admin123}
+      - DEFAULT_ADMIN_PASSWORD=${DEFAULT_ADMIN_PASSWORD}
     ports:
       - "4000:4000"
     depends_on:

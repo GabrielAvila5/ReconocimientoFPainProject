@@ -29,6 +29,8 @@ let tokenHashAlpha = crypto.createHash('sha256').update(rawDeviceTokenAlpha).dig
 
 let deviceAlphaId;
 let adminAlphaToken;
+let adminBetaToken;
+let superAdminToken;
 let deptAlphaId;
 
 async function setup() {
@@ -78,9 +80,51 @@ async function setup() {
   });
   deviceAlphaId = dev.id;
 
-  // 4. Token JWT de admin para Alpha
+  // 4. Crear usuarios administrativos en base de datos para autenticación válida
+  const adminAlpha = await prismaAdmin.adminUser.create({
+    data: {
+      email: `${TEST_PREFIX}.admin@alpha.com`,
+      name: 'Admin Alpha Gate3C',
+      password: 'hashedpassword123',
+      role: 'ADMIN',
+      companyId: companyAlphaId
+    }
+  });
+
+  const adminBeta = await prismaAdmin.adminUser.create({
+    data: {
+      email: `${TEST_PREFIX}.admin@beta.com`,
+      name: 'Admin Beta Gate3C',
+      password: 'hashedpassword123',
+      role: 'ADMIN',
+      companyId: companyBetaId
+    }
+  });
+
+  const superAdmin = await prismaAdmin.adminUser.create({
+    data: {
+      email: `${TEST_PREFIX}.superadmin@global.com`,
+      name: 'Super Admin Gate3C',
+      password: 'hashedpassword123',
+      role: 'SUPER_ADMIN',
+      companyId: null
+    }
+  });
+
   adminAlphaToken = jwt.sign(
-    { id: 'admin-alpha-gate3c', companyId: companyAlphaId, role: 'ADMIN' },
+    { id: adminAlpha.id, email: adminAlpha.email, role: 'ADMIN', companyId: companyAlphaId },
+    JWT_SECRET,
+    { expiresIn: '1h' }
+  );
+
+  adminBetaToken = jwt.sign(
+    { id: adminBeta.id, email: adminBeta.email, role: 'ADMIN', companyId: companyBetaId },
+    JWT_SECRET,
+    { expiresIn: '1h' }
+  );
+
+  superAdminToken = jwt.sign(
+    { id: superAdmin.id, email: superAdmin.email, role: 'SUPER_ADMIN', companyId: null },
     JWT_SECRET,
     { expiresIn: '1h' }
   );
@@ -98,6 +142,17 @@ async function teardown() {
     await prismaAdmin.employee.deleteMany({ where: { companyId: { in: [companyAlphaId, companyBetaId] } } });
     await prismaAdmin.device.deleteMany({ where: { companyId: { in: [companyAlphaId, companyBetaId] } } });
     await prismaAdmin.deviceAuthRequest.deleteMany({ where: { companyId: { in: [companyAlphaId, companyBetaId] } } });
+    await prismaAdmin.adminUser.deleteMany({
+      where: {
+        email: {
+          in: [
+            `${TEST_PREFIX}.admin@alpha.com`,
+            `${TEST_PREFIX}.admin@beta.com`,
+            `${TEST_PREFIX}.superadmin@global.com`
+          ]
+        }
+      }
+    });
     await prismaAdmin.department.deleteMany({ where: { companyId: { in: [companyAlphaId, companyBetaId] } } });
     await prismaAdmin.company.deleteMany({ where: { id: { in: [companyAlphaId, companyBetaId] } } });
     console.log('Teardown completado exitosamente.');
@@ -373,14 +428,91 @@ async function runTests() {
     }
 
     console.log('\n================================================================');
-    console.log('>>> 6. SOCKET.IO: SALAS DE INQUILINO Y DESCONEXIÓN EN SUSPENSIÓN');
+    console.log('>>> 6. SOCKET.IO: SALAS DE INQUILINO, CLIENTES REALES Y DESCONEXIÓN EN SUSPENSIÓN');
     console.log('================================================================');
     {
-      // Probar que la función disconnectCompanySockets no arroja errores y emite forced_disconnect
-      assert.doesNotThrow(() => {
-        disconnectCompanySockets(companyBetaId, 'COMPANY_SUSPENDED');
+      const ioClient = require('socket.io-client');
+      const { server } = require('../../src/app');
+
+      // Iniciar el servidor HTTP/WS en puerto dinámico para pruebas
+      await new Promise((resolve) => server.listen(0, resolve));
+      const port = server.address().port;
+      const serverUrl = 'http://localhost:' + port;
+
+      // Conectar cliente Socket de Alpha con token de Alpha
+      const socketAlpha = ioClient(serverUrl, {
+        auth: { token: adminAlphaToken },
+        transports: ['websocket'],
+        forceNew: true
       });
-      pass('disconnectCompanySockets ejecuta desconexión forzada y emite evento sin errores');
+
+      // Conectar cliente Socket de Beta con token de Beta
+      const socketBeta = ioClient(serverUrl, {
+        auth: { token: adminBetaToken },
+        transports: ['websocket'],
+        forceNew: true
+      });
+
+      // Esperar a que ambos sockets se conecten
+      await Promise.all([
+        new Promise((resolve, reject) => {
+          socketAlpha.on('connect', resolve);
+          socketAlpha.on('connect_error', reject);
+        }),
+        new Promise((resolve, reject) => {
+          socketBeta.on('connect', resolve);
+          socketBeta.on('connect_error', reject);
+        })
+      ]);
+
+      assert.strictEqual(socketAlpha.connected, true, 'Socket Alpha debe estar conectado');
+      assert.strictEqual(socketBeta.connected, true, 'Socket Beta debe estar conectado');
+      pass('Ambos clientes Socket.io (Alpha y Beta) se conectaron e ingresaron a sus respectivas salas');
+
+      let alphaReceivedDisconnect = false;
+      let alphaDisconnectReason = null;
+      let betaReceivedAlphaEvent = false;
+
+      socketAlpha.on('forced_disconnect', (data) => {
+        alphaReceivedDisconnect = true;
+        alphaDisconnectReason = data && data.reason;
+      });
+
+      socketBeta.on('forced_disconnect', () => {
+        betaReceivedAlphaEvent = true;
+      });
+
+      // Ejecutar la suspensión real de Alpha vía PATCH /api/v1/companies/:id/status
+      const patchRes = await request(app)
+        .patch('/api/v1/companies/' + companyAlphaId + '/status')
+        .set('Authorization', 'Bearer ' + superAdminToken)
+        .send({ isActive: false, reason: 'SUSPENSION_FALTA_PAGO' });
+
+      assert.strictEqual(patchRes.status, 200, 'PATCH /api/v1/companies/:id/status debe responder 200');
+      assert.strictEqual(patchRes.body.success, true);
+      assert.strictEqual(patchRes.body.company.isActive, false);
+      pass('Endpoint PATCH /api/v1/companies/:id/status suspendió a Alpha e invocó disconnectCompanySockets');
+
+      // Esperar a la propagación del evento y corte del socket
+      await new Promise((r) => setTimeout(r, 400));
+
+      // Aserciones del aislamiento y corte:
+      // a) El socket de Alpha recibió forced_disconnect y pasó a connected === false
+      assert.strictEqual(alphaReceivedDisconnect, true, 'Socket Alpha debe recibir evento forced_disconnect');
+      assert.strictEqual(alphaDisconnectReason, 'SUSPENSION_FALTA_PAGO', 'Razón de suspensión recibida por Alpha');
+      assert.strictEqual(socketAlpha.connected, false, 'Socket Alpha debe quedar desconectado tras la suspensión');
+      pass('Socket Alpha recibió forced_disconnect con motivo exacto y quedó desconectado (connected === false)');
+
+      // b) El socket de Beta permanece conectado y no recibió eventos de Alpha
+      assert.strictEqual(socketBeta.connected, true, 'Socket Beta debe permanecer conectado');
+      assert.strictEqual(betaReceivedAlphaEvent, false, 'Socket Beta NO debe recibir el evento de suspensión de Alpha');
+      pass('Socket Beta permanece conectado (connected === true) y 0 eventos cruzados (aislamiento total de salas)');
+
+      // Limpieza de sockets y cierre de servidor
+      socketAlpha.disconnect();
+      socketBeta.disconnect();
+      await new Promise((resolve) => server.close(resolve));
+      pass('Servidor HTTP/WS de prueba cerrado exitosamente');
     }
 
   } finally {

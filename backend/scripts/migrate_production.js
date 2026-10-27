@@ -255,6 +255,14 @@ async function runProductionMigration() {
       // Ignorar si ya está configurado
     }
 
+    // Retiro físico definitivo de columnas obsoletas (photoRetentionDays)
+    try {
+      await prisma.$executeRawUnsafe(`ALTER TABLE \`SystemSettings\` DROP COLUMN IF EXISTS \`photoRetentionDays\`;`);
+      console.log('  - Columna obsoleta photoRetentionDays retirada físicamente de SystemSettings');
+    } catch (e) {
+      // Ignorar si no existe
+    }
+
     // -------------------------------------------------------------
     // PASO 4: Poblar registros huérfanos con pilotCompanyId
     // -------------------------------------------------------------

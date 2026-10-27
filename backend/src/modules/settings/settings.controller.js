@@ -16,7 +16,6 @@ const DEFAULT_SETTINGS = {
   notifyOnDeviceOffline: true,
   notifyOnUnknownFace: true,
   notifyOnLatenessMin: 30,
-  photoRetentionDays: 30,
   showConsentOnKiosk: true,
   maintenanceMode: false,
   defaultExportFormat: "CSV",
@@ -55,7 +54,6 @@ const updateSettings = async (req, res) => {
       notifyOnDeviceOffline,
       notifyOnUnknownFace,
       notifyOnLatenessMin,
-      photoRetentionDays,
       showConsentOnKiosk,
       maintenanceMode,
       defaultExportFormat,
@@ -70,7 +68,6 @@ const updateSettings = async (req, res) => {
     if (workdayStartMinute !== undefined && (workdayStartMinute < 0 || workdayStartMinute > 59)) return res.status(400).json({ error: 'workdayStartMinute debe estar entre 0 y 59' });
     if (workdayEndHour !== undefined && (workdayEndHour < 0 || workdayEndHour > 23)) return res.status(400).json({ error: 'workdayEndHour debe estar entre 0 y 23' });
     if (workdayEndMinute !== undefined && (workdayEndMinute < 0 || workdayEndMinute > 59)) return res.status(400).json({ error: 'workdayEndMinute debe estar entre 0 y 59' });
-    if (photoRetentionDays !== undefined && (photoRetentionDays < 0 || photoRetentionDays > 365)) return res.status(400).json({ error: 'photoRetentionDays debe estar entre 0 y 365' });
     if (notifyOnLatenessMin !== undefined && (notifyOnLatenessMin < 0 || notifyOnLatenessMin > 480)) return res.status(400).json({ error: 'notifyOnLatenessMin debe estar entre 0 y 480' });
     if (captureMode !== undefined && captureMode !== 'AUTO' && captureMode !== 'MANUAL') return res.status(400).json({ error: 'captureMode debe ser AUTO o MANUAL' });
     if (defaultExportFormat !== undefined && defaultExportFormat !== 'CSV' && defaultExportFormat !== 'PDF') return res.status(400).json({ error: 'defaultExportFormat debe ser CSV o PDF' });
@@ -93,7 +90,6 @@ const updateSettings = async (req, res) => {
         notifyOnDeviceOffline,
         notifyOnUnknownFace,
         notifyOnLatenessMin,
-        photoRetentionDays,
         showConsentOnKiosk,
         maintenanceMode,
         defaultExportFormat,
@@ -114,7 +110,6 @@ const updateSettings = async (req, res) => {
         notifyOnDeviceOffline,
         notifyOnUnknownFace,
         notifyOnLatenessMin,
-        photoRetentionDays,
         showConsentOnKiosk,
         maintenanceMode,
         defaultExportFormat,
@@ -135,11 +130,15 @@ const getPublicSettings = async (req, res) => {
     const device = req.device;
     let settings = null;
     if (device && device.companyId) {
-      settings = await prisma.systemSettings.findUnique({
-        where: { companyId: device.companyId }
-      });
+      try {
+        settings = await prisma.systemSettings.findUnique({
+          where: { companyId: device.companyId }
+        });
+      } catch {
+        settings = DEFAULT_SETTINGS;
+      }
     } else {
-      settings = await prisma.systemSettings.findFirst();
+      settings = DEFAULT_SETTINGS;
     }
 
     if (!settings) {

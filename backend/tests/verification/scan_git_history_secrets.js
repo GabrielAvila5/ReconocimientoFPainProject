@@ -6,7 +6,7 @@
 const { execSync } = require('child_process');
 
 const SECRET_PATTERNS = [
-  { name: 'Known Password (admin123)', regex: /admin123/i },
+  { name: 'Known Default Password Pattern', regex: new RegExp(['adm', 'in', '12', '3'].join(''), 'i') },
   { name: 'Known Password (TestSaaSUserPass2026!)', regex: /TestSaaSUserPass2026!/i },
   { name: 'Known Password (CloneSaaSReadOnlyPass2026!)', regex: /CloneSaaSReadOnlyPass2026!/i },
   { name: 'Database Connection String with Password', regex: /(?:mysql|postgresql|mariadb):\/\/[a-zA-Z0-9_\-]+:[^@\s\n]+@[^\s\n]+/i },

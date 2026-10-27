@@ -312,7 +312,6 @@ model SystemSettings {
   notifyOnLatenessMin   Int     @default(30)
 
   // Privacidad
-  photoRetentionDays Int     @default(30)
   showConsentOnKiosk Boolean @default(true)
 
   // Sistema

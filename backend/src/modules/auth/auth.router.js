@@ -4,11 +4,31 @@ const rateLimit = require('express-rate-limit');
 const authController = require('./auth.controller');
 const { requireAuth } = require('./auth.middleware');
 
-// Limitador de intentos para login (max 5 por IP cada 15 min)
+/**
+ * Rate Limiting Compuesto para Inicio de Sesión
+ * Límite por tupla IP + email normalizado (lowercase/trim):
+ * Máximo 5 intentos fallidos en 15 minutos.
+ * Responde HTTP 429 { error: 'TOO_MANY_LOGIN_ATTEMPTS' }.
+ * Las peticiones exitosas se descuentan (skipSuccessfulRequests: true).
+ */
 const loginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, 
+  windowMs: 15 * 60 * 1000,
   max: 5,
-  message: { error: 'Demasiados intentos de login. Por favor, inténtelo de nuevo en 15 minutos.' }
+  skipSuccessfulRequests: true,
+  validate: { default: true, keyGeneratorIpFallback: false },
+  keyGenerator: (req) => {
+    const ip = req.ip || req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '127.0.0.1';
+    const email = (req.body?.email || '').trim().toLowerCase();
+    return `${ip}:${email}`;
+  },
+  handler: (req, res) => {
+    return res.status(429).json({
+      error: 'TOO_MANY_LOGIN_ATTEMPTS',
+      message: 'Demasiados intentos fallidos de inicio de sesión. Por favor espere 15 minutos.'
+    });
+  },
+  standardHeaders: true,
+  legacyHeaders: false
 });
 
 router.post('/login', loginLimiter, authController.login);

@@ -287,7 +287,6 @@ CREATE TABLE `SystemSettings` (
     `notifyOnDeviceOffline` BOOLEAN NOT NULL DEFAULT true,
     `notifyOnUnknownFace` BOOLEAN NOT NULL DEFAULT true,
     `notifyOnLatenessMin` INTEGER NOT NULL DEFAULT 30,
-    `photoRetentionDays` INTEGER NOT NULL DEFAULT 30,
     `showConsentOnKiosk` BOOLEAN NOT NULL DEFAULT true,
     `maintenanceMode` BOOLEAN NOT NULL DEFAULT false,
     `defaultExportFormat` VARCHAR(191) NOT NULL DEFAULT 'CSV',

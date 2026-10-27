@@ -480,6 +480,7 @@ const getDevices = async (req, res) => {
         status: true,
         ipAddress: true,
         description: true,
+        tokenHash: true,
         lastSeenAt: true,
         isBlocked: true,
         blockedAt: true,
@@ -496,8 +497,13 @@ const getDevices = async (req, res) => {
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     const enriched = devices.map(d => {
       const isInactive30Days = d.lastSeenAt ? new Date(d.lastSeenAt) < thirtyDaysAgo : (new Date(d.createdAt) < thirtyDaysAgo);
+      const hasPermanentToken = Boolean(d.tokenHash);
       return {
         ...d,
+        tokenHash: undefined, // Nunca exponer el hash en la respuesta
+        hasPermanentToken,
+        authMigrationStatus: hasPermanentToken ? 'MIGRATED' : 'LEGACY_PENDING',
+        gracePeriodDeadline: '2026-11-05T23:59:59.000Z',
         isInactive30Days,
         inactivityAlert: isInactive30Days && d.isActive ? 'Dispositivo sin actividad por más de 30 días.' : null
       };

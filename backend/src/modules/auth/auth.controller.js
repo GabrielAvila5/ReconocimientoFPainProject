@@ -41,14 +41,24 @@ const login = async (req, res) => {
       { expiresIn: '12h' }
     );
 
-    // Configurar cookie
-    const isSecure = process.env.COOKIE_SECURE === 'true';
+    // Configurar cookies seguras de sesión y CSRF
+    const isProd = process.env.NODE_ENV === 'production';
+    const isSecure = isProd || process.env.COOKIE_SECURE === 'true';
 
     res.cookie('jwt', token, {
       httpOnly: true,
       secure: isSecure,
-      sameSite: isSecure ? 'none' : 'lax',
+      sameSite: 'strict',
       maxAge: 12 * 60 * 60 * 1000 // 12 horas en ms
+    });
+
+    const crypto = require('crypto');
+    const csrfToken = crypto.randomBytes(24).toString('hex');
+    res.cookie('XSRF-TOKEN', csrfToken, {
+      httpOnly: false,
+      secure: isSecure,
+      sameSite: 'strict',
+      maxAge: 12 * 60 * 60 * 1000
     });
 
     // Retornar datos del usuario (sin contraseña) y token
@@ -71,7 +81,10 @@ const login = async (req, res) => {
 };
 
 const logout = (req, res) => {
-  res.clearCookie('jwt');
+  const isProd = process.env.NODE_ENV === 'production';
+  const isSecure = isProd || process.env.COOKIE_SECURE === 'true';
+  res.clearCookie('jwt', { httpOnly: true, secure: isSecure, sameSite: 'strict' });
+  res.clearCookie('XSRF-TOKEN', { httpOnly: false, secure: isSecure, sameSite: 'strict' });
   res.json({ message: 'Logout exitoso' });
 };
 

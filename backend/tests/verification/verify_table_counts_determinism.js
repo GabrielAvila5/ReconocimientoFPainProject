@@ -1,7 +1,8 @@
 /**
- * VERIFICACIÓN DE DETERMINISMO E HIGIENE TOTAL DE PRUEBAS (ITEM 7)
- * Cuenta los registros de TODAS las tablas de la base de pruebas antes y después
- * de dos ejecuciones completas de las suites de prueba, demostrando delta = 0.
+ * VERIFICACIÓN DE DETERMINISMO E HIGIENE TOTAL DE PRUEBAS
+ * Cuenta los registros de TODAS las 14 tablas físicas antes y después
+ * de dos ejecuciones completas consecutivas de todas las suites de prueba,
+ * demostrando exactamente Delta = 0 en el 100% de los modelos.
  */
 
 const { execSync } = require('child_process');
@@ -57,9 +58,28 @@ function compareCounts(countsBefore, countsAfter, runName) {
   }
 }
 
+function runSuites() {
+  const suites = [
+    'node backend/tests/integration/test_routers_http_real.js',
+    'node backend/tests/integration/test_pairing_cross_tenant_isolation.test.js',
+    'node backend/tests/integration/test_nested_writes_real_db.test.js',
+    'node backend/tests/unit/test_prisma_comprehensive_matrix.test.js',
+    'node backend/tests/integration/test_lote2_isolation.test.js',
+    'node backend/tests/integration/test_cron_face_cache.test.js',
+    'node backend/tests/integration/test_admin_employee_sync_option_a.test.js',
+    'node backend/tests/integration/test_device_token_auth.test.js',
+    'node backend/tests/integration/test_gate3c_kiosks_and_sockets.test.js',
+    'node backend/tests/integration/test_gate4_security_and_ops.test.js'
+  ];
+
+  for (const cmd of suites) {
+    execSync(cmd, { stdio: 'pipe' });
+  }
+}
+
 async function main() {
   console.log('================================================================');
-  console.log('>>> VERIFICACIÓN DE DETERMINISMO E HIGIENE DE PRUEBAS (ITEM 7)');
+  console.log('>>> VERIFICACIÓN DE DETERMINISMO E HIGIENE DE PRUEBAS (14 TABLAS)');
   console.log('================================================================\n');
 
   try {
@@ -68,11 +88,8 @@ async function main() {
     console.log('1. Conteo inicial de modelos capturado.');
 
     // 2. Primera ejecución de suites de prueba
-    console.log('\n2. Ejecutando suites de prueba (EJECUCIÓN 1)...');
-    execSync('node backend/tests/integration/test_routers_http_real.js', { stdio: 'pipe' });
-    execSync('node backend/tests/integration/test_pairing_cross_tenant_isolation.test.js', { stdio: 'pipe' });
-    execSync('node backend/tests/integration/test_nested_writes_real_db.test.js', { stdio: 'pipe' });
-    execSync('node backend/tests/unit/test_prisma_comprehensive_matrix.test.js', { stdio: 'pipe' });
+    console.log('\n2. Ejecutando suites de prueba completas (EJECUCIÓN 1)...');
+    runSuites();
     console.log('  ✓ Ejecución 1 finalizada exitosamente.');
 
     // 3. Obtener conteo tras ejecución 1
@@ -80,11 +97,8 @@ async function main() {
     compareCounts(initialCounts, countsAfterRun1, 'Ejecución 1');
 
     // 4. Segunda ejecución consecutiva de suites de prueba
-    console.log('\n3. Ejecutando suites de prueba (EJECUCIÓN 2 CONSECUTIVA)...');
-    execSync('node backend/tests/integration/test_routers_http_real.js', { stdio: 'pipe' });
-    execSync('node backend/tests/integration/test_pairing_cross_tenant_isolation.test.js', { stdio: 'pipe' });
-    execSync('node backend/tests/integration/test_nested_writes_real_db.test.js', { stdio: 'pipe' });
-    execSync('node backend/tests/unit/test_prisma_comprehensive_matrix.test.js', { stdio: 'pipe' });
+    console.log('\n3. Ejecutando suites de prueba completas (EJECUCIÓN 2 CONSECUTIVA)...');
+    runSuites();
     console.log('  ✓ Ejecución 2 finalizada exitosamente.');
 
     // 5. Obtener conteo tras ejecución 2
@@ -101,6 +115,6 @@ async function main() {
 }
 
 main().catch(err => {
-  console.error('❌ Error en verificación de higiene:', err.message);
+  console.error('\n❌ ERROR EN VERIFICACIÓN DE DETERMINISMO:', err);
   process.exit(1);
 });

@@ -4,7 +4,7 @@ import {
   Power, AlertTriangle, Video, MonitorSmartphone, Server,
   Clock, X, ShieldCheck, Trash2, ArrowRight,
   Lock, Unlock, Ban, CalendarPlus, CalendarX, RotateCcw,
-  Info, ShieldAlert, CheckCircle2
+  Info, ShieldAlert, CheckCircle2, Key
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNotifications } from '../../contexts/NotificationContext';
@@ -764,16 +764,28 @@ const DevicesPage = () => {
                       <span style={{ fontSize: '0.75rem', color: '#a1a1aa' }}>{typeLabel}</span>
                     </div>
                   </div>
-                  <span style={{ 
-                    display: 'flex', alignItems: 'center', gap: '0.35rem',
-                    padding: '0.25rem 0.6rem', 
-                    backgroundColor: badgeBg,
-                    color: badgeColor, 
-                    borderRadius: '6px', fontSize: '0.75rem', fontWeight: 600, 
-                    border: `1px solid ${badgeBorder}` 
-                  }}>
-                    <BadgeIcon size={12} /> {badgeText}
-                  </span>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.35rem' }}>
+                    <span style={{ 
+                      display: 'flex', alignItems: 'center', gap: '0.35rem',
+                      padding: '0.25rem 0.6rem', 
+                      backgroundColor: badgeBg,
+                      color: badgeColor, 
+                      borderRadius: '6px', fontSize: '0.75rem', fontWeight: 600, 
+                      border: `1px solid ${badgeBorder}` 
+                    }}>
+                      <BadgeIcon size={12} /> {badgeText}
+                    </span>
+                    <span style={{
+                      display: 'flex', alignItems: 'center', gap: '0.35rem',
+                      padding: '0.2rem 0.5rem',
+                      backgroundColor: device.hasPermanentToken ? 'rgba(34, 197, 94, 0.12)' : 'rgba(234, 179, 8, 0.15)',
+                      color: device.hasPermanentToken ? '#4ade80' : '#facc15',
+                      borderRadius: '6px', fontSize: '0.7rem', fontWeight: 600,
+                      border: device.hasPermanentToken ? '1px solid rgba(34, 197, 94, 0.25)' : '1px solid rgba(234, 179, 8, 0.3)'
+                    }}>
+                      <Key size={11} /> {device.hasPermanentToken ? 'Token SHA-256' : 'Gracia (Hasta 05/Nov)'}
+                    </span>
+                  </div>
                 </div>
 
                 <p style={{ color: '#a1a1aa', margin: '0 0 1rem 0', fontSize: '0.8rem', minHeight: '1.2rem', lineHeight: '1.4' }}>

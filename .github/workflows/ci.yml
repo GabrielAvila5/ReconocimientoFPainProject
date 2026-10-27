@@ -1,0 +1,75 @@
+name: SaaS Multi-Tenancy CI Pipeline
+
+on:
+  push:
+    branches: [ feature/saas-multitenancy ]
+  pull_request:
+    branches: [ feature/saas-multitenancy, main ]
+
+jobs:
+  static-analysis-and-a2:
+    name: AST Scan & Regla A2 Compliance
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install Backend Dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Execute AST Rule A2 Imports Scanner
+        run: node backend/tests/unit/test_no_restricted_imports.test.js
+
+      - name: Execute Git Secrets Scanner
+        run: node backend/tests/verification/scan_git_history_secrets.js
+
+  prisma-orm-matrix:
+    name: Prisma 910 Assertions Isolation Matrix
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Generate Prisma Client
+        working-directory: backend
+        run: npx prisma generate
+
+      - name: Run Prisma Comprehensive Matrix
+        run: node backend/tests/unit/test_prisma_comprehensive_matrix.test.js
+
+  frontend-build:
+    name: Frontend Multi-Tenant Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Frontend Dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Compile Frontend (Vite Build)
+        working-directory: frontend
+        run: npm run build

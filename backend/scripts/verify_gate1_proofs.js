@@ -5,7 +5,10 @@
 
 const { PrismaClient } = require('@prisma/client');
 
-const testDbUrl = 'mysql://root:admin123@127.0.0.1:3307/reconocimiento_test_copia_saas';
+const testDbUrl = process.env.TEST_DATABASE_URL || process.env.DATABASE_URL;
+if (!testDbUrl) {
+  throw new Error('DATABASE_URL o TEST_DATABASE_URL requerida para ejecutar pruebas.');
+}
 const prisma = new PrismaClient({
   datasources: { db: { url: testDbUrl } }
 });
