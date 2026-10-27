@@ -117,7 +117,7 @@ const CameraScanner = ({ onEmployeeIdentified, isActive = true }) => {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
-                'x-api-key': 'kiosk-secret-key-123'
+                'x-device-token': localStorage.getItem('kiosk_device_token') || ''
               },
               body: JSON.stringify({ descriptor: descriptorArray })
             });

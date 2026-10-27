@@ -56,7 +56,8 @@ const AdminManager = () => {
     confirmPassword: '',
     departmentId: '',
     identifier: '',
-    position: ''
+    position: '',
+    syncEmployee: false
   });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -143,7 +144,8 @@ const AdminManager = () => {
         confirmPassword: '',
         departmentId: '',
         identifier: '',
-        position: ''
+        position: '',
+        syncEmployee: false
       });
       fetchData();
     } catch (error) {
@@ -553,6 +555,19 @@ const AdminManager = () => {
                 </div>
               </div>
               
+              <div className="form-group" style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <input
+                  type="checkbox"
+                  id="syncEmployeeCheckbox"
+                  checked={formData.syncEmployee}
+                  onChange={e => setFormData({ ...formData, syncEmployee: e.target.checked })}
+                  style={{ width: '18px', height: '18px', accentColor: '#f97316', cursor: 'pointer' }}
+                />
+                <label htmlFor="syncEmployeeCheckbox" style={{ color: 'var(--text-main)', fontSize: '0.85rem', cursor: 'pointer' }}>
+                  Crear automáticamente registro de empleado (para checar asistencia)
+                </label>
+              </div>
+
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
                 <button type="button" className="btn-secondary" onClick={() => setShowAddModal(false)} disabled={formLoading}>
                   Cancelar

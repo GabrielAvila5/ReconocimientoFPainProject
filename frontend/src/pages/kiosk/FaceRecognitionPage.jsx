@@ -50,7 +50,17 @@ const FaceRecognitionPage = () => {
 
   const fetchDescriptors = async () => {
     try {
-      const descRes = await fetch(`${import.meta.env.VITE_API_URL}/api/v1/employees/descriptors`);
+      const deviceToken = localStorage.getItem('kiosk_device_token') || '';
+      const descRes = await fetch(`${import.meta.env.VITE_API_URL}/api/v1/employees/descriptors`, {
+        headers: {
+          'x-device-token': deviceToken
+        }
+      });
+      if (descRes.status === 401) {
+        localStorage.removeItem('kiosk_device_token');
+        navigate('/kiosk/setup?revoked=true', { replace: true });
+        return;
+      }
       if (!descRes.ok) throw new Error('Error al cargar descriptores');
       
       const employees = await descRes.json();
@@ -213,9 +223,15 @@ const FaceRecognitionPage = () => {
 
   const fetchContext = async (empId) => {
     try {
+      const deviceToken = localStorage.getItem('kiosk_device_token') || '';
       const res = await fetch(`${import.meta.env.VITE_API_URL}/api/v1/attendance/context/${empId}`, {
-        headers: { 'x-api-key': 'kiosk-secret-key-123' }
+        headers: { 'x-device-token': deviceToken }
       });
+      if (res.status === 401) {
+        localStorage.removeItem('kiosk_device_token');
+        navigate('/kiosk/setup?revoked=true', { replace: true });
+        return;
+      }
       if (res.ok) {
         const data = await res.json();
         setContext(data);
@@ -302,11 +318,16 @@ const FaceRecognitionPage = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': 'kiosk-secret-key-123',
           'x-device-token': deviceToken
         },
         body: JSON.stringify({ ...payload, deviceToken })
       });
+
+      if (response.status === 401) {
+        localStorage.removeItem('kiosk_device_token');
+        navigate('/kiosk/setup?revoked=true', { replace: true });
+        return;
+      }
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));

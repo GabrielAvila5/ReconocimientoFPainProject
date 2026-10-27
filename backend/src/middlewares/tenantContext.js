@@ -80,7 +80,7 @@ async function tenantContextMiddleware(req, res, next) {
     } else {
       const deviceToken = req.headers['x-device-token'];
       if (deviceToken) {
-        const { getDeviceByToken } = require('../utils/authHelpers');
+        const { getDeviceByToken, updateDeviceLastSeen } = require('../utils/authHelpers');
         const dev = await getDeviceByToken(deviceToken);
         if (!dev) {
           return res.status(401).json({
@@ -102,6 +102,8 @@ async function tenantContextMiddleware(req, res, next) {
         }
         req.device = dev;
         companyId = dev.companyId;
+        // Registro asíncrono de actividad del dispositivo
+        updateDeviceLastSeen(dev.id);
       }
     }
 

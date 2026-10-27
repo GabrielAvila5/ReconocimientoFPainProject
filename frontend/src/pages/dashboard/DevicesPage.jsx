@@ -32,9 +32,12 @@ const DevicesPage = () => {
     reason: ''
   });
 
-  // Solicitudes Pendientes de Kiosko
-  const [pendingRequests, setPendingRequests] = useState([]);
-  const [approvingId, setApprovingId] = useState(null);
+  // Emparejamiento Seguro en 2 Pasos
+  const [pairingStep, setPairingStep] = useState(1);
+  const [pairingCodeInput, setPairingCodeInput] = useState('');
+  const [pairingLookupData, setPairingLookupData] = useState(null);
+  const [pairingLookupLoading, setPairingLookupLoading] = useState(false);
+  const [pairingApproveLoading, setPairingApproveLoading] = useState(false);
   const [kioskCustomName, setKioskCustomName] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -73,25 +76,80 @@ const DevicesPage = () => {
     }
   };
 
-  // 2. Obtener solicitudes de kiosko pendientes
-  const fetchPendingRequests = async () => {
+  // Paso 1: Consultar Kiosco por código físico de 8 caracteres
+  const handleLookupKiosk = async (e) => {
+    if (e) e.preventDefault();
+    const code = pairingCodeInput.trim().toUpperCase();
+    if (!code || code.length < 6) {
+      toast.error('Ingresa un código de emparejamiento válido de 8 caracteres.');
+      return;
+    }
+
+    setPairingLookupLoading(true);
     try {
       const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
-      const res = await fetch(`${baseUrl}/api/v1/devices/auth-requests/pending`, {
-        credentials: 'include'
+      const res = await fetch(`${baseUrl}/api/v1/devices/auth-requests/lookup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ pairingCode: code })
       });
-      if (res.ok) {
-        const data = await res.json();
-        setPendingRequests(data);
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Código inválido o solicitud expirada.');
       }
+
+      const data = await res.json();
+      setPairingLookupData(data);
+      setKioskCustomName(`Kiosko ${data.pairingCode}`);
+      setPairingStep(2);
+      toast.success('Kiosco localizado. Confirma los datos para vincular.');
     } catch (err) {
-      console.warn('Error fetching pending auth requests:', err);
+      toast.error(err.message);
+    } finally {
+      setPairingLookupLoading(false);
+    }
+  };
+
+  // Paso 2: Confirmar vinculación con código y nombre
+  const handleConfirmPairing = async (e) => {
+    if (e) e.preventDefault();
+    if (!pairingLookupData) return;
+
+    setPairingApproveLoading(true);
+    try {
+      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+      const res = await fetch(`${baseUrl}/api/v1/devices/auth-requests/${pairingLookupData.id}/approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          name: kioskCustomName.trim() || `Kiosko ${pairingLookupData.pairingCode}`,
+          pairingCode: pairingLookupData.pairingCode
+        })
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Error al aprobar vinculación.');
+      }
+
+      toast.success('Kiosco vinculado exitosamente.');
+      setIsAddModalOpen(false);
+      setPairingStep(1);
+      setPairingCodeInput('');
+      setPairingLookupData(null);
+      fetchDevices();
+    } catch (err) {
+      toast.error(err.message);
+    } finally {
+      setPairingApproveLoading(false);
     }
   };
 
   useEffect(() => {
     fetchDevices();
-    fetchPendingRequests();
   }, []);
 
   // 3. Escuchar eventos Socket.io para actualizaciones en tiempo real
@@ -759,6 +817,24 @@ const DevicesPage = () => {
                   </div>
                 )}
 
+                {device.inactivityAlert && (
+                  <div style={{
+                    backgroundColor: 'rgba(234, 179, 8, 0.15)',
+                    border: '1px solid rgba(234, 179, 8, 0.3)',
+                    color: '#facc15',
+                    padding: '0.5rem 0.75rem',
+                    borderRadius: '8px',
+                    fontSize: '0.75rem',
+                    marginBottom: '1rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.4rem'
+                  }}>
+                    <AlertCircle size={14} color="#facc15" />
+                    <span><strong>Alerta de Seguridad:</strong> {device.inactivityAlert}</span>
+                  </div>
+                )}
+
                 {/* Ciclo de Vida: Fecha de Alta y Fecha de Baja */}
                 <div style={{
                   background: '#121215',
@@ -1050,168 +1126,131 @@ const DevicesPage = () => {
               </button>
             </div>
 
-            {/* Contenido Pestaña 1: Kiosko (Autorización Remota) */}
+            {/* Contenido Pestaña 1: Kiosko (Emparejamiento Seguro en 2 Pasos) */}
             {activeTab === 'kiosk' && (
               <div>
-                {pendingRequests.length === 0 ? (
-                  <div style={{
-                    padding: '2.5rem 1.5rem',
-                    textAlign: 'center',
-                    background: '#121215',
-                    borderRadius: '16px',
-                    border: '1px dashed #3f3f46'
-                  }}>
-                    <div style={{
-                      width: '56px',
-                      height: '56px',
-                      borderRadius: '50%',
-                      backgroundColor: 'rgba(249, 115, 22, 0.1)',
-                      border: '1px solid rgba(249, 115, 22, 0.3)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      margin: '0 auto 1rem auto'
-                    }}>
-                      <div className="radar-pulse" />
-                      <MonitorSmartphone size={24} color="#f97316" />
+                {pairingStep === 1 ? (
+                  <form onSubmit={handleLookupKiosk} style={{ padding: '0.5rem 0' }}>
+                    <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
+                      <div style={{
+                        width: '56px',
+                        height: '56px',
+                        borderRadius: '50%',
+                        backgroundColor: 'rgba(249, 115, 22, 0.1)',
+                        border: '1px solid rgba(249, 115, 22, 0.3)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        margin: '0 auto 1rem auto'
+                      }}>
+                        <MonitorSmartphone size={24} color="#f97316" />
+                      </div>
+                      <h4 style={{ margin: '0 0 0.5rem 0', color: '#fff', fontSize: '1.1rem', fontWeight: 700 }}>
+                        Paso 1: Código de Emparejamiento
+                      </h4>
+                      <p style={{ margin: 0, color: '#a1a1aa', fontSize: '0.85rem', lineHeight: '1.5' }}>
+                        Ingresa el código alfanumérico de 8 caracteres que aparece en la pantalla del Kiosco físico.
+                      </p>
                     </div>
-                    <h4 style={{ margin: '0 0 0.5rem 0', color: '#fff', fontSize: '1.05rem' }}>
-                      Esperando solicitudes de kiosko...
-                    </h4>
-                    <p style={{ margin: '0 0 1.5rem 0', color: '#a1a1aa', fontSize: '0.85rem', lineHeight: '1.5' }}>
-                      Abre la URL <code style={{ color: '#f97316', backgroundColor: '#18181b', padding: '0.2rem 0.4rem', borderRadius: '4px' }}>/kiosk</code> en la tablet o navegador que deseas dar de alta. La solicitud aparecerá aquí en tiempo real.
-                    </p>
-                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', color: '#71717a', fontSize: '0.8rem' }}>
-                      <span className="pulse-dot" /> Escuchando la red
+
+                    <div style={{ marginBottom: '1.5rem' }}>
+                      <input 
+                        type="text"
+                        maxLength={8}
+                        placeholder="Ej. A8X9K2M1"
+                        value={pairingCodeInput}
+                        onChange={(e) => setPairingCodeInput(e.target.value.toUpperCase())}
+                        style={{
+                          ...inputStyle,
+                          textAlign: 'center',
+                          fontSize: '1.5rem',
+                          letterSpacing: '0.25em',
+                          fontWeight: 700,
+                          fontFamily: 'monospace',
+                          textTransform: 'uppercase'
+                        }}
+                        autoFocus
+                      />
                     </div>
-                  </div>
+
+                    <button
+                      type="submit"
+                      disabled={pairingLookupLoading || !pairingCodeInput.trim()}
+                      style={{ ...btnPrimary, width: '100%', justifyContent: 'center', padding: '0.75rem' }}
+                    >
+                      {pairingLookupLoading ? 'Consultando Kiosco...' : 'Buscar y Validar Kiosco'}
+                    </button>
+                  </form>
                 ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', maxHeight: '380px', overflowY: 'auto' }}>
-                    <div style={{ color: '#a1a1aa', fontSize: '0.85rem', marginBottom: '0.25rem' }}>
-                      Solicitudes pendientes detectadas:
-                    </div>
-                    {pendingRequests.map(req => {
-                      const isApprovingThis = approvingId === req.id;
-
-                      return (
-                        <div key={req.id} style={{
-                          background: '#121215',
-                          border: '1px solid rgba(249, 115, 22, 0.3)',
-                          borderRadius: '14px',
-                          padding: '1.25rem',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '1rem'
+                  <form onSubmit={handleConfirmPairing} style={{ padding: '0.5rem 0' }}>
+                    <div style={{
+                      background: '#121215',
+                      border: '1px solid rgba(249, 115, 22, 0.3)',
+                      borderRadius: '12px',
+                      padding: '1.25rem',
+                      marginBottom: '1.5rem',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.75rem'
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ color: '#a1a1aa', fontSize: '0.85rem' }}>Código Confirmado:</span>
+                        <span style={{
+                          backgroundColor: 'rgba(249, 115, 22, 0.15)',
+                          color: '#f97316',
+                          padding: '0.2rem 0.6rem',
+                          borderRadius: '6px',
+                          fontWeight: 700,
+                          fontFamily: 'monospace',
+                          fontSize: '1rem'
                         }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                              <div style={{
-                                backgroundColor: 'rgba(249, 115, 22, 0.15)',
-                                color: '#f97316',
-                                padding: '0.4rem 0.75rem',
-                                borderRadius: '8px',
-                                fontFamily: 'monospace',
-                                fontWeight: 800,
-                                fontSize: '1.1rem',
-                                letterSpacing: '0.05em'
-                              }}>
-                                {req.pairingCode}
-                              </div>
-                              <div>
-                                <div style={{ color: '#fff', fontSize: '0.9rem', fontWeight: 600 }}>IP: {req.ipAddress}</div>
-                                <div style={{ color: '#71717a', fontSize: '0.75rem', maxWidth: '240px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                  {req.userAgent}
-                                </div>
-                              </div>
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', color: '#eab308', fontSize: '0.75rem' }}>
-                              <Clock size={14} />
-                              <span>{getTimeRemaining(req.expiresAt)}</span>
-                            </div>
-                          </div>
+                          {pairingLookupData?.pairingCode}
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ color: '#a1a1aa', fontSize: '0.85rem' }}>Dirección IP:</span>
+                        <span style={{ color: '#fff', fontSize: '0.85rem', fontWeight: 600 }}>{pairingLookupData?.ipAddress}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ color: '#a1a1aa', fontSize: '0.85rem' }}>Navegador / SO:</span>
+                        <span style={{ color: '#71717a', fontSize: '0.8rem', maxWidth: '240px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {pairingLookupData?.userAgent}
+                        </span>
+                      </div>
+                    </div>
 
-                          {/* Sub-formulario de Aprobación para asignar Nombre */}
-                          {isApprovingThis ? (
-                            <div style={{
-                              background: '#18181b',
-                              border: '1px solid #3f3f46',
-                              borderRadius: '10px',
-                              padding: '1rem',
-                              marginTop: '0.25rem'
-                            }}>
-                              <label style={modalLabel}>Asignar nombre a este Kiosko:</label>
-                              <input 
-                                type="text"
-                                placeholder={`Ej. Kiosko Recepción (${req.pairingCode})`}
-                                value={kioskCustomName}
-                                onChange={(e) => setKioskCustomName(e.target.value)}
-                                style={{ ...inputStyle, marginBottom: '0.75rem' }}
-                                autoFocus
-                              />
-                              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
-                                <button
-                                  type="button"
-                                  onClick={() => setApprovingId(null)}
-                                  style={{ ...btnSecondary, padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}
-                                >
-                                  Cancelar
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleApprove(req)}
-                                  disabled={isSubmitting}
-                                  style={{ ...btnPrimary, padding: '0.4rem 1rem', fontSize: '0.8rem' }}
-                                >
-                                  {isSubmitting ? 'Dando de alta...' : 'Confirmar Alta'}
-                                </button>
-                              </div>
-                            </div>
-                          ) : (
-                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
-                              <button
-                                type="button"
-                                onClick={() => handleReject(req.id)}
-                                style={{
-                                  padding: '0.5rem 1rem',
-                                  background: 'rgba(239, 68, 68, 0.1)',
-                                  color: '#ef4444',
-                                  border: '1px solid rgba(239, 68, 68, 0.3)',
-                                  borderRadius: '8px',
-                                  cursor: 'pointer',
-                                  fontWeight: 600,
-                                  fontSize: '0.85rem'
-                                }}
-                              >
-                                Rechazar
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setApprovingId(req.id);
-                                  setKioskCustomName(`Kiosko ${req.pairingCode}`);
-                                }}
-                                style={{
-                                  padding: '0.5rem 1.25rem',
-                                  background: '#f97316',
-                                  color: '#fff',
-                                  border: 'none',
-                                  borderRadius: '8px',
-                                  cursor: 'pointer',
-                                  fontWeight: 600,
-                                  fontSize: '0.85rem',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  gap: '0.4rem'
-                                }}
-                              >
-                                <ShieldCheck size={16} /> Aprobar y Dar de Alta
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
+                    <div style={{ marginBottom: '1.5rem' }}>
+                      <label style={{ display: 'block', color: '#fff', fontSize: '0.85rem', marginBottom: '0.5rem', fontWeight: 600 }}>
+                        Asignar nombre a este Kiosco:
+                      </label>
+                      <input 
+                        type="text"
+                        placeholder="Ej. Kiosco Entrada Principal"
+                        value={kioskCustomName}
+                        onChange={(e) => setKioskCustomName(e.target.value)}
+                        style={inputStyle}
+                        autoFocus
+                        required
+                      />
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '0.75rem' }}>
+                      <button
+                        type="button"
+                        onClick={() => setPairingStep(1)}
+                        style={{ ...btnSecondary, flex: 1, justifyContent: 'center' }}
+                      >
+                        Volver
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={pairingApproveLoading}
+                        style={{ ...btnPrimary, flex: 2, justifyContent: 'center' }}
+                      >
+                        {pairingApproveLoading ? 'Vinculando...' : 'Confirmar y Vincular Kiosco'}
+                      </button>
+                    </div>
+                  </form>
                 )}
               </div>
             )}

@@ -81,10 +81,12 @@ const requestDeviceAuth = async (req, res) => {
 
     if (previousPending.length > 0 && io) {
       previousPending.forEach(p => {
-        io.to('dashboard').emit('device_auth_request_resolved', {
-          id: p.id,
-          status: 'EXPIRED'
-        });
+        if (p.companyId) {
+          io.to(`company_${p.companyId}`).emit('device_auth_request_resolved', {
+            id: p.id,
+            status: 'EXPIRED'
+          });
+        }
       });
     }
 
@@ -372,11 +374,13 @@ const rejectDeviceAuth = async (req, res) => {
         message: 'Solicitud rechazada por el administrador'
       });
 
-      // Notificar al Dashboard
-      io.to('dashboard').emit('device_auth_request_resolved', {
-        id: authRequest.id,
-        status: 'REJECTED'
-      });
+      // Notificar al Dashboard del inquilino
+      if (authRequest.companyId) {
+        io.to(`company_${authRequest.companyId}`).emit('device_auth_request_resolved', {
+          id: authRequest.id,
+          status: 'REJECTED'
+        });
+      }
     }
 
     return res.json({ success: true, message: 'Solicitud rechazada' });
@@ -488,7 +492,18 @@ const getDevices = async (req, res) => {
       }
     });
 
-    return res.json(devices);
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const enriched = devices.map(d => {
+      const isInactive30Days = d.lastSeenAt ? new Date(d.lastSeenAt) < thirtyDaysAgo : (new Date(d.createdAt) < thirtyDaysAgo);
+      return {
+        ...d,
+        isInactive30Days,
+        inactivityAlert: isInactive30Days && d.isActive ? 'Dispositivo sin actividad por más de 30 días.' : null
+      };
+    });
+
+    return res.json(enriched);
   } catch (error) {
     console.error('Error al obtener dispositivos:', error);
     return res.status(500).json({ error: 'Error al obtener dispositivos' });
@@ -522,15 +537,9 @@ const toggleBlockDevice = async (req, res) => {
 
     const io = getIo(req);
     if (io) {
-      io.to('dashboard').emit('device_updated', updated);
+      const companyRoom = `company_${updated.companyId || req.user?.companyId}`;
+      io.to(companyRoom).emit('device_updated', updated);
       io.to(`device_${id}`).emit('device_status_changed', {
-        deviceId: id,
-        isBlocked: updated.isBlocked,
-        blockedAt: updated.blockedAt,
-        isActive: updated.isActive,
-        reason: updated.blockedReason
-      });
-      io.emit('device_status_changed', {
         deviceId: id,
         isBlocked: updated.isBlocked,
         blockedAt: updated.blockedAt,
@@ -579,15 +588,9 @@ const toggleStatusDevice = async (req, res) => {
 
     const io = getIo(req);
     if (io) {
-      io.to('dashboard').emit('device_updated', updated);
+      const companyRoom = `company_${updated.companyId || req.user?.companyId}`;
+      io.to(companyRoom).emit('device_updated', updated);
       io.to(`device_${id}`).emit('device_status_changed', {
-        deviceId: id,
-        isBlocked: updated.isBlocked,
-        isActive: updated.isActive,
-        deactivatedAt: updated.deactivatedAt,
-        reason: updated.deactivatedReason
-      });
-      io.emit('device_status_changed', {
         deviceId: id,
         isBlocked: updated.isBlocked,
         isActive: updated.isActive,
@@ -656,7 +659,8 @@ const createManualDevice = async (req, res) => {
 
     const io = getIo(req);
     if (io) {
-      io.to('dashboard').emit('device_created', device);
+      const companyRoom = `company_${companyId || 'default-company-pain'}`;
+      io.to(companyRoom).emit('device_created', device);
     }
 
     return res.status(201).json(device);
@@ -683,13 +687,9 @@ const deleteDevice = async (req, res) => {
 
     const io = getIo(req);
     if (io) {
-      io.to('dashboard').emit('device_deleted', { id });
+      const companyRoom = `company_${device.companyId || req.user?.companyId || 'default-company-pain'}`;
+      io.to(companyRoom).emit('device_deleted', { id });
       io.to(`device_${id}`).emit('device_status_changed', {
-        deviceId: id,
-        deleted: true,
-        error: 'Dispositivo revocado y eliminado del sistema'
-      });
-      io.emit('device_status_changed', {
         deviceId: id,
         deleted: true,
         error: 'Dispositivo revocado y eliminado del sistema'

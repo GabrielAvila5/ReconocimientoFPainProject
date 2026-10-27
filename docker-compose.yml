@@ -19,7 +19,6 @@ services:
       - PORT=4000
       - JWT_SECRET=${JWT_SECRET:-super-secret-key-for-jwt-change-me}
       - KIOSK_API_KEY=${KIOSK_API_KEY:-kiosk-secret-key-123}
-      - DISABLE_AUTH=${DISABLE_AUTH:-true}
       - COOKIE_SECURE=${COOKIE_SECURE:-false}
       - DEFAULT_ADMIN_PASSWORD=${DEFAULT_ADMIN_PASSWORD:-admin123}
     ports:

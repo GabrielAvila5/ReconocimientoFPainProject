@@ -12,7 +12,7 @@ const TAB_FIELDS = {
   asistencia: ['workdayStartHour', 'workdayStartMinute', 'workdayEndHour', 'workdayEndMinute', 'latenessToleranceMin', 'breakStartTime', 'breakEndTime'],
   reconocimiento: ['faceConfidenceThreshold', 'captureMode'],
   notificaciones: ['alertEmail', 'notifyOnDeviceOffline', 'notifyOnUnknownFace', 'notifyOnLatenessMin'],
-  privacidad: ['photoRetentionDays', 'showConsentOnKiosk'],
+  privacidad: ['showConsentOnKiosk'],
   seguridad: []
 };
 
@@ -57,7 +57,6 @@ const SettingsPage = () => {
     notifyOnDeviceOffline: true,
     notifyOnUnknownFace: true,
     notifyOnLatenessMin: 30,
-    photoRetentionDays: 30,
     showConsentOnKiosk: true,
     maintenanceMode: false,
     defaultExportFormat: 'CSV',
@@ -698,33 +697,9 @@ const SettingsPage = () => {
 
         {activeTab === 'privacidad' && (
           <div className="fade-in">
-            <h3 style={{ margin: '0 0 1.5rem 0', color: '#fff', fontSize: '1.2rem' }}>Privacidad y Retención de Datos</h3>
-            
-            <div style={formGroup}>
-              <label style={labelStyle}>Retención de registros fotográficos</label>
-              <select 
-                value={settings.photoRetentionDays} 
-                onChange={e => handleChange('photoRetentionDays', parseInt(e.target.value))}
-                style={inputStyle}
-              >
-                <option value={0}>0 (No guardar)</option>
-                <option value={7}>7 días</option>
-                <option value={14}>14 días</option>
-                <option value={30}>30 días</option>
-                <option value={60}>60 días</option>
-                <option value={90}>90 días</option>
-                <option value={180}>180 días</option>
-                <option value={365}>365 días</option>
-              </select>
-              
-              {settings.photoRetentionDays === 0 && (
-                <div style={{ marginTop: '1rem', padding: '1rem', background: 'rgba(56, 189, 248, 0.1)', border: '1px solid rgba(56, 189, 248, 0.3)', borderRadius: '8px', color: '#38bdf8', fontSize: '0.9rem' }}>
-                  Las imágenes serán analizadas y descartadas inmediatamente. No se almacenará ningún rostro en la base de datos.
-                </div>
-              )}
-            </div>
+            <h3 style={{ margin: '0 0 1.5rem 0', color: '#fff', fontSize: '1.2rem' }}>Privacidad y Consentimiento</h3>
 
-            <div style={{ ...formGroup, marginTop: '2.5rem' }}>
+            <div style={{ ...formGroup, marginTop: '1rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div>
                   <label style={labelStyle}>Mostrar aviso de privacidad en los kioscos</label>

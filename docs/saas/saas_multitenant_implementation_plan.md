@@ -1,7 +1,7 @@
 # Plan Maestro de Implementación SaaS Multi-Tenant (v3.4)
 
 > [!IMPORTANT]
-> **Estado Actual:** Gate 3A y Gate 3B (Lote 1 y Lote 2) cerrados y verificados con aislamiento cross-tenant probado (49/49 en Lote 2, 11/11 en cron/caché, 15/15 en autenticación de kioscos por `tokenHash` SHA-256). Paridad estricta de schema y scripts DDL confirmada con claves compuestas en los 8 modelos de negocio. Listo para ejecutar Gate 3C (Kioscos y Frontend Multi-Tenant).  
+> **Estado Actual:** Gate 3A, Gate 3B (Lotes 1 y 2) y Gate 3C cerrados e implementados al 100%. Retiro definitivo de `DISABLE_AUTH` completado; ventana de gracia fija para `KIOSK_API_KEY` (2026-11-05); tokens de kiosco exclusivamente vía `tokenHash` SHA-256; `GET /descriptors` protegido con rate limiting y alerta de spike; auto-incremento de `descriptorsVersion` en las 6 operaciones biométricas; Socket.io con salas por empresa y desconexión forzada en suspensión; frontend sin `x-api-key` ni `photoRetentionDays`, compilando con 0 errores (Vite build exitoso) y suite `test_gate3c_kiosks_and_sockets.test.js` en verde (19/19). Preparado para iniciar Gate 4 (Seguridad & Operación).  
 > **Rama Oficial:** `feature/saas-multitenancy` (la rama `main` no se toca; sin push a GitHub sin autorización de Gabriel).  
 > **Política de Aislamiento:** Instancia única y base de datos compartida con aislamiento estricto por `companyId`, claves compuestas InnoDB con `ON DELETE RESTRICT` y respuesta HTTP 404 indistinguible de "no existe" ante cualquier acceso cross-tenant.  
 > **Topología de Producción:** Estrategia B sobre nuevo VPS KVM con Docker y motor idéntico verificado por `SELECT VERSION()`. El servidor actual en Hostinger queda intacto como respaldo/rollback. Pruebas aisladas en `reconocimiento_test_%` con `saas_test_user`.
@@ -126,10 +126,10 @@ gantt
     Gate 3B Lote 1: Core Modules       :done, g3b1, 2026-10-26, 1d
     Gate 3B Lote 2: Aux Modules        :done, g3b2, 2026-10-26, 2d
     Aprobación Gate 3B                 :milestone, after g3b2, 0d
-    Gate 3C: Kioscos & Frontend        :active, g3c, after g3b2, 2d
+    Gate 3C: Kioscos & Frontend        :done, g3c, after g3b2, 2d
     Aprobación Gate 3C                 :milestone, after g3c, 0d
     section Fase 3: Seguridad & Carga
-    Gate 4: Seguridad & Operación      :g4, after g3c, 2d
+    Gate 4: Seguridad & Operación      :active, g4, after g3c, 2d
     Aprobación Gate 4                  :milestone, after g4, 0d
     Gate 5: Pruebas de Carga k6        :g5, after g4, 2d
     Aprobación Gate 5                  :milestone, after g5, 0d

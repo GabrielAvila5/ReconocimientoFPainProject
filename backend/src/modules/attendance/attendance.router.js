@@ -23,7 +23,8 @@ router.post('/validate', requireApiKey, async (req, res) => {
     let bestMatch = { id: null, name: null, distance: Infinity };
 
     // Comparar en memoria
-    for (const user of global.cachedUsers) {
+    const cachedUsers = Array.isArray(global.cachedUsers) ? global.cachedUsers : [];
+    for (const user of cachedUsers) {
       if (!user.descriptor || user.descriptor.length === 0) continue;
       
       const distance = euclideanDistance(descriptor, user.descriptor);
@@ -33,9 +34,15 @@ router.post('/validate', requireApiKey, async (req, res) => {
     }
 
     // Umbral de validación
-    // Obtenemos de SystemSettings
-    const settings = await prisma.systemSettings.findFirst();
-    const threshold = settings ? 1.0 - settings.faceConfidenceThreshold : 0.45; // Relación inversa
+    let threshold = 0.45;
+    try {
+      const settings = await prisma.systemSettings.findFirst();
+      if (settings && typeof settings.faceConfidenceThreshold === 'number') {
+        threshold = 1.0 - settings.faceConfidenceThreshold;
+      }
+    } catch (e) {
+      // Usar umbral estándar si no hay contexto de tenant
+    }
 
     if (bestMatch.distance <= threshold) {
       // Retornar empleado, pero NO registrar asistencia aún

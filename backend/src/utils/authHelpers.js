@@ -269,6 +269,24 @@ async function getDeviceByToken(rawToken) {
 }
 
 /**
+ * Actualiza atómicamente la marca de tiempo de última actividad (lastSeenAt) de un dispositivo.
+ *
+ * @param {string} deviceId ID del dispositivo
+ * @returns {Promise<void>}
+ */
+async function updateDeviceLastSeen(deviceId) {
+  if (!deviceId) return;
+  try {
+    await prismaAdmin.device.update({
+      where: { id: deviceId },
+      data: { lastSeenAt: new Date() }
+    });
+  } catch (err) {
+    // Silencioso para no degradar el flujo de la petición
+  }
+}
+
+/**
  * Limpia solicitudes de emparejamiento de kioscos expiradas.
  * 
  * @returns {Promise<{count: number}>}
@@ -298,5 +316,6 @@ module.exports = {
   rejectPairingRequest,
   getCompanyForDescriptors,
   getDeviceByToken,
+  updateDeviceLastSeen,
   cleanExpiredPairingRequests
 };

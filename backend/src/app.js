@@ -133,14 +133,27 @@ if (process.env.NODE_ENV === 'production') {
   });
 }
 
-// Función para emitir notificaciones
+// Función para emitir notificaciones aisladas por empresa
 const emitNotification = (notificationData) => {
-  io.to('dashboard').emit('new_notification', notificationData);
+  if (notificationData?.companyId) {
+    io.to(`company_${notificationData.companyId}`).emit('new_notification', notificationData);
+  }
 };
 
-// Función para emitir evento de caché
-const emitCacheRefresh = () => {
-  io.to('dashboard').emit('cache_updated');
+// Función para emitir evento de caché y descriptores invalidados por empresa
+const emitCacheRefresh = (companyId) => {
+  if (companyId) {
+    io.to(`company_${companyId}`).emit('cache_updated');
+    io.to(`company_${companyId}`).emit('descriptors_invalidated', { companyId, timestamp: new Date().toISOString() });
+  }
 };
 
-module.exports = { app, server, emitNotification, emitCacheRefresh };
+// Desconexión forzada de todos los sockets de una empresa suspendida
+const disconnectCompanySockets = (companyId, reason = 'COMPANY_SUSPENDED') => {
+  if (!companyId) return;
+  const room = `company_${companyId}`;
+  io.to(room).emit('forced_disconnect', { reason });
+  io.in(room).disconnectSockets(true);
+};
+
+module.exports = { app, server, io, emitNotification, emitCacheRefresh, disconnectCompanySockets };

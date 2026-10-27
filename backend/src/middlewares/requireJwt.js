@@ -2,13 +2,6 @@ const jwt = require('jsonwebtoken');
 const { JWT_SECRET } = require('../config/secrets');
 
 const requireJwt = (req, res, next) => {
-  // Bypass de autenticación para desarrollo
-  if (process.env.DISABLE_AUTH === 'true') {
-    console.warn("⚠️ AUTENTICACIÓN DESHABILITADA - Solo para desarrollo");
-    req.user = { id: 'dev-admin', role: 'ADMIN' };
-    return next();
-  }
-
   let token = null;
   const authHeader = req.headers.authorization;
   if (authHeader && authHeader.startsWith('Bearer ')) {

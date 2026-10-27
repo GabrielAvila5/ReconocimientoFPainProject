@@ -3,15 +3,126 @@ const router = express.Router();
 const requireJwt = require('../../middlewares/requireJwt');
 const prisma = require('../../utils/prisma');
 const { syncFaceCache } = require('../../utils/faceMath');
-const { getCompanyForDescriptors } = require('../../utils/authHelpers');
+const { getCompanyForDescriptors, getDeviceByToken, updateDeviceLastSeen } = require('../../utils/authHelpers');
 const { runWithTenantContext } = require('../../middlewares/tenantContext');
+
+// Tracker en memoria para rate limiting de descargas de descriptores (120 req/h)
+// y detección de anomalías/spikes (>30 req en 5 minutos)
+const descriptorDownloadsTracker = new Map(); // key -> timestamps[]
+const descriptorSpikeAlerts = new Map(); // key -> lastAlertTimestamp
+
+function checkDescriptorRateLimit(clientKey) {
+  const now = Date.now();
+  let records = descriptorDownloadsTracker.get(clientKey) || [];
+  // Purgar timestamps más viejos que 1 hora
+  records = records.filter(t => now - t < 3600000);
+  
+  if (records.length >= 120) {
+    return { allowed: false, reason: 'RATE_LIMIT_EXCEEDED' };
+  }
+
+  // Verificar spike: más de 30 descargas en 5 minutos
+  const fiveMinCount = records.filter(t => now - t < 300000).length;
+  let spikeAlert = false;
+  if (fiveMinCount >= 30) {
+    const lastAlert = descriptorSpikeAlerts.get(clientKey) || 0;
+    if (now - lastAlert > 300000) {
+      spikeAlert = true;
+      descriptorSpikeAlerts.set(clientKey, now);
+    }
+  }
+
+  records.push(now);
+  descriptorDownloadsTracker.set(clientKey, records);
+  return { allowed: true, spikeAlert };
+}
+
+/**
+ * Incrementa atómicamente Company.descriptorsVersion y emite evento WebSocket
+ * descriptors_invalidated exclusivamente a la sala de la empresa afectada.
+ *
+ * @param {string} companyId ID de la empresa
+ * @param {object} req Objeto request para acceder al socket engine
+ * @returns {Promise<number|null>} Nueva versión de descriptores
+ */
+async function bumpDescriptorsVersion(companyId, req) {
+  if (!companyId) return null;
+  try {
+    const updated = await runWithTenantContext({ companyId }, () =>
+      prisma.company.update({
+        where: { id: companyId },
+        data: { descriptorsVersion: { increment: 1 } },
+        select: { id: true, descriptorsVersion: true }
+      })
+    );
+
+    // Sincronizar cache facial en memoria del proceso
+    syncFaceCache().catch(() => {});
+
+    // Notificar invalidación a kioscos del tenant vía WebSocket
+    const io = req?.app?.get('io') || global.io;
+    if (io) {
+      io.to(`company_${companyId}`).emit('descriptors_invalidated', {
+        companyId,
+        version: updated.descriptorsVersion,
+        timestamp: new Date().toISOString()
+      });
+    }
+    return updated.descriptorsVersion;
+  } catch (err) {
+    console.error('Error al incrementar descriptorsVersion:', err);
+    return null;
+  }
+}
 
 // GET /api/v1/employees/descriptors
 router.get('/descriptors', async (req, res) => {
   try {
-    const companyId = req.headers['x-tenant-id'] || req.query.companyId || req.user?.companyId || 'default-company-pain';
-    
-    // 1. Consultar versión actual de la empresa
+    let companyId = null;
+    let device = req.device;
+    const deviceToken = req.headers['x-device-token'];
+
+    // Autenticación estricta: Se requiere x-device-token válido o sesión administrativa
+    if (deviceToken) {
+      device = await getDeviceByToken(deviceToken);
+      if (!device) {
+        return res.status(401).json({
+          error: 'DEVICE_UNAUTHORIZED',
+          message: 'Token de dispositivo no válido.'
+        });
+      }
+      if (!device.isActive) {
+        return res.status(403).json({
+          error: 'DEVICE_DEACTIVATED',
+          message: device.deactivatedReason || 'Dispositivo dado de baja.'
+        });
+      }
+      if (device.isBlocked) {
+        return res.status(403).json({
+          error: 'DEVICE_BLOCKED',
+          message: device.blockedReason || 'Dispositivo bloqueado temporalmente.'
+        });
+      }
+      companyId = device.companyId;
+      updateDeviceLastSeen(device.id);
+    } else if (req.user) {
+      if (req.user.role === 'SUPER_ADMIN') {
+        companyId = req.headers['x-tenant-id'] || req.query.companyId || 'default-company-pain';
+      } else {
+        companyId = req.user.companyId;
+      }
+    } else {
+      return res.status(401).json({
+        error: 'DEVICE_UNAUTHORIZED',
+        message: 'Se requiere cabecera x-device-token o sesión administrativa activa para descargar descriptores.'
+      });
+    }
+
+    if (!companyId) {
+      return res.status(400).json({ error: 'TENANT_REQUIRED', message: 'Contexto de empresa no identificado.' });
+    }
+
+    // 1. Consultar estado y versión actual de la empresa
     const company = await getCompanyForDescriptors(companyId);
 
     if (!company) {
@@ -22,10 +133,35 @@ router.get('/descriptors', async (req, res) => {
       return res.status(403).json({ error: 'COMPANY_SUSPENDED', message: 'Empresa suspendida' });
     }
 
+    // 2. Control de Rate Limiting y Detección de Spikes
+    const clientKey = device ? `dev_${device.id}` : `comp_${companyId}_${req.ip}`;
+    const rateCheck = checkDescriptorRateLimit(clientKey);
+    if (!rateCheck.allowed) {
+      return res.status(429).json({
+        error: 'TOO_MANY_REQUESTS',
+        message: 'Límite de descargas de descriptores excedido (máximo 120 por hora).'
+      });
+    }
+
+    if (rateCheck.spikeAlert) {
+      await runWithTenantContext({ companyId }, () =>
+        prisma.adminAuditLog.create({
+          data: {
+            companyId,
+            action: 'SECURITY_ALERT_DESCRIPTOR_SPIKE',
+            performedById: device?.id || req.user?.id || 'system',
+            performedByName: device?.name || req.user?.name || 'Kiosco',
+            targetName: 'Descriptors API',
+            targetEmail: 'system@security.alert'
+          }
+        })
+      ).catch(e => console.error('Error logging spike alert:', e));
+    }
+
     const currentVersion = company.descriptorsVersion || 1;
     const etag = `W/"desc-v${currentVersion}-${companyId}"`;
 
-    // 2. Validación de ETag / If-None-Match
+    // 3. Validación de ETag / If-None-Match (304 Not Modified)
     const clientEtag = req.headers['if-none-match'];
     if (clientEtag && clientEtag === etag) {
       res.setHeader('ETag', etag);
@@ -33,7 +169,7 @@ router.get('/descriptors', async (req, res) => {
       return res.status(304).end();
     }
 
-    // 3. Si no coincide el ETag, consultar descriptores de la empresa
+    // 4. Si no coincide el ETag, consultar descriptores de la empresa
     const employees = await runWithTenantContext({ companyId }, () => prisma.employee.findMany({
       where: {
         isActive: true,
@@ -178,9 +314,14 @@ router.post('/', async (req, res) => {
         identifier,
         email: email || null,
         position: position || null,
-        departmentId: parsedDeptId
+        departmentId: parsedDeptId,
+        ...(req.body.faceDescriptor ? { faceDescriptor: req.body.faceDescriptor } : {})
       }
     });
+
+    if (req.body.faceDescriptor) {
+      await bumpDescriptorsVersion(companyId, req);
+    }
     
     res.status(201).json(employee);
   } catch (error) {
@@ -284,6 +425,10 @@ router.put('/:id', async (req, res) => {
       departmentId: parsedDeptId
     };
 
+    if (req.body.faceDescriptor !== undefined) {
+      data.faceDescriptor = req.body.faceDescriptor;
+    }
+
     if (isActive !== undefined) {
       data.isActive = isActive;
     }
@@ -292,6 +437,10 @@ router.put('/:id', async (req, res) => {
       where: { id: req.params.id },
       data
     });
+
+    if (isActive !== undefined || req.body.faceDescriptor !== undefined) {
+      await bumpDescriptorsVersion(companyId || employee.companyId, req);
+    }
 
     res.json(employee);
   } catch (error) {
@@ -324,7 +473,7 @@ router.post('/:id/descriptor', async (req, res) => {
     }
     
     const enrolledAt = new Date();
-    await prisma.employee.update({
+    const updatedEmp = await prisma.employee.update({
       where: { id: req.params.id },
       data: {
         faceDescriptor: JSON.stringify(descriptor),
@@ -332,9 +481,7 @@ router.post('/:id/descriptor', async (req, res) => {
       }
     });
     
-    await syncFaceCache();
-    const { emitCacheRefresh } = require('../../app');
-    if (emitCacheRefresh) emitCacheRefresh();
+    await bumpDescriptorsVersion(req.user?.companyId || updatedEmp.companyId, req);
     
     res.json({ success: true, enrolledAt });
   } catch (error) {
@@ -348,7 +495,7 @@ router.post('/:id/descriptor', async (req, res) => {
 
 router.delete('/:id/descriptor', async (req, res) => {
   try {
-    await prisma.employee.update({
+    const updatedEmp = await prisma.employee.update({
       where: { id: req.params.id },
       data: {
         faceDescriptor: null,
@@ -356,9 +503,7 @@ router.delete('/:id/descriptor', async (req, res) => {
       }
     });
     
-    await syncFaceCache();
-    const { emitCacheRefresh } = require('../../app');
-    if (emitCacheRefresh) emitCacheRefresh();
+    await bumpDescriptorsVersion(req.user?.companyId || updatedEmp.companyId, req);
     
     res.json({ success: true });
   } catch (error) {
@@ -435,6 +580,8 @@ router.post('/register-face', async (req, res) => {
       }
     });
 
+    await bumpDescriptorsVersion(companyId, req);
+
     res.json({ message: 'Empleado registrado exitosamente', employee });
   } catch (error) {
     console.error(error);
@@ -495,6 +642,8 @@ router.delete('/:id', async (req, res) => {
       where: { id: req.params.id }
     });
     
+    await bumpDescriptorsVersion(employee.companyId, req);
+
     res.json({ success: true, message: 'Empleado eliminado exitosamente' });
   } catch (error) {
     console.error('Error eliminando empleado:', error);
