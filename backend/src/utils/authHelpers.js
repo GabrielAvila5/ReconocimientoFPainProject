@@ -268,22 +268,37 @@ async function getDeviceByToken(rawToken) {
   });
 }
 
+// Throttle en memoria para evitar contención de bloqueo de fila (row lock) en Device
+const deviceLastSeenThrottle = new Map();
+const DEVICE_LAST_SEEN_THROTTLE_MS = 60 * 1000; // 60 segundos
+
 /**
  * Actualiza atómicamente la marca de tiempo de última actividad (lastSeenAt) de un dispositivo.
+ * Aplica throttling en memoria de 60 segundos por dispositivo para evitar saturar el pool de conexiones.
  *
  * @param {string} deviceId ID del dispositivo
- * @returns {Promise<void>}
+ * @returns {void}
  */
-async function updateDeviceLastSeen(deviceId) {
+function updateDeviceLastSeen(deviceId) {
   if (!deviceId) return;
-  try {
-    await prismaAdmin.device.update({
-      where: { id: deviceId },
-      data: { lastSeenAt: new Date() }
-    });
-  } catch (err) {
-    // Silencioso para no degradar el flujo de la petición
+  const now = Date.now();
+  const lastRun = deviceLastSeenThrottle.get(deviceId) || 0;
+  if (now - lastRun < DEVICE_LAST_SEEN_THROTTLE_MS) {
+    return; // Omitir actualización repetitiva dentro de los 60s
   }
+  deviceLastSeenThrottle.set(deviceId, now);
+
+  // Disparo asíncrono no bloqueante
+  setImmediate(async () => {
+    try {
+      await prismaAdmin.device.update({
+        where: { id: deviceId },
+        data: { lastSeenAt: new Date() }
+      });
+    } catch (err) {
+      // Silencioso para no degradar el flujo de la petición
+    }
+  });
 }
 
 /**

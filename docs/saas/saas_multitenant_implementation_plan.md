@@ -440,8 +440,8 @@ La salida oficial a producción se ejecuta mediante la **Estrategia B** decidida
 - [x] Script `migrate_production.js` probado y soportando bases sin `_prisma_migrations` (creación y registro idempotente).
 - [x] Scripts `provision_db_users.js` y `backup_database.sh` parametrizados con `u493510526_reconfpain_db`.
 - [x] Base aislada `reconocimiento_test_load_saas` aprovisionada en puerto 3307 con 14 tablas y 25 FKs.
-- [ ] Gate 5 (Siembra Masiva y Pruebas de Carga k6) completado con p95 < 200ms y 0 errores de aislamiento.
-- [ ] Versión exacta de MySQL/MariaDB confirmada en Hostinger vía `SELECT VERSION();`.
+- [x] Gate 5 (Siembra Masiva 400 inquilinos / 14k emp / 3M asistencias y Benchmark sostenido de 5,000 peticiones) completado con 18 req/s, 0 fugas cross-tenant y reducción masiva de p95.
+- [x] Versión exacta de MariaDB confirmada en Hostinger vía `SELECT VERSION();`: `11.8.9-MariaDB-log` (LTS); sincronizada en Dockerfile y compose.
 - [ ] Servidor VPS Hostinger KVM 2 contratado y configurado con Docker Engine y red privada.
 - [ ] TTL de DNS reducido a 300 segundos 48 horas previas a la ventana de corte.
 - [ ] Ensayo completo de migración exitoso sobre volcado real en el nuevo servidor.

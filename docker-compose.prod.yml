@@ -2,7 +2,8 @@ version: '3.8'
 
 services:
   db:
-    image: mariadb:10.11
+    # Motor idéntico al verificado en Hostinger: MariaDB 11.8 LTS (11.8.9-MariaDB-log)
+    image: mariadb:11.8
     restart: always
     command: >
       mariadbd 
@@ -18,6 +19,12 @@ services:
     # SEGURIDAD CRÍTICA: Puerto 3306 NO expuesto al host público (solo accesible en la red interna)
     networks:
       - saas_internal_net
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   backend:
     build:
@@ -32,12 +39,14 @@ services:
       - JWT_SECRET=${JWT_SECRET}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY}
       - COOKIE_SECURE=true
-      - FRONTEND_URL=${FRONTEND_URL:-https://reconocimiento.tudominio.com}
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-https://reconocimiento.tudominio.com}
+      - KIOSK_GRACE_EXPIRATION_DATE=2026-11-05T23:59:59.000Z
     ports:
       # Vinculado exclusivamente a localhost para el Reverse Proxy Nginx / Certbot SSL
       - "127.0.0.1:4000:4000"
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     networks:
       - saas_internal_net
 
@@ -61,4 +70,3 @@ networks:
 volumes:
   db_prod_data:
     driver: local
-

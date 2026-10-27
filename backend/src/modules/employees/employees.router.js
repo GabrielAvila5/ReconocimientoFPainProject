@@ -11,6 +11,10 @@ const { runWithTenantContext } = require('../../middlewares/tenantContext');
 const descriptorDownloadsTracker = new Map(); // key -> timestamps[]
 const descriptorSpikeAlerts = new Map(); // key -> lastAlertTimestamp
 
+// Caché en RAM de payload de descriptores por [companyId, descriptorsVersion]
+// Evita consultas redundantes a BD y trabajo criptográfico repetido en el event loop
+const descriptorsPayloadCache = new Map(); // key: `${companyId}_v${version}` -> mapped[]
+
 function checkDescriptorRateLimit(clientKey) {
   const now = Date.now();
   let records = descriptorDownloadsTracker.get(clientKey) || [];
@@ -58,6 +62,13 @@ async function bumpDescriptorsVersion(companyId, req) {
 
     // Sincronizar cache facial en memoria del proceso
     syncFaceCache().catch(() => {});
+
+    // Invalidar caché en memoria del payload de descriptores para este inquilino
+    for (const key of descriptorsPayloadCache.keys()) {
+      if (key.startsWith(`${companyId}_`)) {
+        descriptorsPayloadCache.delete(key);
+      }
+    }
 
     // Notificar invalidación a kioscos del tenant vía WebSocket
     const io = req?.app?.get('io') || global.io;
@@ -169,29 +180,36 @@ router.get('/descriptors', async (req, res) => {
       return res.status(304).end();
     }
 
-    // 4. Si no coincide el ETag, consultar descriptores de la empresa
-    const employees = await runWithTenantContext({ companyId }, () => prisma.employee.findMany({
-      where: {
-        isActive: true,
-        faceDescriptor: { not: null }
-      },
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        department: true,
-        position: true,
-        faceDescriptor: true
-      }
-    }));
-    
-    const mapped = employees.map(emp => ({
-      id: emp.id,
-      name: `${emp.firstName} ${emp.lastName}`.trim(),
-      department: emp.department,
-      position: emp.position,
-      faceDescriptor: emp.faceDescriptor
-    }));
+    // 4. Si no coincide el ETag, verificar caché en RAM por [companyId, descriptorsVersion]
+    const cacheKey = `${companyId}_v${currentVersion}`;
+    let mapped = descriptorsPayloadCache.get(cacheKey);
+
+    if (!mapped) {
+      const employees = await runWithTenantContext({ companyId }, () => prisma.employee.findMany({
+        where: {
+          isActive: true,
+          faceDescriptor: { not: null }
+        },
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          department: true,
+          position: true,
+          faceDescriptor: true
+        }
+      }));
+      
+      mapped = employees.map(emp => ({
+        id: emp.id,
+        name: `${emp.firstName} ${emp.lastName}`.trim(),
+        department: emp.department,
+        position: emp.position,
+        faceDescriptor: emp.faceDescriptor
+      }));
+
+      descriptorsPayloadCache.set(cacheKey, mapped);
+    }
     
     res.setHeader('ETag', etag);
     res.setHeader('X-Descriptors-Version', currentVersion);

@@ -21,6 +21,7 @@ const processAutoCheckoutForCompany = async (company, employeeId = null) => {
       const whereClause = { salida: null, companyId: company.id };
       if (employeeId) {
         whereClause.employeeId = employeeId;
+        whereClause.date = { lt: currentStartOfDay };
       }
 
       const openRecords = await prisma.attendanceRecord.findMany({
@@ -108,8 +109,9 @@ const processAutoCheckoutForCompany = async (company, employeeId = null) => {
  * Función principal para procesar auto-cierre: itera todas las empresas activas
  */
 const processAutoCheckout = async (employeeId = null, targetCompanyId = null) => {
-  const scopeMsg = employeeId ? `para empleado ${employeeId}` : 'global';
-  console.log(`[CRON] Iniciando auto-cierre de asistencia (${scopeMsg})...`);
+  if (!employeeId) {
+    console.log('[CRON] Iniciando auto-cierre de asistencia (global)...');
+  }
 
   try {
     if (targetCompanyId) {

@@ -410,11 +410,36 @@ router.get('/attendance-consolidated', async (req, res) => {
     if (employeeId) attWhere.employeeId = employeeId;
     if (department) attWhere.employee = { department: { name: department } };
 
+    const parsedLimit = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 200);
+    const parsedPage = Math.max(parseInt(page, 10) || 1, 1);
+    const maxDbFetch = Math.min(parsedPage * parsedLimit + 200, 2000);
+
     const attendances = await prisma.attendanceRecord.findMany({
       where: attWhere,
-      include: {
-        employee: { select: { id: true, firstName: true, lastName: true, department: { select: { name: true } } } },
-        shift: true
+      take: maxDbFetch,
+      orderBy: { date: 'desc' },
+      select: {
+        id: true,
+        companyId: true,
+        employeeId: true,
+        date: true,
+        entrada: true,
+        salida: true,
+        recesoInicio: true,
+        recesoFin: true,
+        isLate: true,
+        earlyExit: true,
+        shift: {
+          select: { id: true, startTime: true, endTime: true, tolerance: true, breakStartTime: true, breakEndTime: true }
+        },
+        employee: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            department: { select: { name: true } }
+          }
+        }
       }
     });
 
@@ -571,8 +596,8 @@ router.get('/attendance-consolidated', async (req, res) => {
 
     finalData.sort((a, b) => b._timestamp - a._timestamp);
     
-    const pageNum = parseInt(page, 10);
-    const limitNum = parseInt(limit, 10);
+    const pageNum = parsedPage;
+    const limitNum = parsedLimit;
     const startIndex = (pageNum - 1) * limitNum;
     const paginatedData = finalData.slice(startIndex, startIndex + limitNum);
 
@@ -718,8 +743,8 @@ router.get('/breaks-consolidated', async (req, res) => {
 
     finalData.sort((a, b) => b._timestamp - a._timestamp);
     
-    const pageNum = parseInt(page, 10);
-    const limitNum = parseInt(limit, 10);
+    const pageNum = parsedPage;
+    const limitNum = parsedLimit;
     const startIndex = (pageNum - 1) * limitNum;
     const paginatedData = finalData.slice(startIndex, startIndex + limitNum);
 
