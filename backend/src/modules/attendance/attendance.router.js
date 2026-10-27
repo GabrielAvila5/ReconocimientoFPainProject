@@ -100,7 +100,7 @@ router.get('/context/:employeeId', requireApiKey, async (req, res) => {
       if (!targetEmp) return res.status(404).json({ error: 'Empleado no encontrado' });
 
       // Self-Healing: cerrar automáticamente registros previos olvidados del empleado
-      await processAutoCheckout(employeeId);
+      await processAutoCheckout(employeeId, companyId);
 
       const settings = await prisma.systemSettings.findFirst();
       const tz = settings?.timezone || DEFAULT_TZ;
@@ -227,7 +227,7 @@ router.post('/register', requireApiKey, async (req, res) => {
 
       // Self-Healing
       if (action === 'entrada') {
-        await processAutoCheckout(employeeId);
+        await processAutoCheckout(employeeId, companyId);
       }
 
       const startOfDay = getStartOfDay(now, tz);

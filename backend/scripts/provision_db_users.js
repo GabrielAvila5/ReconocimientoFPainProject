@@ -44,6 +44,7 @@ FLUSH PRIVILEGES;
   } else if (type === 'app') {
     const appPassword = process.env.SAAS_APP_USER_PASSWORD;
     const migPassword = process.env.SAAS_MIGRATION_USER_PASSWORD;
+    const dbName = process.env.DB_NAME || 'u493510526_reconfpain_db';
 
     if (!appPassword || appPassword.trim().length < 16) {
       console.error('❌ ERROR: Se requiere SAAS_APP_USER_PASSWORD (mínimo 16 caracteres para producción).');
@@ -52,12 +53,13 @@ FLUSH PRIVILEGES;
 
     const sqlScript = `
 -- 1. Usuario de aplicación de producción (Solo DML: SELECT, INSERT, UPDATE, DELETE)
+-- Base de datos objetivo en Hostinger: ${dbName}
 CREATE USER IF NOT EXISTS 'saas_app_user'@'localhost' IDENTIFIED BY '${appPassword}';
-GRANT SELECT, INSERT, UPDATE, DELETE ON \`ReconocimientoFacialProd\`.* TO 'saas_app_user'@'localhost';
+GRANT SELECT, INSERT, UPDATE, DELETE ON \`${dbName}\`.* TO 'saas_app_user'@'localhost';
 
 -- 2. Usuario exclusivo de migraciones (DDL: CREATE, ALTER, DROP, INDEX, REFERENCES)
 CREATE USER IF NOT EXISTS 'saas_migrator'@'localhost' IDENTIFIED BY '${migPassword || '********'}';
-GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, INDEX, ALTER, REFERENCES ON \`ReconocimientoFacialProd\`.* TO 'saas_migrator'@'localhost';
+GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, INDEX, ALTER, REFERENCES ON \`${dbName}\`.* TO 'saas_migrator'@'localhost';
 
 FLUSH PRIVILEGES;
 `;

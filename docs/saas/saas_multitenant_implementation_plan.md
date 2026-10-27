@@ -1,14 +1,65 @@
-# Plan Maestro de Implementación SaaS Multi-Tenant (v3.6)
+# Plan Maestro de Implementación SaaS Multi-Tenant (v3.7)
 
 > [!IMPORTANT]
-> **Estado Actual:** Gate 1, Gate 2, Gate 3A, Gate 3B (Lotes 1 y 2), Gate 3C y Gate 4 finalizados en código y verificados al 100% mediante suites de pruebas automatizadas. En Gate 4 se implementó el rate limiting compuesto en login (IP + email normalizado), cookies con `HttpOnly` y `SameSite=Strict`, protección CSRF para mutaciones por cookie con exención obligatoria segura para kioscos (`x-device-token`) y llamadas Bearer, CORS estricto con lista blanca (`CORS_ALLOWED_ORIGINS`), eliminación física definitiva de `photoRetentionDays` con paridad exacta demostrada vía `npx prisma migrate diff --exit-code` (0 diferencias, código 0), scripts operativos de respaldo GPG (`backup_database.sh`), rotación atómica de `ENCRYPTION_KEY` (`rotate_encryption_key.js`), reconciliación ARCO post-restauración (`post_restore_reconcile.js`), saneamiento total de credenciales en `HEAD` (0 ocurrencias de contraseñas de prueba), pipeline CI (`ci.yml`), suite `test_gate4_security_and_ops.test.js` en verde (19/19) y suite maestra determinista confirmando Delta = 0 en los 14 modelos físicos. Preparado para iniciar Gate 5 (Pruebas de Carga k6).  
+> **Estado Actual:** Gate 1, Gate 2, Gate 3A, Gate 3B (Lotes 1 y 2), Gate 3C y Gate 4 formalmente aprobados y verificados al 100% en código local. En Gate 4 se implementó el rate limiting compuesto en login (`IP + email` normalizado), cookies seguras con `HttpOnly` y `SameSite=Strict`, protección CSRF para mutaciones por cookie con exención obligatoria segura para kioscos (`x-device-token`) y llamadas Bearer, CORS estricto con lista blanca (`CORS_ALLOWED_ORIGINS`), eliminación física definitiva de `photoRetentionDays` con paridad exacta demostrada vía `npx prisma migrate diff --exit-code` (0 diferencias, código 0), scripts operativos de respaldo GPG (`backup_database.sh`), rotación atómica de `ENCRYPTION_KEY` (`rotate_encryption_key.js`), reconciliación ARCO post-restauración (`post_restore_reconcile.js`), saneamiento total de credenciales en `HEAD` (0 ocurrencias de contraseñas de prueba), pipeline CI (`ci.yml`), suite `test_gate4_security_and_ops.test.js` en verde (19/19) y suite maestra determinista confirmando Delta = 0 en los 14 modelos físicos. Montaje de rutas de Super Admin alineado bajo `/api/v1/superadmin/companies` con auditoría en `AdminAuditLog`. Base aislada `reconocimiento_test_load_saas` aprovisionada para la ejecución del Gate 5.  
 > **Rama Oficial:** `feature/saas-multitenancy` (la rama `main` permanece intacta; sin push a repositorio remoto sin autorización expresa de Gabriel).  
 > **Política de Aislamiento:** Instancia única y base de datos compartida con aislamiento estricto por `companyId`, claves compuestas InnoDB con `ON DELETE RESTRICT` y respuesta HTTP 404 indistinguible ante cualquier intento de acceso cross-tenant.  
-> **Topología de Producción Confirmada:** Origen confirmado en plan **Hostinger "Unlimited" (Web Hosting compartido con Node.js Passenger)** sobre base `ReconocimientoFacialProd` (se mantendrá intacto como respaldo de rollback instantáneo). El destino de salida oficial es un nuevo servidor **VPS Hostinger KVM 2** donde se desplegará directamente con Docker, se restaurará el volcado real de producción y se ejecutarán las pruebas de carga masivas y la migración final (Estrategia B). Pruebas locales y de CI aisladas en `reconocimiento_test_%` en puerto 3307 con `saas_test_user`.
+> **Topología de Producción Confirmada por Gabriel:** Origen en plan **Hostinger "Unlimited" (Web Hosting compartido con Node.js Passenger)** sobre base real `u493510526_reconfpain_db` (13 tablas originales, 365 filas, InnoDB, sin tabla `_prisma_migrations`, que se mantendrá intacto como respaldo de rollback instantáneo). El destino de salida oficial es un nuevo servidor **VPS Hostinger KVM 2** donde se desplegará directamente con Docker, se restaurará el volcado real de producción y se ejecutarán las pruebas de carga masivas y la migración final (Estrategia B). Pruebas locales y de CI aisladas en `reconocimiento_test_%` en puerto 3307 con `saas_test_user`.
 
 ---
 
 ## 1. Arquitectura
+
+### 1.1. Descripción Escrita por Capas del Sistema
+
+La arquitectura SaaS de Reconocimiento Facial PAIN implementa un modelo de base de datos compartida con aislamiento lógico y forzamiento físico a nivel de motor relacional (InnoDB). La solución está desacoplada en cuatro capas independientes:
+
+1. **Capa 1: Perímetro, WAF y Terminación TLS (Edge Layer)**
+   - **Terminación TLS 1.3:** Gestionada en proxy inverso (Cloudflare / Nginx) con cifrado robusto y reenrutamiento seguro de encabezados de red (`trust proxy: 1`).
+   - **Control de Origen (CORS):** Política restrictiva que valida la cabecera `Origin` contra la lista blanca configurada en `CORS_ALLOWED_ORIGINS`. Las peticiones con orígenes no autorizados son rechazadas inmediatamente con HTTP 403 (`CORS_NOT_ALLOWED`) sin alcanzar los controladores de negocio.
+   - **Protección Perimetral y Mitigación de Fuerza Bruta:** Rate limiter compuesto en el endpoint `/api/v1/auth/login` que evalúa la tupla `IP + req.body.email` normalizado. Permite un máximo de 5 intentos fallidos en una ventana de 15 minutos; al 6to intento, bloquea con HTTP 429 (`TOO_MANY_LOGIN_ATTEMPTS`) aislando el correo atacado sin afectar a otros usuarios desde la misma IP.
+
+2. **Capa 2: Middlewares de Express, Seguridad y Contexto de Inquilino**
+   - **Protección CSRF (`csrfProtection.js`):** Implementa el patrón Double Submit Cookie. Intercepta todas las peticiones con verbos de mutación (`POST`, `PUT`, `PATCH`, `DELETE`) originadas con credenciales de cookie de sesión (`jwt`), exigiendo que la cabecera `x-csrf-token` coincida con el valor de la cookie criptográfica `XSRF-TOKEN`. Se definen exenciones estrictas y seguras que no requieren validación CSRF: kioscos físicos identificados por `x-device-token`, clientes que envían `Authorization: Bearer`, y rutas públicas de inicio de sesión (`/api/v1/auth/login`) y emparejamiento (`/api/v1/devices/auth-requests`).
+   - **Gestión de Contexto de Inquilino (`tenantContext.js` vía `AsyncLocalStorage`):** Extrae la identidad del actor y la almacena en el almacén asíncrono del hilo de Node.js (`AsyncLocalStorage`).
+     * *Administradores de Empresa:* El `companyId` se fija irrevocablemente desde el token JWT emitido. Se ignoran activamente las cabeceras `x-tenant-id` enviadas por estos usuarios para prevenir ataques de suplantación (*tenant spoofing*).
+     * *Super Administrador:* Opera en modo global bajo la ruta canónica `/api/v1/superadmin/*` (y alias `/api/v1/companies`). Para operar sobre rutas funcionales de empresa, se le exige explícitamente enviar `x-tenant-id`; de lo contrario, la petición se rechaza con HTTP 400 (`TENANT_HEADER_REQUIRED`). Toda mutación ejecutada por un Super Admin impersonando una empresa se audita automáticamente en `AdminAuditLog`.
+     * *Kioscos Físicos:* Se valida la cabecera `x-device-token` calculando su hash SHA-256 en base de datos. Si el dispositivo no existe o está revocado, se emite HTTP 401 (`DEVICE_UNAUTHORIZED`); si está desactivado o bloqueado, se emite HTTP 403 sin revelar información interna de otros inquilinos. En cada petición válida, se actualiza de forma asíncrona la fecha de última conexión (`lastSeenAt`).
+     * *Empresas Suspendidas:* Si `Company.isActive === false`, cualquier petición de usuarios o kioscos de dicha empresa es bloqueada de inmediato con HTTP 403 (`COMPANY_SUSPENDED`).
+
+3. **Capa 3: Aplicación, Extensión de Prisma ORM, Caché en Memoria y WebSockets**
+   - **Extensión Multi-Tenant de Prisma Client (`prisma.js`):** Utiliza `$extends` para interceptar 14 métodos de Prisma (`findFirst`, `findFirstOrThrow`, `findMany`, `count`, `aggregate`, `groupBy`, `create`, `createMany`, `createManyAndReturn`, `update`, `updateMany`, `upsert`, `delete`, `deleteMany`). Inyecta automáticamente `{ companyId }` en los filtros `where` y en la carga `data`. Para los modelos con clave única compuesta `@@unique([id, companyId])`, reescribe las consultas `where: { id }` para transformarlas en `where: { id_companyId: { id, companyId } }`. En modelos con `companyId` nullable o claves simples, rechaza de forma determinista cualquier intento de leer, mutar o eliminar registros sin `companyId`.
+   - **Sanitización de Escrituras Anidadas (*Nested Writes*):** Analiza recursivamente los bloques `create`, `update`, `upsert`, `connect` y `connectOrCreate`. Inyecta el `companyId` del contexto en todas las ramas anidadas y rechaza con `CROSS_TENANT_WRITE_DETECTED` cualquier intento de asociar recursos pertenecientes a otra empresa.
+   - **Bloqueo de Consultas Raw:** Las llamadas a `$queryRaw`, `$queryRawUnsafe`, `$executeRaw` y `$executeRawUnsafe` están terminantemente bloqueadas en la instancia de `prisma.js`, obligando a los módulos a utilizar exclusivamente el motor ORM validado.
+   - **Instancia Administrativa Segregada (`prismaAdmin.js`):** Instancia sin middleware de inquilino restringida exclusivamente a scripts de migración DDL, utilitarios de mantenimiento y procesos de reconciliación ARCO. Su importación en cualquier archivo dentro de `backend/src/modules/` está estrictamente prohibida y es auditada por la suite `test_no_restricted_imports.test.js` (Regla A2).
+   - **Helpers de Ámbito Estrecho (`authHelpers.js`):** Funciones de acceso especializado para operaciones que transcurren sin contexto de inquilino previo: autenticación de administradores por correo (`findAdminByEmailForLogin`), búsqueda de dispositivos por `tokenHash` SHA-256 (`getDeviceByToken`), actualización de `lastSeenAt` y ciclo de vida de emparejamiento físico en dos pasos.
+   - **Caché Facial en RAM en Proceso Único (`faceMath.js`):** Almacén `Map<companyId, Float32Array[]>` que mantiene los vectores biométricos en memoria para comparación euclidiana inmediata en kioscos. Implementa recarga selectiva por empresa (`reloadCompanyFaceCache`) invocada ante altas, bajas o modificaciones de empleados, evitando invalidaciones globales.
+   - **Motor de WebSockets Aislado (`Socket.io`):** Cada conexión autenticada se une exclusivamente a la sala `company_${companyId}` y `dashboard_${companyId}`. Las emisiones globales (`io.emit`) están prohibidas. Ante la suspensión de una empresa (`isActive: false`), el método `disconnectCompanySockets` notifica a los clientes de dicha sala con el evento `forced_disconnect` y desconecta inmediatamente todos los sockets asociados.
+   - **Planificador de Tareas Idempotente (`attendanceCron.js`):** Motor de cálculo nocturno de ausencias que evalúa cada empresa en función de su huso horario configurado (`Company.timezone`) y registra de manera atómica la última fecha procesada en `Company.lastAbsenceDateRun`, garantizando idempotencia total ante reinicios.
+
+4. **Capa 4: Almacenamiento MariaDB 10.11 y Libro Mayor Externo ARCO**
+   - **Base de Datos MariaDB 10.11:** Aloja las **14 tablas físicas** del sistema (`Company`, `Department`, `Employee`, `AttendanceRecord`, `Shift`, `DepartmentShift`, `EmployeeShift`, `AdminUser`, `AdminAuditLog`, `Notification`, `EventRequest`, `SystemSettings`, `Device`, `DeviceAuthRequest`).
+   - **Integridad Compuesta en Motor Relacional:** 13 tablas contienen la columna `companyId`. Se aplican **25 claves foráneas compuestas InnoDB con `ON DELETE RESTRICT`** hacia la tabla `Company`, garantizando que ninguna empresa pueda ser eliminada físicamente mientras existan registros dependientes (las empresas se suspenden lógicamente). Las relaciones intra-inquilino (empleado-asistencia, departamento-empleado, turno-asistencia) están atadas por tuplas compuestas `(id, companyId)`.
+   - **Protección de Datos Biométricos:** Los descriptores faciales (vectores de 128 flotantes) se almacenan cifrados con **AES-256-GCM** bajo el formato `enc_gcm:iv:tag:ciphertext`. Las fotografías originales nunca se almacenan en el sistema (eliminación física de `photoRetentionDays`).
+   - **Libro Mayor Externo ARCO (`RevokedCompanyPurgeLedger.jsonl`):** Registro inmutable en formato JSON Lines almacenado fuera del directorio de base de datos y de sus respaldos. Registra metadatos de cancelaciones y purgas definitivas por derechos ARCO (nombre de empresa, fecha ISO, motivo, hash de confirmación). El script `post_restore_reconcile.js` lo utiliza para re-aplicar purgas de forma atómica tras restaurar respaldos antiguos de la base de datos.
+
+---
+
+### 1.2. Tabla de Flujo de Peticiones por Tipo de Actor
+
+| Tipo de Petición | Actor / Origen | Cabeceras Requeridas | Middleware CSRF | Middleware ALS (`tenantContext`) | Capa de Acceso a Datos | Comportamiento Ante Intento Cross-Tenant |
+| :--- | :--- | :--- | :---: | :---: | :--- | :--- |
+| **Checada Biométrica** | Kiosco Físico | `x-device-token` | Exento (Token de Kiosco) | Resuelve `tokenHash` SHA-256; inyecta `companyId` del kiosco | Extensión `prisma.js` (AttendanceRecord) | 404 No Encontrado indistinguible si el empleado es de otra empresa. |
+| **Descarga de Descriptores** | Kiosco Físico | `x-device-token`, `If-None-Match` (opcional) | Exento (Token de Kiosco) | Inyecta `companyId` del kiosco; valida estado activo | `faceMath` Cache RAM / `prisma.js` filtrado por `companyId` | Retorna 304 Not Modified si `descriptorsVersion` no cambió; sólo descriptores de su empresa. |
+| **Login Administrativo** | Admin de Empresa | Ninguna previa (Credenciales) | Exento (Ruta Pública) | Contexto público; rate limiter `IP + email` activo | `authHelpers.findAdminByEmailForLogin` | 401 Credenciales Inválidas; 429 al 6to intento fallido por tupla IP+Email. |
+| **Consulta de Dashboard** | Admin de Empresa | Cookie `jwt` o `Bearer <token>` | Verificado en mutaciones; exento en GET | Fija `companyId` desde JWT; rechaza `x-tenant-id` ajeno | Extensión `prisma.js` con filtro automático `{ companyId }` | 404 No Encontrado si se solicita ID de otra empresa; listados sólo ven registros propios. |
+| **Mutación Administrativa** | Admin de Empresa | Cookie `jwt`, `x-csrf-token` | **Obligatorio** (Double Submit Cookie) | Fija `companyId` desde JWT; rechaza `x-tenant-id` ajeno | Extensión `prisma.js` + Sanitización de Nested Writes | 404 No Encontrado; error 403 `CROSS_TENANT_WRITE_DETECTED` en escrituras anidadas. |
+| **Operación Super Admin** | Super Administrador | Cookie `jwt` o Bearer, `x-tenant-id` | Obligatorio si usa cookie de sesión | Si es ruta `/superadmin/*`, contexto global; si es ruta operativa, adopta `x-tenant-id` | `prisma.js` operando sobre inquilino especificado | 400 `TENANT_HEADER_REQUIRED` si no envía cabecera en ruta de empresa; audita en `AdminAuditLog`. |
+| **Suspensión de Empresa** | Super Administrador | Cookie `jwt` o Bearer | Obligatorio si usa cookie de sesión | Contexto global (`/api/v1/superadmin/companies`) | `prisma.company.update` + `disconnectCompanySockets` | Actualiza `isActive: false`, desconecta sockets de sala en tiempo real y registra en `AdminAuditLog`. |
+
+---
+
+### 1.3. Diagrama Visual de Arquitectura
 
 ```mermaid
 flowchart TB
@@ -75,13 +126,13 @@ Total confirmado en BD: **14 tablas físicas** y **13 modelos con columna `compa
 | `csrfProtection.js` | `backend/src/middlewares/csrfProtection.js` | Crear | Protección CSRF (Double Submit Cookie) para mutaciones por cookie, con exención segura para kioscos (`x-device-token`) y llamadas Bearer. |
 | `requireApiKey.js` | `backend/src/middlewares/requireApiKey.js` | Modificar | Ventana de gracia inmutable fija (`2026-11-05T23:59:59.000Z`), cabecera `X-Legacy-Kiosk-Warning` y rechazo HTTP 401 posterior. |
 | `requireJwt.js` | `backend/src/middlewares/requireJwt.js` | Modificar | Supresión definitiva del bypass `DISABLE_AUTH`, validación estricta de JWT y rechazo 401 inmediato si el token es inválido. |
-| `app.js` | `backend/src/app.js` | Modificar | Socket.io aislado por salas de empresa `company_${companyId}`, método `disconnectCompanySockets`, CORS estricto con lista blanca y `trust proxy: 1`. |
+| `app.js` | `backend/src/app.js` | Modificar | Rutas Super Admin montadas en `/api/v1/superadmin/companies` (con alias `/api/v1/companies`), Socket.io por salas de empresa `company_${companyId}`, `disconnectCompanySockets`, CORS con lista blanca y `trust proxy: 1`. |
 | `faceMath.js` | `backend/src/utils/faceMath.js` | Modificar | Caché en RAM de descriptores faciales con recarga selectiva por empresa (`reloadCompanyFaceCache`) en proceso único. |
 | `attendanceCron.js` | `backend/src/jobs/attendanceCron.js` | Modificar | Idempotencia en cálculo de faltas por zona horaria de empresa y tracking con `Company.lastAbsenceDateRun`. |
 | `auth.middleware.js` | `backend/src/modules/auth/auth.middleware.js` | Modificar | Supresión definitiva de bypasses, validación estricta de JWT y estado activo de empresa. |
 | `auth.controller.js` | `backend/src/modules/auth/auth.controller.js` | Modificar | Login acotado vía `findAdminByEmailForLogin`, cookies `SameSite=Strict`, `HttpOnly` y emisión de cookie `XSRF-TOKEN`. |
 | `auth.router.js` | `backend/src/modules/auth/auth.router.js` | Modificar | Rate limiting compuesto por IP + email normalizado en `/login` (bloqueo al 6to intento fallido sin bloquear otros correos). |
-| `companies.router.js` | `backend/src/modules/companies/companies.router.js` | Crear | Gestión de empresas exclusiva para Super Admin (`GET /`, `GET /:id`, `PATCH /:id/status` con desconexión Socket.io en tiempo real). |
+| `companies.router.js` | `backend/src/modules/companies/companies.router.js` | Crear | Gestión de empresas exclusiva para Super Admin (`GET /`, `GET /:id`, `PATCH /:id/status` con desconexión Socket.io en tiempo real y auditoría en `AdminAuditLog`). |
 | `employees.router.js` | `backend/src/modules/employees/employees.router.js` | Modificar | Aislamiento estricto de endpoints, validación de `maxEmployees` (403), 404 en recurso ajeno, ETag en descriptores, rate limit (120 req/h), alerta spike y auto-incremento de `descriptorsVersion`. |
 | `attendance.router.js` | `backend/src/modules/attendance/attendance.router.js` | Modificar | Registro biométrico con validación de dispositivo, rechazo 404 indistinguible en checadas cross-tenant y auto-cierre idempotente. |
 | `devices.controller.js` | `backend/src/modules/devices/devices.controller.js` | Modificar | Emparejamiento en 2 pasos con PIN físico de 8 caracteres, `tokenHash`, campo `hasPermanentToken`, alerta >30 días inactividad y salas Socket.io acotadas. |
@@ -103,210 +154,260 @@ Total confirmado en BD: **14 tablas físicas** y **13 modelos con columna `compa
 | `DevicesPage.jsx` | `frontend/src/pages/dashboard/DevicesPage.jsx` | Modificar | Modal en 2 pasos con PIN de 8 caracteres, badge visual de token permanente vs gracia (`hasPermanentToken`), banner de inactividad >30 días. |
 | `SettingsPage.jsx` | `frontend/src/pages/dashboard/SettingsPage.jsx` | Modificar | Eliminación completa de inputs, estado y referencias a `photoRetentionDays`. |
 | `AdminManager.jsx` | `frontend/src/components/AdminManager.jsx` | Modificar | Casilla opt-in `syncEmployee` ("Crear automáticamente registro de empleado", desmarcada por defecto, oculta para Super Admin). |
-| `check_orphan_employees.js` | `backend/scripts/check_orphan_employees.js` | Eliminar | Script obsoleto retirado del repositorio. |
-| `migrate_production.js` | `backend/scripts/migrate_production.js` | Crear | Script idempotente de migración con paridad comprobada sobre `ReconocimientoFacialProd`, verificación de 25 FKs compuestas y retiro de `photoRetentionDays`. |
-| `provision_db_users.js` | `backend/scripts/provision_db_users.js` | Crear | Generación de sentencias SQL para aprovisionar usuarios con mínimo privilegio (`saas_app_user` DML y `saas_migrator` DDL). |
-| `verify_gate1_proofs.js` | `backend/scripts/verify_gate1_proofs.js` | Crear | Script de verificación de pruebas deterministas de esquema (sin contraseñas hardcodeadas). |
-| `backup_database.sh` | `backend/scripts/backup_database.sh` | Crear | Respaldo diario encriptado con GPG, compresión gzip y retención rodante de 30 días fuera del servidor. |
+| `migrate_production.js` | `backend/scripts/migrate_production.js` | Modificar | Script idempotente de migración con paridad comprobada sobre `u493510526_reconfpain_db`, verificación de 25 FKs, registro en `_prisma_migrations` y retiro de `photoRetentionDays`. |
+| `provision_db_users.js` | `backend/scripts/provision_db_users.js` | Modificar | Generación de sentencias SQL parametrizadas con `DB_NAME` para aprovisionar usuarios con mínimo privilegio (`saas_app_user` DML y `saas_migrator` DDL). |
+| `backup_database.sh` | `backend/scripts/backup_database.sh` | Modificar | Respaldo diario encriptado con GPG, compresión gzip y retención de 30 días, parametrizado con `u493510526_reconfpain_db`. |
 | `rotate_encryption_key.js` | `backend/scripts/rotate_encryption_key.js` | Crear | Rotación atómica de `ENCRYPTION_KEY` re-encriptando descriptores faciales en bloques transaccionales sin downtime. |
 | `post_restore_reconcile.js` | `backend/scripts/post_restore_reconcile.js` | Crear | Conciliación manual de purgas ARCO contra libro mayor externo inmutable con modos `--dry-run` y `--confirm`. |
-| `docker-compose.yml` | `docker-compose.yml` | Modificar | Orquestación local/testing en puerto 3307 sin contraseñas hardcodeadas ni bypasses. |
-| `docker-compose.prod.yml` | `docker-compose.prod.yml` | Crear | Orquestación de producción en el nuevo VPS Hostinger KVM 2 (Estrategia B - Gate 6). |
+| `seed_massive_load.js` | `backend/scripts/seed_massive_load.js` | Crear | Generador sintético determinista de 400 inquilinos, 14,000 empleados con vectores AES-256-GCM y 3,000,000 asistencias. |
+| `run_massive_load_benchmark.js` | `backend/tests/load/run_massive_load_benchmark.js` | Crear | Runner de carga concurrente multi-inquilino en Node.js con auditoría en caliente de 0 fugas cross-tenant. |
+| `load_test_kiosks.js` | `tests/k6/load_test_kiosks.js` | Crear | Script k6 para simulación de alta concurrencia de kioscos en el VPS KVM 2. |
+| `load_test_admin.js` | `tests/k6/load_test_admin.js` | Crear | Script k6 para simulación de dashboards administrativos concurrentes en el VPS KVM 2. |
 | `ci.yml` | `.github/workflows/ci.yml` | Crear | Pipeline automatizado de linting, imports check (Regla A2), matriz de Prisma (910) y compilación de frontend. |
-| `.env.example` | `backend/.env.example` | Modificar | Plantilla de configuración documentada sin credenciales reales ni fallbacks inseguros. |
-| `test_admin_employee_sync_option_a.test.js` | `backend/tests/integration/test_admin_employee_sync_option_a.test.js` | Crear | 19 pruebas de integración de la Opción A de sincronización Admin-Empleado y límites de plan. |
-| `test_attendance_isolation.test.js` | `backend/tests/integration/test_attendance_isolation.test.js` | Crear | Pruebas de aislamiento multi-tenant en registro y consulta de asistencias. |
-| `test_cron_face_cache.test.js` | `backend/tests/integration/test_cron_face_cache.test.js` | Crear | 11 pruebas de idempotencia del cron de ausencias y recarga selectiva de caché facial por empresa. |
-| `test_device_token_auth.test.js` | `backend/tests/integration/test_device_token_auth.test.js` | Crear | 15 pruebas de autenticación con `tokenHash` SHA-256 de dispositivos y rechazo de tokens inválidos. |
-| `test_devices_isolation.test.js` | `backend/tests/integration/test_devices_isolation.test.js` | Crear | Pruebas de aislamiento multi-tenant en gestión de kioscos y dispositivos. |
-| `test_employees_isolation.test.js` | `backend/tests/integration/test_employees_isolation.test.js` | Crear | Pruebas de aislamiento multi-tenant en CRUD de empleados y biometría. |
-| `test_gate3c_kiosks_and_sockets.test.js` | `backend/tests/integration/test_gate3c_kiosks_and_sockets.test.js` | Crear | 23 pruebas de integración del Gate 3C: retiro de `DISABLE_AUTH`, gracia de API key, `GET /descriptors`, salas Socket.io y desconexión en suspensión. |
-| `test_gate4_security_and_ops.test.js` | `backend/tests/integration/test_gate4_security_and_ops.test.js` | Crear | 19 pruebas de integración del Gate 4: rate limit compuesto IP+email, cookies estrictas, protección CSRF, CORS lista blanca, pentest spoofing, rotación criptográfica y reconciliación ARCO. |
-| `test_lote2_isolation.test.js` | `backend/tests/integration/test_lote2_isolation.test.js` | Crear | 49 pruebas de aislamiento cross-tenant para departamentos, turnos, notificaciones, eventos, admins, reportes y settings. |
-| `test_nested_writes_real_db.test.js` | `backend/tests/integration/test_nested_writes_real_db.test.js` | Crear | Verificación de sanitización estricta de escrituras anidadas contra base de datos MariaDB real. |
-| `test_pairing_cross_tenant_isolation.test.js` | `backend/tests/integration/test_pairing_cross_tenant_isolation.test.js` | Crear | Pruebas de seguridad y aislamiento en el emparejamiento físico en 2 pasos de kioscos. |
-| `test_routers_http_real.js` | `backend/tests/integration/test_routers_http_real.js` | Crear | Verificación HTTP integral de endpoints sobre servidor Express real. |
-| `test_no_restricted_imports.test.js` | `backend/tests/unit/test_no_restricted_imports.test.js` | Crear | Escáner AST estricto de la Regla A2 (0 importaciones de `prismaAdmin` en 35 archivos escaneados). |
-| `test_prisma_comprehensive_matrix.test.js` | `backend/tests/unit/test_prisma_comprehensive_matrix.test.js` | Crear | Matriz exhaustiva de 910 aserciones sobre 14 métodos de Prisma Client y 14 modelos. |
-| `test_prisma_tenant_extension.test.js` | `backend/tests/unit/test_prisma_tenant_extension.test.js` | Crear | Pruebas unitarias de la extensión `$extends` de Prisma (sin credenciales hardcodeadas). |
-| `scan_git_history_secrets.js` | `backend/tests/verification/scan_git_history_secrets.js` | Crear | Script de escaneo de secretos y credenciales en todo el historial de Git. |
-| `test_item10_gate2.js` | `backend/tests/verification/test_item10_gate2.js` | Crear | Verificaciones de seguridad y aislamiento del Gate 2. |
-| `test_item1_faithful_clone.js` | `backend/tests/verification/test_item1_faithful_clone.js` | Crear | Verificación de clonación fiel e integridad de datos entre producción y entorno de prueba. |
-| `test_item2_secrets.js` | `backend/tests/verification/test_item2_secrets.js` | Crear | Verificación de validación y fortaleza de secretos criptográficos. |
-| `test_item5_outside_requests.js` | `backend/tests/verification/test_item5_outside_requests.js` | Crear | Comprobación de rechazo de peticiones fuera de contexto de inquilino. |
-| `test_item6_adminsync.js` | `backend/tests/verification/test_item6_adminsync.js` | Crear | Pruebas de verificación de sincronización de administradores. |
-| `test_item7_pairing.js` | `backend/tests/verification/test_item7_pairing.js` | Crear | Pruebas de verificación de emparejamiento físico. |
-| `test_item8_etag.js` | `backend/tests/verification/test_item8_etag.js` | Crear | Pruebas de validación de ETag y HTTP 304. |
-| `verify_table_counts_determinism.js` | `backend/tests/verification/verify_table_counts_determinism.js` | Crear | Orquestador maestro de determinismo ejecutando 10 suites completas consecutivas con recuento exacto en las 14 tablas físicas (Delta = 0). |
-| `verify_test_user_isolation.js` | `backend/tests/verification/verify_test_user_isolation.js` | Crear | Verificador de mínimo privilegio de `saas_test_user` contra bases de datos reales. |
 
 ---
 
-## 3. Fases Paso a Paso y Cronograma
+## 3. Fases, Cronograma y Criterios Medibles
 
-### Diagrama Gantt de Ejecución por Puertas
+### 3.1. Cronograma de Ejecución por Semanas y Puertas
 
-```mermaid
-gantt
-    title Cronograma de Ejecución SaaS Multi-Tenant por Puertas de Aprobación
-    dateFormat  YYYY-MM-DD
-    
-    section Semana 1: Esquema & Núcleo
-    Gate 1: DB & Esquema Paridad                 :done, g1, 2026-10-20, 2026-10-21
-    Gate 2: Núcleo de Aislamiento                :done, g2, 2026-10-21, 2026-10-22
-    Gate 3A: Endurecimiento Prisma               :done, g3a, 2026-10-22, 2026-10-23
-    Hito Aprobación Gate 3A                      :milestone, after g3a, 0d
-
-    section Semana 2: Módulos & Kioscos
-    Gate 3B Lote 1: Core Modules                 :done, g3b1, 2026-10-23, 2026-10-25
-    Gate 3B Lote 2: Aux Modules                  :done, g3b2, 2026-10-25, 2026-10-26
-    Hito Cierre Gate 3B                          :milestone, after g3b2, 0d
-    Gate 3C: Kioscos, Frontend & Retiro Legados  :done, g3c, 2026-10-26, 2026-10-27
-    Hito Aprobación Gate 3C                      :milestone, after g3c, 0d
-
-    section Semana 3: Seguridad & Carga
-    Gate 4: Seguridad, Cripto & Operación        :done, g4, 2026-10-27, 2026-10-28
-    Hito Cierre Gate 4                           :milestone, after g4, 0d
-    Gate 5: Pruebas de Carga k6 (400 Tenants)    :active, g5, 2026-10-28, 2026-10-31
-    Hito Aprobación Gate 5                       :milestone, after g5, 0d
-
-    section Semanas 4 a 6: Despliegue & Soft Launch
-    Gate 6: Aprovisionamiento VPS KVM 2 (Estr. B):g6, 2026-11-01, 2026-11-03
-    Corte de Producción & Cambio DNS (TTL 300s)  :crit, dns, 2026-11-03, 2026-11-04
-    Hito Punto de No Retorno                     :milestone, after dns, 0d
-    Soft Launch Supervisado (2 a 3 semanas)      :sl, 2026-11-04, 2026-11-25
-    Hito Salida Oficial a Producción SaaS        :milestone, after sl, 0d
-```
+| Semana | Puerta / Hito | Alcance Principal | Entregables Clave | Estado |
+| :---: | :--- | :--- | :--- | :---: |
+| **Semana 1** | **Gate 1: DB & Esquema Paridad** | Conversión DDL a 14 tablas físicas, 13 modelos con `companyId`, 25 claves foráneas compuestas InnoDB. | `schema.prisma`, `migration.sql`, `migrate_production.js`. | **Aprobado** |
+| **Semana 1** | **Gate 2: Núcleo de Aislamiento** | AsyncLocalStorage (`tenantContext.js`), middleware base, validación estricta de JWT y rechazo 400/403. | `tenantContext.js`, `secrets.js`, matriz 728 aserciones. | **Aprobado** |
+| **Semana 1** | **Gate 3A: Endurecimiento Núcleo** | Aprovisionamiento `saas_test_user`, eliminación total de `$base`, cliente segregado `prismaAdmin.js`, Regla A2. | `prisma.js`, `prismaAdmin.js`, `test_no_restricted_imports.test.js`. | **Aprobado** |
+| **Semana 2** | **Gate 3B Lote 1: Core Modules** | Aislamiento en módulos principales (`employees`, `attendance`, `devices`), sincronización Admin-Empleado (Opción A). | `adminEmployeeSync.js`, suites de integración HTTP. | **Aprobado** |
+| **Semana 2** | **Gate 3B Lote 2: Aux Modules** | Aislamiento en departamentos, turnos, notificaciones, eventos, admins, reportes, settings; retiro `photoRetentionDays`. | `departments.router.js`, `shifts.router.js`, etc. (49 tests). | **Aprobado** |
+| **Semana 2** | **Gate 3C: Kioscos & Frontend** | Retiro de `DISABLE_AUTH`, gracia API Key (05/Nov), token permanente SHA-256, salas Socket.io por empresa, build limpio de Vite. | `CameraScanner.jsx`, `DevicesPage.jsx`, `app.js` (23 tests). | **Aprobado** |
+| **Semana 3** | **Gate 4: Seguridad & Cripto** | Rate limiting `IP + email`, cookies `SameSite=Strict`, protección CSRF, CORS lista blanca, rotación AES, libro ARCO, CI. | `csrfProtection.js`, `backup_database.sh`, `rotate_encryption_key.js`. | **Aprobado** |
+| **Semana 3** | **Gate 5: Carga Masiva (400 Tenants)** | Siembra masiva de 400 empresas, 14,000 empleados con vectores AES-256-GCM y 3,000,000 asistencias; benchmark local. | `seed_massive_load.js`, runner de carga, scripts k6. | **En Curso** |
+| **Semanas 4 a 6** | **Gate 6: Despliegue VPS KVM 2** | Contratación VPS, ensayo con dump real de `u493510526_reconfpain_db`, corte DNS (TTL 300s), punto de no retorno y soft launch. | `docker-compose.prod.yml`, migración definitiva, monitoreo. | **Planificado** |
 
 ---
 
-### Detalle de Fases y Criterios Medibles
+### 3.2. Detalle de Fases y Criterios Medibles
 
-#### Gate 4: Seguridad, Criptografía y Operación (Completado)
-- **Objetivo:** Blindar la capa perimetral y operativa de la plataforma SaaS, implementar rate limiting compuesto, cookies seguras con `SameSite=Strict` y `HttpOnly`, protección CSRF con exenciones seguras, CORS estricto con lista blanca, retiro físico definitivo de `photoRetentionDays`, scripts de respaldo GPG, rotación de claves biométricas, reconciliación ARCO y pipeline CI.
-- **Tareas Ejecutadas:**
-  1. **Rate Limiting Compuesto:** Límite por tupla IP + email normalizado en `/login` (máximo 5 intentos fallidos en 15 minutos, 429 `TOO_MANY_LOGIN_ATTEMPTS`, sin bloquear otros correos desde la misma IP ni revelar existencia de cuenta).
-  2. **Cookies Seguras:** Configuración de `jwt` con `HttpOnly: true`, `SameSite: 'strict'` y emisión de cookie `XSRF-TOKEN` para el frontend.
-  3. **Protección CSRF:** Middleware `csrfProtection.js` en todas las mutaciones por cookie, con exención estricta para kioscos (`x-device-token`) y llamadas Bearer.
-  4. **CORS Estricto con Lista Blanca:** Eliminación de `origin: true`, soporte dinámico de `CORS_ALLOWED_ORIGINS` y configuración de `trust proxy: 1`.
-  5. **Eliminación Física de `photoRetentionDays`:** Columna eliminada de `schema.prisma`, `migration.sql`, `migrate_production.js`, `settings.controller.js` y de la base de pruebas. Paridad oficial certificada con `npx prisma migrate diff --exit-code` (código de salida 0, 0 diferencias).
-  6. **Scripts Operativos Probados:**
-     - `provision_db_users.js`: Sentencias con mínimo privilegio para `saas_app_user` (DML) y `saas_migrator` (DDL).
-     - `backup_database.sh`: Respaldo diario con mysqldump consistente, compresión gzip, cifrado asimétrico GPG y rotación de 30 días.
-     - `rotate_encryption_key.js`: Re-cifrado atómico de descriptores biométricos AES-256-GCM probado en BD real.
-     - `post_restore_reconcile.js`: Reconciliación ARCO contra libro mayor externo inmutable (`RevokedCompanyPurgeLedger.jsonl`) con modos `--dry-run` y `--confirm` probados en BD real.
-  7. **Saneamiento de Credenciales en HEAD:** 0 ocurrencias de contraseñas de prueba (`admin123`) en todo el árbol de trabajo.
-  8. **Pipeline CI:** Creado `.github/workflows/ci.yml` con escaneo de Regla A2, matriz de Prisma (910) y build de frontend.
-  9. **Suite Gate 4:** `test_gate4_security_and_ops.test.js` en verde (19/19 pasadas).
-  10. **Determinismo Maestro:** `verify_table_counts_determinism.js` ejecutó 10 suites consecutivas confirmando Delta = 0 en los 14 modelos.
-- **Criterios de Aceptación:**
-  - [x] Rate limiting compuesto probado y bloqueando al 6to intento fallido.
-  - [x] Cookies emitiendo `HttpOnly` y `SameSite=Strict`.
-  - [x] Mutaciones sin CSRF rechazadas con 403; kioscos y Bearer operando normalmente.
-  - [x] Orígenes no autorizados rechazados con HTTP 403 por CORS.
-  - [x] 0 diferencias en `npx prisma migrate diff --exit-code` (código 0).
-  - [x] Rotación criptográfica y reconciliación ARCO probadas contra BD real.
-  - [x] 0 ocurrencias de contraseñas de prueba en `HEAD`.
-  - [x] Delta = 0 en las 14 tablas físicas tras dos ejecuciones completas de la suite maestra.
+#### Gate 1: Base de Datos y Paridad de Esquema (Completado y Aprobado)
+- **Objetivo:** Transformar la base de datos mono-inquilino a multi-inquilino con aislamiento relacional rígido.
+- **Criterios Medibles Verificados:**
+  - 14 tablas físicas creadas con `utf8mb4_unicode_ci` y motor `InnoDB`.
+  - 13 modelos integran columna `companyId` (10 obligatorios, 3 nullables justificados).
+  - 25 restricciones de claves foráneas compuestas activas con `ON DELETE RESTRICT` hacia `Company`.
+  - Paridad certificada con `prisma migrate diff --exit-code` arrojando código de salida 0.
 
----
+#### Gate 2: Núcleo de Aislamiento Backend (Completado y Aprobado)
+- **Objetivo:** Establecer el contexto por petición mediante `AsyncLocalStorage` y validar la inyección automática de inquilino.
+- **Criterios Medibles Verificados:**
+  - `tenantContext.js` administra `{ companyId, isSuperAdmin, isImpersonating, userId }`.
+  - Matriz exhaustiva de 728 aserciones de Prisma en verde validando inyección de tenant.
+  - Rechazo HTTP 400 (`TENANT_HEADER_REQUIRED`) ante Super Admin sin cabecera en rutas de empresa.
+  - Rechazo HTTP 403 (`COMPANY_SUSPENDED`) demostrado ante empresas con `isActive: false`.
 
-#### Gate 5: Pruebas de Carga Masiva (k6) - (Siguiente Paso Activo)
-- **Objetivo:** Validar la estabilidad, concurrencia y tiempos de respuesta de la plataforma bajo una carga sintética masiva que simula la operación real proyectada de 400 inquilinos.
+#### Gate 3A: Endurecimiento de Prisma y Seguridad de Datos (Completado y Aprobado)
+- **Objetivo:** Erradicar fallbacks inseguros, blindar consultas directas y aislar clientes administrativos.
+- **Criterios Medibles Verificados:**
+  - Usuario `saas_test_user` aprovisionado con permisos exclusivos en `reconocimiento\_test\_%` sin acceso a bases reales (error 1044/1142 demostrado).
+  - Eliminación del 100% de referencias a `$base` y restricción de `prismaAdmin` fuera de `src/modules` (escáner `test_no_restricted_imports.test.js` en verde).
+  - Bloqueo determinista de `$queryRaw`, `$queryRawUnsafe`, `$executeRaw` y `$executeRawUnsafe` en la extensión de Prisma.
+  - Sanitización en profundidad de escrituras anidadas (*nested writes*) rechazando `companyId` ajeno con `CROSS_TENANT_WRITE_DETECTED`.
+
+#### Gate 3B Lote 1: Módulos Core - Empleados, Asistencias y Dispositivos (Completado y Aprobado)
+- **Objetivo:** Refactorizar y aislar las entidades críticas de negocio.
+- **Criterios Medibles Verificados:**
+  - Implementación de **Opción A** para sincronización Admin-Empleado: casilla opt-in desmarcada por defecto, Super Admin nunca genera empleado, administradores enlazados existentes se respetan, cuota `maxEmployees` enforced con rollback transaccional ante sobrecupo.
+  - Pruebas HTTP de aislamiento escritas previo a la modificación de código.
+  - Respuesta HTTP 404 indistinguible ante intentos de lectura o mutación sobre recursos de otras empresas.
+  - Enforcement estricto de límites de plan (`maxEmployees`, `maxDevices`) con HTTP 403 `PLAN_LIMIT_EXCEEDED`.
+
+#### Gate 3B Lote 2: Módulos Auxiliares de Negocio (Completado y Aprobado)
+- **Objetivo:** Completar el aislamiento en departamentos, turnos, notificaciones, eventos, administradores, reportes y settings.
+- **Criterios Medibles Verificados:**
+  - Restricciones de unicidad compuesta `[companyId, name]` en departamentos y turnos con captura de errores P2002/P2003 como 409 Conflict.
+  - Eliminación lógica de turnos ante dependencias de asistencias históricas.
+  - Retiro físico completo de la columna y lógica de `photoRetentionDays` en backend y frontend.
+  - Suite `test_lote2_isolation.test.js` en verde con 49/49 pruebas pasando.
+
+#### Gate 3C: Kioscos, Frontend Multi-Tenant y Retiro de Legados (Completado y Aprobado)
+- **Objetivo:** Blindar la autenticación de dispositivos físicos, sincronizar Socket.io y eliminar dependencias legadas.
+- **Criterios Medibles Verificados:**
+  - Supresión definitiva del bypass `DISABLE_AUTH` en todo el proyecto.
+  - Ventana de gracia inmutable para kioscos legados (`2026-11-05T23:59:59.000Z`) con cabecera de advertencia y rechazo HTTP 401 posterior.
+  - Autenticación exclusiva de dispositivos mediante `tokenHash` SHA-256 (columna legada `token` en `NULL`).
+  - Emparejamiento físico en 2 pasos con PIN de 8 caracteres y validación de salas Socket.io.
+  - Desconexión en tiempo real de clientes ante suspensión de empresa probada con clientes reales de Socket.io.
+  - Compilación limpia de Vite en frontend sin errores ni referencias a API keys legadas.
+
+#### Gate 4: Seguridad Perimetral, Criptografía y Operaciones (Completado y Aprobado)
+- **Objetivo:** Blindar el perímetro HTTP, asegurar almacenamiento criptográfico y automatizar tareas de operación.
+- **Criterios Medibles Verificados:**
+  - Rate limiting compuesto por tupla `IP + req.body.email` en `/api/v1/auth/login` (bloqueo al 6to intento fallido con HTTP 429).
+  - Emisión de cookies de sesión con directivas `HttpOnly: true`, `SameSite: 'strict'` y cookie complementaria `XSRF-TOKEN`.
+  - Middleware `csrfProtection.js` protegiendo mutaciones por cookie con exención para kioscos y llamadas Bearer.
+  - CORS restrictivo con lista blanca y rechazo HTTP 403 `CORS_NOT_ALLOWED`.
+  - Script `rotate_encryption_key.js` ejecutando re-cifrado atómico AES-256-GCM probado sobre datos reales.
+  - Script `post_restore_reconcile.js` auditando y reconciliando el libro mayor inmutable ARCO con modos `--dry-run` y `--confirm`.
+  - Pipeline de Integración Continua (`ci.yml`) ejecutando escáner A2, matriz de Prisma y build de Vite.
+  - Determinismo maestro comprobado: `verify_table_counts_determinism.js` ejecutó 10 suites consecutivas confirmando Delta = 0 en los 14 modelos.
+
+#### Gate 5: Siembra Masiva y Pruebas de Carga Multi-Tenant (En Ejecución Activa)
+- **Objetivo:** Validar la estabilidad, concurrencia y tiempos de respuesta bajo una carga sintética masiva que simula 400 inquilinos y 3,000,000 de registros en la base aislada `reconocimiento_test_load_saas`.
 - **Topología del Conjunto de Datos Sintético:**
-  - **400 Empresas (Tenants) Deterministas:**
-    - 1 Empresa Enterprise: 2,000 empleados.
-    - 10 Empresas Medianas: 300 empleados c/u (3,000 empleados).
-    - 389 Empresas Pequeñas: ~23 empleados promedio c/u (9,000 empleados).
-  - **14,000 Empleados Totales:** Cada uno con descriptor facial sintético cifrado en formato `enc_gcm:...` (AES-256-GCM).
-  - **3,000,000 de Registros de Asistencia Históricos:** Distribuidos en 90 días e indexados por `[companyId, date]`.
-- **Escenarios de Carga Automatizados (Scripts k6):**
-  - **Escenario 1 (Pico de Kioscos):** 50 kioscos virtuales concurrentes reportando asistencia simultáneamente durante la hora pico de entrada (45 peticiones/segundo sostenidas durante 10 minutos).
-  - **Escenario 2 (Operación Administrativa Concurrente):** 10 administradores ejecutando simultáneamente consultas de dashboards, filtrado de asistencias por fecha y exportación de reportes sobre la base con 3M registros.
-- **Archivos que Toca:** `tests/k6/load_test_kiosks.js`, `tests/k6/load_test_admin.js`, scripts de generación de datos masivos.
-- **Criterios de Aceptación y SLAs Medibles:**
-  - [ ] Latencia **p95 < 200 ms** en checadas de asistencia (`POST /attendance`).
+  - 400 Empresas: 1 Enterprise (2,000 emp), 10 Medianas (300 emp c/u = 3,000), 389 Pequeñas (sumando 9,000 emp). Total: 14,000 empleados.
+  - 14,000 Empleados con descriptores de 128 flotantes cifrados en AES-256-GCM (`enc_gcm:...`) y dispositivos con `tokenHash` SHA-256.
+  - 3,000,000 de Registros de Asistencia distribuidos en 90 días respetando integridad referencial `[employeeId, companyId]`.
+- **Criterios Medibles y SLAs:**
+  - [ ] Latencia **p95 < 200 ms** en registro de asistencia (`POST /attendance`).
   - [ ] Latencia **p95 < 500 ms** en reportes y consultas administrativas complejas.
   - [ ] Tasa de errores HTTP (5xx / timeouts) **< 0.1%**.
-  - [ ] Consumo de CPU en backend **< 70%** y consumo de memoria RAM estable sin fugas en la caché facial.
-  - [ ] 0 colisiones o filtraciones cross-tenant durante la ejecución de carga.
+  - [ ] Consumo de CPU < 70% y memoria RAM de Node estable sin fugas en la caché facial.
+  - [ ] Verificación de aislamiento en caliente: **0 fugas cross-tenant** bajo concurrencia.
+  - [ ] Salida de `EXPLAIN` confirmando uso de índices compuestos `(companyId, date)` y `(companyId, employeeId, date)` (`type: ref`/`range`, nunca `ALL`).
 
----
-
-#### Gate 6: Despliegue en VPS Hostinger KVM 2 y Salida a Producción (Estrategia B)
-- **Topología Confirmada:**
-  - **Servidor Origen:** Hostinger "Unlimited" (Web Hosting compartido con Passenger), intacto como respaldo de rollback instantáneo.
-  - **Servidor Destino:** Hostinger VPS KVM 2 con Docker Engine y MariaDB en red interna no expuesta.
-- **Tareas Numeradas:**
-  1. Contratación por Gabriel del servidor VPS Hostinger KVM 2.
-  2. Reducción de TTL de DNS a 300 segundos (48 horas previas al corte).
-  3. Aprovisionamiento del nuevo servidor con `docker-compose.prod.yml`, red aislada y usuarios `saas_app_user` / `saas_migrator`.
-  4. Ensayo de migración con volcado real sin afectar el servidor en producción.
-  5. Ventana de mantenimiento, volcado final y ejecución de `migrate_production.js`.
-  6. Actualización de DNS apuntando a la nueva IP del VPS KVM 2.
-  7. Soft launch supervisado de 2 a 3 semanas manteniendo el servidor viejo intacto como rollback.
-- **Archivos que Toca:** `docker-compose.prod.yml`, `migrate_production.js`, configuraciones de Nginx y variables de entorno de producción.
-- **Criterios de Aceptación:**
-  - [ ] Paridad de motor comprobada entre Hostinger y nuevo VPS KVM 2.
-  - [ ] Ensayo de migración exitoso con 25 FKs compuestas validadas.
-  - [ ] Cambio de DNS completado con propagación en < 5 minutos.
-  - [ ] Punto de no retorno registrado con éxito tras la primera checada real.
-  - [ ] Periodo de soft launch completado sin incidentes bloqueantes.
+#### Gate 6: Despliegue en VPS Hostinger KVM 2 y Salida a Producción (Planificado - Estrategia B)
+- **Objetivo:** Ejecutar la migración definitiva sin riesgo de pérdida de datos, manteniendo el servidor actual de Hostinger intacto como respaldo de rollback instantáneo.
+- **Criterios Medibles:**
+  - Servidor VPS KVM 2 aprovisionado con Docker Engine y MariaDB en versión idéntica a Hostinger.
+  - Ensayo de migración exitoso con volcado real sin afectar producción.
+  - Reducción previa de TTL de DNS a 300 segundos.
+  - Migración final ejecutada con `migrate_production.js`, verificando 25/25 FKs compuestas y registro en `_prisma_migrations`.
+  - Propagación de DNS en menos de 5 minutos y registro formal del Punto de No Retorno tras la primera checada real.
+  - Periodo de soft launch de 2 a 3 semanas manteniendo el servidor viejo en standby.
 
 ---
 
 ## 4. Migración, Despliegue, Rollback y Punto de No Retorno (Estrategia B)
 
-Se ejecuta oficialmente la **Estrategia B** confirmada por Gabriel: origen en Hostinger "Unlimited" (Passenger) intacto, y destino en nuevo VPS Hostinger KVM 2 con Docker.
+### 4.1. Secuencia de los 14 Pasos de Salida a Producción
 
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Gabriel as Gabriel (Aprobador)
-    participant Hostinger as Servidor Hostinger "Unlimited" Actual (Passenger)
-    participant DNS as DNS / Cloudflare (TTL 300s)
-    participant VPS as Servidor Nuevo VPS Hostinger KVM 2 (Docker)
-    participant Kiosk as Kioscos Físicos
+La salida oficial a producción se ejecuta mediante la **Estrategia B** decidida por Gabriel: el servidor actual en Hostinger "Unlimited" (Node.js Passenger) se mantiene completamente intacto, y se monta en paralelo un servidor nuevo **Hostinger VPS KVM 2** con Docker, ejecutando la siguiente secuencia ordenada:
 
-    Note over Hostinger,VPS: FASE PREVIA: Aprovisionamiento & Ensayo
-    Gabriel->>Hostinger: 1. Inspeccionar SELECT VERSION() en phpMyAdmin / SSH
-    Gabriel->>VPS: 2. Contratar VPS Hostinger KVM 2 y desplegar Docker
-    Gabriel->>Hostinger: 3. Obtener volcado de ensayo (mysqldump --single-transaction)
-    Gabriel->>VPS: 4. Restaurar volcado de ensayo y correr migrate_production.js (dry-run)
-    Gabriel->>DNS: 5. Reducir TTL de registros DNS a 300 segundos
-
-    Note over Hostinger,VPS: VENTANA DE MANTENIMIENTO: Migración Final
-    Gabriel->>Hostinger: 6. Modo Mantenimiento en servidor viejo & Dump final consistente
-    Gabriel->>VPS: 7. Restaurar dump final en MariaDB del VPS KVM 2
-    Gabriel->>VPS: 8. Ejecutar migrate_production.js real (25 FKs, cifrado AES, sin photoRetentionDays)
-    Gabriel->>VPS: 9. Verificación de integridad con saas_app_user
-    Gabriel->>DNS: 10. Cambiar registros DNS / IP hacia el VPS KVM 2
-
-    Note over Kiosk,VPS: CORTE & PUNTO DE NO RETORNO
-    Kiosk->>VPS: 11. Kioscos resuelven nueva IP y envían checadas
-    Note over VPS: PUNTO DE NO RETORNO: 1ra checada real guardada en VPS
-    
-    alt Si ocurre anomalía ANTES de checadas reales
-        Gabriel->>DNS: Rollback: Revertir DNS hacia Hostinger (300s)
-        Hostinger-->>Kiosk: Servidor viejo reasume operación intacto
-    else Operación Exitosa
-        Gabriel->>VPS: Confirmar estabilidad y monitoreo de producción
-    end
-```
+1. **Inspección de Motor en Origen:** Gabriel inspecciona phpMyAdmin en Hostinger y verifica `SELECT VERSION();` para registrar la versión exacta de MariaDB/MySQL.
+2. **Contratación de VPS KVM 2:** Gabriel contrata el nuevo VPS Hostinger KVM 2 y habilita el acceso seguro por clave SSH.
+3. **Aprovisionamiento Docker en Destino:** Se instala Docker Engine y Docker Compose en el VPS KVM 2 y se configura `docker-compose.prod.yml` con MariaDB apuntando a la misma versión del motor.
+4. **Aprovisionamiento de Usuarios de BD con Mínimo Privilegio:** Se ejecuta `provision_db_users.js` creando `saas_app_user` (exclusivo DML: SELECT, INSERT, UPDATE, DELETE) y `saas_migrator` (DDL temporal) sobre `u493510526_reconfpain_db`.
+5. **Generación de Volcado de Ensayo:** Se extrae un volcado consistente desde Hostinger vía mysqldump transaccional (`--single-transaction --quick --routines u493510526_reconfpain_db > dump_ensayo.sql`) sin interrumpir la operación.
+6. **Ensayo de Migración en VPS:** Se transfiere y restaura `dump_ensayo.sql` en el contenedor MariaDB del VPS y se ejecuta `migrate_production.js --confirm`, verificando que cree `_prisma_migrations`, cifre descriptores y active las 25 FKs compuestas.
+7. **Reducción Preventiva de TTL en DNS:** 48 horas antes de la ventana de corte, Gabriel reduce el TTL de los registros DNS del dominio a **300 segundos (5 minutos)** en Cloudflare / Hostinger DNS.
+8. **Inicio de Ventana de Mantenimiento:** Se coloca una página de mantenimiento temporal en el servidor Hostinger Passenger para congelar escrituras HTTP de administradores y kioscos.
+9. **Extracción del Volcado Definitivo:** Se genera el dump final consistente de `u493510526_reconfpain_db` garantizando que no existan escrituras pendientes.
+10. **Restauración y Migración Real en VPS:** Se transfiere el dump final al VPS KVM 2 vía SCP cifrado, se restaura en MariaDB y se ejecuta `node scripts/migrate_production.js --confirm --expected-db=u493510526_reconfpain_db` con registro auditable.
+11. **Pruebas de Humo en Red Interna:** Se valida la integridad del backend en el VPS KVM 2 mediante pruebas HTTP locales con `saas_app_user`, verificando endpoints de salud, login y descriptores.
+12. **Cambio de Registro DNS (Corte de Tráfico):** Gabriel actualiza la IP del registro DNS (A record) hacia la dirección IP pública del VPS KVM 2.
+13. **Resolución y Verificación en Caliente:** Los kioscos y navegadores conmutan hacia el nuevo servidor en un lapso máximo de 5 minutos gracias al TTL reducido.
+14. **Hito de Punto de No Retorno:** Se confirma la primera checada biométrica real guardada con éxito en la base de datos del VPS KVM 2, iniciando el periodo de soft launch supervisado de 2 a 3 semanas.
 
 ---
 
-## 5. Pruebas de Carga
+### 4.2. Tabla de Actores y Responsabilidades
 
-- **Herramienta:** k6.
-- **Topología de Prueba:** Ejecución desde un agente externo sobre el entorno de pruebas del servidor VPS.
-- **Métricas Clave:**
+| Paso # | Nombre de la Acción | Actor Principal | Componente Involucrado | Rol y Responsabilidad Específica |
+| :---: | :--- | :--- | :--- | :--- |
+| **1** | Inspección de Motor | Gabriel | Hostinger phpMyAdmin | Ejecutar `SELECT VERSION();` y documentar motor y versión exacta. |
+| **2** | Contratación de Servidor | Gabriel | Panel Hostinger | Contratar VPS Hostinger KVM 2 y proveer credenciales SSH seguras. |
+| **3** | Aprovisionamiento Docker | DevOps / Agente | Nuevo VPS KVM 2 Docker | Instalar Docker, red privada `saas-net` y desplegar contenedor MariaDB. |
+| **4** | Creación de Usuarios BD | DevOps / Agente | Nuevo VPS KVM 2 Docker | Ejecutar `provision_db_users.js` creando `saas_app_user` y `saas_migrator`. |
+| **5** | Volcado de Ensayo | Gabriel / Agente | Hostinger Unlimited | Generar volcado consistente de `u493510526_reconfpain_db` sin detener producción. |
+| **6** | Ensayo de Migración | Agente | Nuevo VPS KVM 2 Docker | Restaurar volcado, ejecutar `migrate_production.js`, auditar 25 FKs y suite de pruebas. |
+| **7** | Reducción de TTL DNS | Gabriel | DNS / Cloudflare | Bajar TTL a 300 segundos (5 min) en los registros del dominio de la API y kioscos. |
+| **8** | Modo Mantenimiento | Gabriel | Hostinger Unlimited | Activar página de mantenimiento temporal en Passenger para detener tráfico. |
+| **9** | Volcado Definitivo | Gabriel / Agente | Hostinger Unlimited | Extraer volcado final consistente y transferir vía SCP cifrado al VPS KVM 2. |
+| **10** | Migración Real DDL | Agente | Nuevo VPS KVM 2 Docker | Ejecutar `migrate_production.js` con confirmación explícita sobre el dump final. |
+| **11** | Pruebas de Humo | Agente | Nuevo VPS KVM 2 Docker | Validar inicio de contenedor backend, conexión de socket y lectura de base de datos. |
+| **12** | Conmutación de DNS | Gabriel | DNS / Cloudflare | Modificar el registro A del dominio apuntando hacia la IP pública del VPS KVM 2. |
+| **13** | Conexión de Kioscos | Kioscos Físicos | Kioscos Físicos | Resolver nueva IP, conectar a salas Socket.io y enviar estado operativo. |
+| **14** | **Punto de No Retorno** | Gabriel / Kioscos | Nuevo VPS KVM 2 Docker | **Registrar la 1ra checada real en la nueva BD.** Concluye ventana de rollback por DNS. |
+
+---
+
+### 4.3. Pasos Detallados de Ejecución (B.1 a B.8)
+
+#### Paso B.1 - Verificación de Motor en Hostinger Actual
+- Acceder al phpMyAdmin del plan Hostinger "Unlimited".
+- Ejecutar `SELECT VERSION();` y documentar si corresponde a MySQL (ej. 8.0.35) o MariaDB (ej. 10.11.6).
+- Confirmar que la base de datos de origen es `u493510526_reconfpain_db` (13 tablas originales, 365 filas, InnoDB, utf8mb4_unicode_ci, sin tabla `_prisma_migrations`).
+- Garantizar que la imagen del contenedor en el VPS KVM 2 coincida de forma binaria con dicho motor.
+
+#### Paso B.2 - Preparación y Reducción de TTL en DNS
+- Exactamente 48 horas antes de la fecha programada para la ventana de corte, acceder al gestor DNS (Cloudflare o panel de Hostinger).
+- Modificar el registro de tipo A del dominio de la API y de los kioscos reduciendo el TTL a **300 segundos (5 minutos)**.
+- Esta medida garantiza que la propagación del cambio de servidor se complete en menos de 5 minutos cuando se realice la conmutación final.
+
+#### Paso B.3 - Aprovisionamiento del Nuevo Servidor VPS Hostinger KVM 2
+- Inicializar el servidor VPS Hostinger KVM 2 bajo Ubuntu 22.04 LTS / 24.04 LTS.
+- Instalar Docker Engine oficial y Docker Compose plugin.
+- Configurar `docker-compose.prod.yml` aislando la base de datos MariaDB en una red interna privada `backend-db` sin mapeo de puerto público hacia el exterior (puerto 3306 cerrado a Internet).
+- Ejecutar el script `provision_db_users.js` parametrizado con `DB_NAME="u493510526_reconfpain_db"` para crear los usuarios `saas_app_user` (DML) y `saas_migrator` (DDL).
+
+#### Paso B.4 - Ensayo de Migración con Volcado Real (Dry-Run Completo)
+- Generar un respaldo consistente desde Hostinger sin afectar el tráfico:
+  ```bash
+  mysqldump -u u493510526_reconfpain_user -p --single-transaction --quick --routines u493510526_reconfpain_db > dump_ensayo.sql
+  ```
+- Transferir `dump_ensayo.sql` al VPS KVM 2 y restaurarlo en el contenedor MariaDB.
+- Ejecutar el script de migración en modo de prueba:
+  ```bash
+  node backend/scripts/migrate_production.js --confirm --expected-db=u493510526_reconfpain_db
+  ```
+- Comprobar que:
+  * El Paso 9 cree la tabla `_prisma_migrations` y registre `20261022000000_saas_multitenancy`.
+  * Se creen exactamente las 14 tablas físicas y las 25 restricciones de claves foráneas compuestas.
+  * Los descriptores faciales queden cifrados con formato `enc_gcm:...`.
+  * Se ejecute la suite de verificación determinista con resultado exitoso.
+
+#### Paso B.5 - Ventana de Mantenimiento y Volcado Definitivo
+- En la fecha y hora acordada (ej. domingo 02:00 AM), activar la página de mantenimiento estática en el servidor Hostinger viejo.
+- Detener el proceso Passenger o bloquear peticiones entrantes para garantizar 0 escrituras en vuelo.
+- Generar el volcado final definitivo de `u493510526_reconfpain_db`.
+- Transferir inmediatamente el archivo al VPS KVM 2 a través de túnel SCP cifrado:
+  ```bash
+  scp dump_definitivo.sql root@vps_kvm2_ip:/var/backups/saas/
+  ```
+
+#### Paso B.6 - Ejecución de Migración Definitiva en VPS KVM 2
+- En el VPS KVM 2, restaurar el volcado definitivo en la base de datos MariaDB del contenedor.
+- Ejecutar el script de migración con logging redireccionado a archivo auditable:
+  ```bash
+  node backend/scripts/migrate_production.js --confirm --expected-db=u493510526_reconfpain_db 2>&1 | tee migration_prod_$(date +%Y%m%d_%H%M%S).log
+  ```
+- Levantar los contenedores de aplicación `backend` y `frontend` en el VPS KVM 2.
+- Realizar pruebas de humo internas desde el propio servidor (curl a `/api/v1/auth/login`, comprobación de sockets, verificación de certificado TLS).
+
+#### Paso B.7 - Conmutación de DNS y Verificación en Caliente
+- Actualizar el registro DNS (A record) del dominio apuntando hacia la IP pública del nuevo VPS KVM 2.
+- Monitorear el registro de peticiones de Nginx en el VPS KVM 2: en menos de 5 minutos, los primeros kioscos y navegadores comenzarán a resolver la nueva IP y a conectarse a las salas de Socket.io.
+- Validar que los kioscos reciban su configuración y respondan con estado `ONLINE`.
+
+#### Paso B.8 - Hito de Punto de No Retorno y Plan de Rollback Inmediato
+- **Criterio de Punto de No Retorno:** Se alcanza en el momento exacto en que se almacena con éxito la **primera checada biométrica real** de un empleado en la base de datos del VPS KVM 2. A partir de ese segundo, los nuevos datos transaccionales viven exclusivamente en el VPS nuevo y cualquier intento de reversión requeriría reconciliación manual.
+- **Protocolo de Rollback Inmediato (Pre-Punto de No Retorno):**
+  - Si durante las pruebas de verificación en caliente posteriores al cambio de DNS (y antes de que se registre la primera checada real) se detecta alguna anomalía bloqueante (ej. fallo de red, error de sockets, incompatibilidad de certificados):
+    1. Gabriel revierte de inmediato el registro DNS (A record) a la IP del servidor Hostinger original.
+    2. Se desactiva la página de mantenimiento en Hostinger.
+    3. Gracias a que el TTL fue fijado en 300 segundos, los kioscos y usuarios se reconectan al servidor viejo en menos de 5 minutos.
+    4. El servidor de Hostinger jamás fue alterado durante el proceso y sus datos se encuentran 100% íntegros y actualizados.
+
+---
+
+## 5. Pruebas de Carga Masiva (Gate 5)
+
+- **Herramienta:** Scripts k6 (`tests/k6/load_test_kiosks.js`, `tests/k6/load_test_admin.js`) y runner concurrente en Node.js (`backend/tests/load/run_massive_load_benchmark.js`).
+- **Base de Datos Exclusiva de Carga:** `reconocimiento_test_load_saas` en el puerto 3307 con `saas_test_user` (sin tocar `reconocimiento_test_copia_saas` ni la base de producción).
+- **Volumetría Sintética:**
+  - **400 Empresas:** 1 Enterprise (2,000 emp), 10 Medianas (300 emp c/u = 3,000), 389 Pequeñas (sumando 9,000 emp).
+  - **14,000 Empleados:** Vectores biométricos de 128 floats cifrados con AES-256-GCM (`enc_gcm:...`) y dispositivos con `tokenHash` SHA-256.
+  - **3,000,000 de Registros de Asistencia:** Distribuidos a lo largo de 90 días, indexados por `(companyId, date)` y `(companyId, employeeId, date)`.
+- **Mezcla Operativa Simulada:**
+  - **70% Operaciones de Kiosco:** Registro de asistencia (`POST /attendance/register` con `x-device-token`) y sincronización de descriptores (`GET /descriptors` con ETag/304).
+  - **15% Consultas de Dashboard Administrativo:** Filtrado de asistencias por fecha y departamento sobre la empresa Enterprise y medianas.
+  - **10% Eventos, Notificaciones y WebSockets:** Salas `company_${companyId}` concurrentes.
+  - **5% Reportes Consolidados:** Consultas agregadas sobre la tabla de 3M de filas.
+- **SLAs y Métricas Clave:**
   - P95 de registro biométrico: < 200 ms.
   - P99 de registro biométrico: < 400 ms.
-  - P95 de consulta de dashboard administrativo: < 300 ms.
-  - Tasa de errores HTTP (5xx / timeouts): < 0.1%.
+  - P95 de consultas y reportes: < 500 ms.
+  - Tasa de errores HTTP: < 0.1%.
   - Tasa sostenida: 45 peticiones/segundo durante 15 minutos continuos.
-  - Saturación: prueba de rampa incremental hasta determinar el punto de quiebre de la CPU.
+  - Auditoría de aislamiento en caliente: **0 colisiones o filtraciones cross-tenant** detectadas bajo concurrencia.
 
 ---
 
@@ -314,57 +415,57 @@ sequenceDiagram
 
 | Riesgo | Probabilidad | Impacto | Estrategia de Mitigación |
 | :--- | :---: | :---: | :--- |
-| **Diferencia de motor SQL entre Hostinger y VPS** | Media | Alto | Verificación previa obligatoria con `SELECT VERSION()`; imagen Docker idéntica en el VPS KVM 2. |
-| **Fuga de datos cross-tenant por error en controlador** | Baja | Crítico | Extensión Prisma interceptora obligatoria en 14 métodos ORM; bloqueo de consultas raw; tests HTTP en cada módulo. |
+| **Diferencia de motor SQL entre Hostinger y VPS** | Media | Alto | Inspección de `SELECT VERSION();` en Hostinger phpMyAdmin; despliegue de imagen idéntica de MariaDB en Docker. |
+| **Fuga de datos cross-tenant por error en controlador** | Baja | Crítico | Extensión Prisma interceptora en 14 métodos ORM; bloqueo de consultas raw; tests HTTP de aislamiento en cada módulo. |
 | **Respuesta 403 que delate existencia de recurso ajeno** | Baja | Medio | Estandarización de HTTP 404 indistinguible ("No encontrado") en todos los endpoints de recursos. |
-| **Ataque de fuerza bruta en inicio de sesión** | Baja | Alto | Rate limiting compuesto por tupla IP + email con bloqueo HTTP 429 tras 5 intentos fallidos. |
-| **Ataque CSRF en sesiones de navegador** | Baja | Alto | Middleware `csrfProtection.js` con tokens Double Submit Cookie en todas las mutaciones por sesión. |
-| **Pérdida de conectividad de kioscos tras cambio de IP** | Baja | Alto | Reducción de TTL de DNS a 300s 48h antes; ventana de gracia con soporte a token anterior hasta fecha ISO fija. |
-| **Corrupción de datos post-restauración de respaldo** | Baja | Alto | Libro mayor de purgas ARCO inmutable en almacenamiento externo; script de reconciliación determinista con `--dry-run`. |
+| **Ataque de fuerza bruta en inicio de sesión** | Baja | Alto | Rate limiting compuesto por tupla `IP + req.body.email` con bloqueo HTTP 429 tras 5 intentos fallidos. |
+| **Ataque CSRF en sesiones de navegador** | Baja | Alto | Middleware `csrfProtection.js` con tokens Double Submit Cookie en todas las mutaciones por sesión; exención segura a kioscos y Bearer. |
+| **Pérdida de conectividad de kioscos tras cambio de IP** | Baja | Alto | Reducción de TTL de DNS a 300s 48h antes; ventana de gracia con soporte a token anterior hasta fecha ISO fija (`2026-11-05T23:59:59.000Z`). |
+| **Corrupción de datos post-restauración de respaldo** | Baja | Alto | Libro mayor de purgas ARCO inmutable en almacenamiento externo; script `post_restore_reconcile.js` determinista con `--dry-run`. |
 
 ---
 
 ## 7. Checklist de Salida a Producción
 
-- [ ] Motor y versión de base de datos verificados en Hostinger vía `SELECT VERSION()`.
-- [ ] Nuevo servidor VPS Hostinger KVM 2 configurado con Docker y MariaDB en versión idéntica.
-- [ ] TTL de DNS reducido a 300 segundos 48 horas antes del corte.
-- [ ] Ensayo completo de migración exitoso sobre volcado real en el nuevo servidor.
 - [x] Gate 1, 2, 3A y 3B formalmente aprobados por Gabriel.
 - [x] Gate 3C y Gate 4 finalizados y verificados al 100% en código local.
-- [ ] Gate 5 (Pruebas de Carga k6) completado con p95 < 200ms y 0 errores de aislamiento.
-- [ ] Usuario `saas_app_user` aprovisionado únicamente con permisos DML (`SELECT, INSERT, UPDATE, DELETE`).
-- [ ] Usuario `saas_migrator` reservado para DDL en migraciones y revocado tras el despliegue.
-- [x] Scripts de respaldo diario GPG y rotación de `ENCRYPTION_KEY` probados y programados en cron del host.
-- [x] Libro mayor de purgas ARCO configurado fuera del árbol de respaldos de la base de datos.
-- [ ] Variables de entorno en producción configuradas con claves criptográficas de >= 32 bytes reales.
+- [x] Topología de producción confirmada: Hostinger "Unlimited" (Passenger) origen y VPS Hostinger KVM 2 destino.
+- [x] Nombre real de la base en Hostinger verificado: `u493510526_reconfpain_db` (13 tablas originales, 365 filas, sin `_prisma_migrations`).
+- [x] Script `migrate_production.js` probado y soportando bases sin `_prisma_migrations` (creación y registro idempotente).
+- [x] Scripts `provision_db_users.js` y `backup_database.sh` parametrizados con `u493510526_reconfpain_db`.
+- [x] Base aislada `reconocimiento_test_load_saas` aprovisionada en puerto 3307 con 14 tablas y 25 FKs.
+- [ ] Gate 5 (Siembra Masiva y Pruebas de Carga k6) completado con p95 < 200ms y 0 errores de aislamiento.
+- [ ] Versión exacta de MySQL/MariaDB confirmada en Hostinger vía `SELECT VERSION();`.
+- [ ] Servidor VPS Hostinger KVM 2 contratado y configurado con Docker Engine y red privada.
+- [ ] TTL de DNS reducido a 300 segundos 48 horas previas a la ventana de corte.
+- [ ] Ensayo completo de migración exitoso sobre volcado real en el nuevo servidor.
 - [ ] Volcado final consistente completado y migrado en el VPS KVM 2.
 - [ ] Verificación en caliente exitosa antes de la primera checada real.
 - [ ] Servidor Hostinger "Unlimited" mantenido intacto en standby durante al menos 14 a 21 días post-corte (soft launch).
 
 ---
 
-## 8. Dudas para Gabriel
+## 8. Dudas y Decisiones de Gabriel
 
-1. **Aprovisionamiento del VPS Hostinger KVM 2:** Una vez completemos la preparación de Gate 5 (scripts de k6 y generación masiva de 400 tenants / 3M registros), ¿deseas que ejecutemos la simulación de carga localmente en Docker primero, o prefieres contratar el VPS KVM 2 de inmediato para correr las pruebas de carga directo sobre la máquina final?
-2. **Inspección de `SELECT VERSION();` en Hostinger:** ¿Pudiste revisar en el phpMyAdmin de Hostinger la versión exacta de MySQL/MariaDB para sincronizar la imagen del contenedor?
+1. **Estrategia de Ejecución de Gate 5 (Decidido por Gabriel):** Se ejecuta primero en el entorno local de pruebas sobre la base aislada `reconocimiento_test_load_saas` (puerto 3307 con `saas_test_user`). Una vez que el generador de 400 inquilinos / 14k empleados / 3M registros y las pruebas de carga pasen con 0 errores en local, Gabriel contratará el VPS Hostinger KVM 2 para repetir la prueba final y realizar el corte.
+2. **Inspección de `SELECT VERSION();` en Hostinger:** Gabriel revisará en el phpMyAdmin de Hostinger la versión exacta del motor de base de datos para sincronizar la imagen del contenedor MariaDB en `docker-compose.prod.yml`.
 
 ---
 
-## ANEXO: Matriz de Trazabilidad Compacta de los 28 Requisitos
+## ANEXO: Matriz de Trazabilidad de los 28 Requisitos del Sistema
 
-| # | Requisito | Estado Real | Evidencia en el Repositorio |
+| # | Requisito del Sistema | Estado Real | Evidencia en el Repositorio |
 | :-: | :--- | :---: | :--- |
 | 1 | Esquema multi-tenant con `companyId` y 25 FKs compuestas | **Implementado** | `schema.prisma`, 14 tablas físicas, 13 modelos con `companyId`, 25 claves InnoDB `ON DELETE RESTRICT`. |
-| 2 | Script de migración idempotente y comprobado con rollback | **Implementado** | `backend/scripts/migrate_production.js`, verificado en clon fiel sin pérdida de datos. |
-| 3 | Usuario de BD de pruebas acotado a `reconocimiento_test_%` | **Implementado** | `saas_test_user` verificado en `verify_test_user_isolation.js` sin acceso a BD real. |
-| 4 | Separación estricta de usuarios DML (`saas_app_user`) y DDL (`saas_migrator`) | **Implementado** | `backend/scripts/provision_db_users.js` listo para aprovisionamiento seguro. |
+| 2 | Script de migración idempotente y comprobado con rollback | **Implementado** | `backend/scripts/migrate_production.js`, verificado en clon fiel sin pérdida de datos y con soporte a bases sin `_prisma_migrations`. |
+| 3 | Usuario de BD de pruebas acotado a `reconocimiento_test_%` | **Implementado** | `saas_test_user` verificado en `verify_test_user_isolation.js` sin acceso a base real. |
+| 4 | Separación estricta de usuarios DML (`saas_app_user`) y DDL (`saas_migrator`) | **Implementado** | `backend/scripts/provision_db_users.js` listo para aprovisionamiento seguro parametrizado con `u493510526_reconfpain_db`. |
 | 5 | Extensión de Prisma Client con inyección de tenant en 14 métodos | **Implementado** | `backend/src/utils/prisma.js`, matriz de 910 aserciones en verde en `test_prisma_comprehensive_matrix.test.js`. |
 | 6 | Bloqueo absoluto de `$queryRaw`, `$executeRaw` y variantes inseguras | **Implementado** | Interceptores en `backend/src/utils/prisma.js` lanzan error; verificado en matriz. |
 | 7 | Eliminación total de `$base` y `prismaAdmin` en módulos de app | **Implementado** | 0 ocurrencias en `src/modules/` confirmado por `test_no_restricted_imports.test.js` (35 archivos escaneados). |
 | 8 | Helpers explícitos de ámbito estrecho para operaciones sin contexto | **Implementado** | `authHelpers.js` con `findAdminByEmailForLogin`, `getDeviceByToken` (SHA-256), `updateDeviceLastSeen`. |
 | 9 | Sanitización estricta de escrituras anidadas (nested writes) | **Implementado** | Inyección en cascada y rechazo de IDs ajenos verificado en matriz y `test_nested_writes_real_db.test.js`. |
-| 10 | Contexto por petición vía AsyncLocalStorage (`tenantContext.js`) | **Implementado** | `tenantContext.js` gestiona contexto; soporte para Super Admin con `x-tenant-id` obligatorio. |
+| 10 | Contexto por petición vía AsyncLocalStorage (`tenantContext.js`) | **Implementado** | `tenantContext.js` gestiona contexto; soporte para Super Admin con `x-tenant-id` obligatorio en rutas de empresa. |
 | 11 | Validación de token de dispositivo con rechazo 401/403 sin fuga | **Implementado** | `tenantContext.js` probado en `test_device_token_auth.test.js` (15/15) y `test_gate3c_kiosks_and_sockets.test.js` (23/23). |
 | 12 | Respuesta HTTP 404 indistinguible ante accesos cross-tenant | **Implementado** | Probado en `test_employees_isolation`, `test_attendance_isolation`, `test_devices_isolation`, `test_lote2_isolation`. |
 | 13 | Emparejamiento físico de kioscos en 2 pasos con PIN de 8 caracteres | **Implementado** | `devices.controller.js`, `DevicesPage.jsx` y `test_pairing_cross_tenant_isolation.test.js`. |
@@ -378,8 +479,8 @@ sequenceDiagram
 | 21 | Autenticación robusta: eliminación de `DISABLE_AUTH`, cookies estrictas | **Implementado** | `requireJwt.js`, `auth.middleware.js` y `auth.controller.js` con `HttpOnly: true` y `SameSite: 'strict'`. |
 | 22 | Rate limiting compuesto por IP + Email en inicio de sesión | **Implementado** | `auth.router.js` con bloqueo HTTP 429 tras 5 intentos fallidos; probado en `test_gate4_security_and_ops.test.js`. |
 | 23 | Protección CSRF y CORS estricto con lista blanca | **Implementado** | `csrfProtection.js` y CORS restrictivo en `app.js` probados en `test_gate4_security_and_ops.test.js`. |
-| 24 | Respaldos diarios encriptados con GPG y retención de 30 días | **Implementado** | `backend/scripts/backup_database.sh` con mysqldump consistente, compresión gzip y GPG. |
+| 24 | Respaldos diarios encriptados con GPG y retención de 30 días | **Implementado** | `backend/scripts/backup_database.sh` con mysqldump consistente, compresión gzip y GPG, parametrizado con `u493510526_reconfpain_db`. |
 | 25 | Rotación transaccional de clave de cifrado `ENCRYPTION_KEY` | **Implementado** | `backend/scripts/rotate_encryption_key.js` verificado en `test_gate4_security_and_ops.test.js`. |
 | 26 | Libro mayor de purgas ARCO inmutable fuera de BD y reconciliación | **Implementado** | `backend/scripts/post_restore_reconcile.js` con `--dry-run` y `--confirm` verificado en prueba real. |
 | 27 | Eliminación completa de `photoRetentionDays` en backend y frontend | **Implementado** | Eliminado de `schema.prisma`, BD y frontend; verificado con `npx prisma migrate diff` (código de salida 0). |
-| 28 | Salida a producción mediante Estrategia B sobre VPS Hostinger KVM 2 | **Confirmado** | Topología confirmada en Sección 4 del Plan v3.6: Hostinger "Unlimited" intacto y nuevo VPS KVM 2 con Docker. |
+| 28 | Salida a producción mediante Estrategia B sobre VPS Hostinger KVM 2 | **Confirmado** | Topología confirmada en Sección 4 del Plan v3.7: Hostinger "Unlimited" intacto y nuevo VPS KVM 2 con Docker. |

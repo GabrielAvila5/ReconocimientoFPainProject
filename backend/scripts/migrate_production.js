@@ -501,6 +501,50 @@ async function runProductionMigration() {
     }
     console.log(' [OK] Integridad referencial 100% verificada (25/25 claves foráneas activas).');
 
+    // -------------------------------------------------------------
+    // PASO 9: Asegurar registro de migración en _prisma_migrations
+    // (Soporte para bases como u493510526_reconfpain_db sin _prisma_migrations previa)
+    // -------------------------------------------------------------
+    console.log('\n[Paso 9] Verificando y registrando estado en _prisma_migrations...');
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS \`_prisma_migrations\` (
+        \`id\` VARCHAR(36) NOT NULL,
+        \`checksum\` VARCHAR(64) NOT NULL,
+        \`finished_at\` DATETIME(3) NULL,
+        \`migration_name\` VARCHAR(255) NOT NULL,
+        \`logs\` TEXT NULL,
+        \`rolled_back_at\` DATETIME(3) NULL,
+        \`started_at\` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+        \`applied_steps_count\` INT UNSIGNED NOT NULL DEFAULT 0,
+        PRIMARY KEY (\`id\`)
+      ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+    `);
+
+    const existingMigration = await prisma.$queryRawUnsafe(`
+      SELECT \`id\` FROM \`_prisma_migrations\` 
+      WHERE \`migration_name\` = '20261022000000_saas_multitenancy' LIMIT 1;
+    `);
+
+    if (existingMigration.length === 0) {
+      await prisma.$executeRawUnsafe(`
+        INSERT INTO \`_prisma_migrations\` (
+          \`id\`, \`checksum\`, \`finished_at\`, \`migration_name\`, \`logs\`, \`rolled_back_at\`, \`started_at\`, \`applied_steps_count\`
+        ) VALUES (
+          UUID(),
+          '87e2b28678187921f5f231c40652114d3adbd35bc603f0a898f07a4e14631d68',
+          NOW(3),
+          '20261022000000_saas_multitenancy',
+          '',
+          NULL,
+          NOW(3),
+          1
+        );
+      `);
+      console.log('  -> Migración 20261022000000_saas_multitenancy registrada exitosamente en _prisma_migrations.');
+    } else {
+      console.log('  -> Migración 20261022000000_saas_multitenancy ya se encontraba registrada.');
+    }
+
     console.log('\n================================================================');
     console.log('  MIGRACIÓN COMPLETADA Y VERIFICADA EXITOSAMENTE               ');
     console.log('================================================================');

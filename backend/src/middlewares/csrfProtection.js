@@ -66,3 +66,4 @@ const csrfProtection = (req, res, next) => {
 };
 
 module.exports = { csrfProtection };
+

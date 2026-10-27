@@ -72,6 +72,18 @@ router.patch('/:id/status', async (req, res) => {
       data: { isActive }
     });
 
+    // Auditoría de acción de Super Admin en AdminAuditLog
+    await prisma.adminAuditLog.create({
+      data: {
+        action: 'UPDATE_COMPANY_STATUS',
+        performedById: req.user.id,
+        performedByName: req.user.name || req.user.email || 'Super Admin',
+        targetName: company.name,
+        targetEmail: req.user.email || 'superadmin@system.local',
+        companyId: company.id
+      }
+    });
+
     // Si se suspende la empresa, forzar desconexión de todos sus sockets
     if (!isActive) {
       const appModule = require('../../app');
@@ -95,3 +107,4 @@ router.patch('/:id/status', async (req, res) => {
 });
 
 module.exports = router;
+

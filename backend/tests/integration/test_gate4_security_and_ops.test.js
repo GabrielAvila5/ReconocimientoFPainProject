@@ -483,3 +483,4 @@ runTests().catch(err => {
   console.error('Error fatal en ejecución de tests Gate 4:', err);
   process.exit(1);
 });
+

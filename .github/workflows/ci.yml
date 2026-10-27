@@ -73,3 +73,4 @@ jobs:
       - name: Compile Frontend (Vite Build)
         working-directory: frontend
         run: npm run build
+

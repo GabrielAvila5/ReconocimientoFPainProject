@@ -141,7 +141,8 @@ app.use('/api/v1/events', eventsRouter);
 const devicesRouter = require('./modules/devices/devices.router');
 app.use('/api/v1/devices', devicesRouter);
 const companiesRouter = require('./modules/companies/companies.router');
-app.use('/api/v1/companies', companiesRouter);
+app.use('/api/v1/superadmin/companies', companiesRouter);
+app.use('/api/v1/companies', companiesRouter); // Alias de compatibilidad
 
 // Manejo de errores de CORS y seguridad
 app.use((err, req, res, next) => {

@@ -11,7 +11,7 @@ set -euo pipefail
 # Configuración desde variables de entorno con valores seguros
 DB_HOST="${DB_HOST:-127.0.0.1}"
 DB_PORT="${DB_PORT:-3306}"
-DB_NAME="${DB_NAME:-ReconocimientoFacialProd}"
+DB_NAME="${DB_NAME:-u493510526_reconfpain_db}"
 DB_USER="${SAAS_BACKUP_USER:-saas_app_user}"
 DB_PASSWORD="${SAAS_BACKUP_PASSWORD:-}"
 BACKUP_DIR="${BACKUP_DIR:-/var/backups/saas_db}"
@@ -88,3 +88,4 @@ echo "==========================================================================
 echo "✓ PROCESO DE RESPALDO COMPLETADO EXITOSAMENTE"
 echo "=============================================================================="
 exit 0
+
