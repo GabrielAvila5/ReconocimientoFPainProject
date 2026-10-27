@@ -160,7 +160,12 @@ Total confirmado en BD: **14 tablas físicas** y **13 modelos con columna `compa
 | `rotate_encryption_key.js` | `backend/scripts/rotate_encryption_key.js` | Crear | Rotación atómica de `ENCRYPTION_KEY` re-encriptando descriptores faciales en bloques transaccionales sin downtime. |
 | `post_restore_reconcile.js` | `backend/scripts/post_restore_reconcile.js` | Crear | Conciliación manual de purgas ARCO contra libro mayor externo inmutable con modos `--dry-run` y `--confirm`. |
 | `seed_massive_load.js` | `backend/scripts/seed_massive_load.js` | Crear | Generador sintético determinista de 400 inquilinos, 14,000 empleados con vectores AES-256-GCM y 3,000,000 asistencias. |
-| `run_massive_load_benchmark.js` | `backend/tests/load/run_massive_load_benchmark.js` | Crear | Runner de carga concurrente multi-inquilino en Node.js con auditoría en caliente de 0 fugas cross-tenant. |
+| `cleanup_load_database.js` | `backend/scripts/cleanup_load_database.js` | Crear | Utilidad para consulta de estado, vaciado o eliminación de `reconocimiento_test_load_saas` liberando 2.74 GB en disco con salvaguarda para la base patrón. |
+| `test_face_cache_memory.js` | `backend/tests/load/test_face_cache_memory.js` | Crear | Test de estrés de memoria RAM validando la carga de 14,000 rostros en 400 inquilinos con medición de `heapUsed` (+29.4 MB) y `rss`. |
+| `run_massive_load_benchmark.js` | `backend/tests/load/run_massive_load_benchmark.js` | Modificar | Benchmark sostenido de 5,000 peticiones con rampa progresiva (20 -> 50 -> 100), 4 grupos operativos desglosados y auditoría en caliente. |
+| `Dockerfile` | `backend/Dockerfile` | Modificar | Imagen de producción en Node.js 20 Alpine con generación de cliente Prisma y comando seguro. |
+| `docker-compose.yml` | `docker-compose.yml` | Modificar | Entorno local multi-tenant con `u493510526_reconfpain_db`, puerto 3306 expuesto a localhost para desarrollo. |
+| `docker-compose.prod.yml` | `docker-compose.prod.yml` | Crear | Topología de producción para VPS KVM 2 (8 GB RAM): MariaDB con `--innodb-buffer-pool-size=3G`, `--max-connections=150`, puerto 3306 no expuesto al host público, red interna y `connection_limit=30` en backend. |
 | `load_test_kiosks.js` | `tests/k6/load_test_kiosks.js` | Crear | Script k6 para simulación de alta concurrencia de kioscos en el VPS KVM 2. |
 | `load_test_admin.js` | `tests/k6/load_test_admin.js` | Crear | Script k6 para simulación de dashboards administrativos concurrentes en el VPS KVM 2. |
 | `ci.yml` | `.github/workflows/ci.yml` | Crear | Pipeline automatizado de linting, imports check (Regla A2), matriz de Prisma (910) y compilación de frontend. |
@@ -171,17 +176,18 @@ Total confirmado en BD: **14 tablas físicas** y **13 modelos con columna `compa
 
 ### 3.1. Cronograma de Ejecución por Semanas y Puertas
 
-| Semana | Puerta / Hito | Alcance Principal | Entregables Clave | Estado |
-| :---: | :--- | :--- | :--- | :---: |
-| **Semana 1** | **Gate 1: DB & Esquema Paridad** | Conversión DDL a 14 tablas físicas, 13 modelos con `companyId`, 25 claves foráneas compuestas InnoDB. | `schema.prisma`, `migration.sql`, `migrate_production.js`. | **Aprobado** |
-| **Semana 1** | **Gate 2: Núcleo de Aislamiento** | AsyncLocalStorage (`tenantContext.js`), middleware base, validación estricta de JWT y rechazo 400/403. | `tenantContext.js`, `secrets.js`, matriz 728 aserciones. | **Aprobado** |
-| **Semana 1** | **Gate 3A: Endurecimiento Núcleo** | Aprovisionamiento `saas_test_user`, eliminación total de `$base`, cliente segregado `prismaAdmin.js`, Regla A2. | `prisma.js`, `prismaAdmin.js`, `test_no_restricted_imports.test.js`. | **Aprobado** |
-| **Semana 2** | **Gate 3B Lote 1: Core Modules** | Aislamiento en módulos principales (`employees`, `attendance`, `devices`), sincronización Admin-Empleado (Opción A). | `adminEmployeeSync.js`, suites de integración HTTP. | **Aprobado** |
-| **Semana 2** | **Gate 3B Lote 2: Aux Modules** | Aislamiento en departamentos, turnos, notificaciones, eventos, admins, reportes, settings; retiro `photoRetentionDays`. | `departments.router.js`, `shifts.router.js`, etc. (49 tests). | **Aprobado** |
-| **Semana 2** | **Gate 3C: Kioscos & Frontend** | Retiro de `DISABLE_AUTH`, gracia API Key (05/Nov), token permanente SHA-256, salas Socket.io por empresa, build limpio de Vite. | `CameraScanner.jsx`, `DevicesPage.jsx`, `app.js` (23 tests). | **Aprobado** |
-| **Semana 3** | **Gate 4: Seguridad & Cripto** | Rate limiting `IP + email`, cookies `SameSite=Strict`, protección CSRF, CORS lista blanca, rotación AES, libro ARCO, CI. | `csrfProtection.js`, `backup_database.sh`, `rotate_encryption_key.js`. | **Aprobado** |
-| **Semana 3** | **Gate 5: Carga Masiva (400 Tenants)** | Siembra masiva de 400 empresas, 14,000 empleados con vectores AES-256-GCM y 3,000,000 asistencias; benchmark local. | `seed_massive_load.js`, runner de carga, scripts k6. | **En Curso** |
-| **Semanas 4 a 6** | **Gate 6: Despliegue VPS KVM 2** | Contratación VPS, ensayo con dump real de `u493510526_reconfpain_db`, corte DNS (TTL 300s), punto de no retorno y soft launch. | `docker-compose.prod.yml`, migración definitiva, monitoreo. | **Planificado** |
+| Semana | Puerta / Hito | Alcance Principal | Entregables Clave | Commit Git Real | Estado |
+| :---: | :--- | :--- | :--- | :---: | :---: |
+| **Semana 0** | **Gate 0: Congelamiento Línea Base** | Auditoría y congelamiento de 13 tablas originales en Hostinger. | Dump inicial, sumas SHA-256. | `d156503` | **Aprobado** |
+| **Semana 1** | **Gate 1: DB & Esquema Paridad** | Conversión DDL a 14 tablas físicas, 13 modelos con `companyId`, 25 claves foráneas compuestas InnoDB. | `schema.prisma`, `migration.sql`, `migrate_production.js`. | `29190db` | **Aprobado** |
+| **Semana 1** | **Gate 2: Núcleo de Aislamiento** | AsyncLocalStorage (`tenantContext.js`), middleware base, validación estricta de JWT y rechazo 400/403. | `tenantContext.js`, `secrets.js`, matriz 728 aserciones. | `2cf3dac` | **Aprobado** |
+| **Semana 1** | **Gate 3A: Endurecimiento Núcleo** | Aprovisionamiento `saas_test_user`, eliminación total de `$base`, cliente segregado `prismaAdmin.js`, Regla A2. | `prisma.js`, `prismaAdmin.js`, `test_no_restricted_imports.test.js`. | `1e42096` | **Aprobado** |
+| **Semana 2** | **Gate 3B Lote 1: Core Modules** | Aislamiento en módulos principales (`employees`, `attendance`, `devices`), sincronización Admin-Empleado (Opción A). | `adminEmployeeSync.js`, suites de integración HTTP. | `e641ba4` | **Aprobado** |
+| **Semana 2** | **Gate 3B Lote 2: Aux Modules** | Aislamiento en departamentos, turnos, notificaciones, eventos, admins, reportes, settings; retiro `photoRetentionDays`. | `departments.router.js`, `shifts.router.js`, etc. (49 tests). | `942ca76` | **Aprobado** |
+| **Semana 2** | **Gate 3C: Kioscos & Frontend** | Retiro de `DISABLE_AUTH`, gracia API Key (05/Nov), token permanente SHA-256, salas Socket.io por empresa, build limpio de Vite. | `CameraScanner.jsx`, `DevicesPage.jsx`, `app.js` (23 tests). | `bb60b97` | **Aprobado** |
+| **Semana 3** | **Gate 4: Seguridad & Cripto** | Rate limiting `IP + email`, cookies `SameSite=Strict`, protección CSRF, CORS lista blanca, rotación AES, libro ARCO, CI. | `csrfProtection.js`, `backup_database.sh`, `rotate_encryption_key.js`. | `db03344` | **Aprobado** |
+| **Semana 3** | **Gate 5: Carga Masiva (400 Tenants)** | Siembra masiva de 400 empresas, 14,000 empleados con vectores AES-256-GCM y 3,000,000 asistencias; benchmark de 5,000 peticiones sostenidas. | `seed_massive_load.js`, runner 5k, k6, RAM test. | `2af4e6a` | **Aprobado** |
+| **Semanas 4 a 6** | **Gate 6: Despliegue VPS KVM 2** | Contratación VPS, ensayo con dump real de `u493510526_reconfpain_db`, corte DNS (TTL 300s), punto de no retorno y soft launch. | `docker-compose.prod.yml`, migración definitiva, monitoreo. | Pendiente KVM 2 | **Planificado** |
 
 ---
 

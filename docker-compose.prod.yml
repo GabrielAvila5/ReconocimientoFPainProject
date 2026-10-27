@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+  db:
+    image: mariadb:10.11
+    restart: always
+    command: >
+      mariadbd 
+      --innodb-buffer-pool-size=3G 
+      --max-connections=150 
+      --character-set-server=utf8mb4 
+      --collation-server=utf8mb4_unicode_ci
+    environment:
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MARIADB_DATABASE: ${DB_NAME:-u493510526_reconfpain_db}
+    volumes:
+      - db_prod_data:/var/lib/mysql
+    # SEGURIDAD CRÍTICA: Puerto 3306 NO expuesto al host público (solo accesible en la red interna)
+    networks:
+      - saas_internal_net
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: always
+    environment:
+      - NODE_ENV=production
+      - PORT=4000
+      - DATABASE_URL=mysql://saas_app_user:${SAAS_APP_USER_PASSWORD}@db:3306/${DB_NAME:-u493510526_reconfpain_db}?connection_limit=30
+      - ADMIN_DATABASE_URL=mysql://saas_migrator:${SAAS_MIGRATION_USER_PASSWORD}@db:3306/${DB_NAME:-u493510526_reconfpain_db}?connection_limit=5
+      - JWT_SECRET=${JWT_SECRET}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - COOKIE_SECURE=true
+      - FRONTEND_URL=${FRONTEND_URL:-https://reconocimiento.tudominio.com}
+    ports:
+      # Vinculado exclusivamente a localhost para el Reverse Proxy Nginx / Certbot SSL
+      - "127.0.0.1:4000:4000"
+    depends_on:
+      - db
+    networks:
+      - saas_internal_net
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: always
+    ports:
+      # Vinculado exclusivamente a localhost para el Reverse Proxy Nginx / Certbot SSL
+      - "127.0.0.1:8080:80"
+    depends_on:
+      - backend
+    networks:
+      - saas_internal_net
+
+networks:
+  saas_internal_net:
+    driver: bridge
+
+volumes:
+  db_prod_data:
+    driver: local
+
