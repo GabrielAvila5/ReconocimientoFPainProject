@@ -12,6 +12,7 @@ import { useNotifications } from '../../contexts/NotificationContext';
 const DevicesPage = () => {
   const { socket } = useNotifications();
   const [devices, setDevices] = useState([]);
+  const [pendingRequests, setPendingRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -49,6 +50,15 @@ const DevicesPage = () => {
     description: ''
   });
 
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem('token');
+    const tenantId = localStorage.getItem('tenantId');
+    return {
+      'Authorization': `Bearer ${token}`,
+      ...(tenantId ? { 'x-tenant-id': tenantId } : {})
+    };
+  };
+
   // 1. Obtener lista de dispositivos
   const fetchDevices = async (isManualRefresh = false) => {
     try {
@@ -58,6 +68,7 @@ const DevicesPage = () => {
 
       const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
       const res = await fetch(`${baseUrl}/api/v1/devices`, {
+        headers: getAuthHeaders(),
         credentials: 'include'
       });
 
@@ -76,6 +87,23 @@ const DevicesPage = () => {
     }
   };
 
+  // Obtener solicitudes pendientes de kioskos
+  const fetchPendingRequests = async () => {
+    try {
+      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+      const res = await fetch(`${baseUrl}/api/v1/devices/auth-requests/pending`, {
+        headers: getAuthHeaders(),
+        credentials: 'include'
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setPendingRequests(Array.isArray(data) ? data : []);
+      }
+    } catch (err) {
+      console.error('Error fetching pending requests:', err);
+    }
+  };
+
   // Paso 1: Consultar Kiosco por código físico de 8 caracteres
   const handleLookupKiosk = async (e) => {
     if (e) e.preventDefault();
@@ -90,7 +118,7 @@ const DevicesPage = () => {
       const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
       const res = await fetch(`${baseUrl}/api/v1/devices/auth-requests/lookup`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
         credentials: 'include',
         body: JSON.stringify({ pairingCode: code })
       });
@@ -122,7 +150,7 @@ const DevicesPage = () => {
       const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
       const res = await fetch(`${baseUrl}/api/v1/devices/auth-requests/${pairingLookupData.id}/approve`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
         credentials: 'include',
         body: JSON.stringify({
           name: kioskCustomName.trim() || `Kiosko ${pairingLookupData.pairingCode}`,
@@ -150,6 +178,7 @@ const DevicesPage = () => {
 
   useEffect(() => {
     fetchDevices();
+    fetchPendingRequests();
   }, []);
 
   // 3. Escuchar eventos Socket.io para actualizaciones en tiempo real
@@ -213,7 +242,7 @@ const DevicesPage = () => {
       const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
       const res = await fetch(`${baseUrl}/api/v1/devices/${device.id}/block`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
         credentials: 'include',
         body: JSON.stringify({ 
           isBlocked: willBlock,
@@ -251,7 +280,7 @@ const DevicesPage = () => {
       const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
       const res = await fetch(`${baseUrl}/api/v1/devices/${device.id}/status-toggle`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
         credentials: 'include',
         body: JSON.stringify({
           isActive: willBeActive,
@@ -291,7 +320,7 @@ const DevicesPage = () => {
 
       const res = await fetch(`${baseUrl}/api/v1/devices/auth-requests/${request.id}/approve`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
         credentials: 'include',
         body: JSON.stringify({ name: nameToSend })
       });
@@ -305,7 +334,6 @@ const DevicesPage = () => {
         description: `Se dio de alta como "${nameToSend}"`
       });
 
-      setApprovingId(null);
       setKioskCustomName('');
       setPendingRequests(prev => prev.filter(r => r.id !== request.id));
       fetchDevices();
@@ -322,6 +350,7 @@ const DevicesPage = () => {
       const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
       const res = await fetch(`${baseUrl}/api/v1/devices/auth-requests/${requestId}/reject`, {
         method: 'POST',
+        headers: getAuthHeaders(),
         credentials: 'include'
       });
 
@@ -344,6 +373,7 @@ const DevicesPage = () => {
       const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
       const res = await fetch(`${baseUrl}/api/v1/devices/${deviceId}`, {
         method: 'DELETE',
+        headers: getAuthHeaders(),
         credentials: 'include'
       });
 
@@ -369,7 +399,7 @@ const DevicesPage = () => {
       const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
       const res = await fetch(`${baseUrl}/api/v1/devices`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
         credentials: 'include',
         body: JSON.stringify(manualForm)
       });

@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import FaceRegistration from '../../components/FaceRecognition/FaceRegistration';
 import DepartmentsTab from '../../components/DepartmentsTab';
-import { Search, Filter, Users, Fingerprint, Clock, MoreVertical, Plus, AlertCircle, RefreshCw, Camera, Trash2, Edit, Calendar, X, Shield } from 'lucide-react';
+import { Search, Filter, Users, Fingerprint, Clock, MoreVertical, Plus, AlertCircle, AlertTriangle, RefreshCw, Camera, Trash2, Edit, Calendar, X, Shield } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { toast } from 'sonner';
 
 const EmployeesPage = () => {
   const { user } = useAuth();
@@ -31,18 +32,57 @@ const EmployeesPage = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [employeeToEdit, setEmployeeToEdit] = useState(null);
 
+  // State for Delete Modal
+  const [employeeToDelete, setEmployeeToDelete] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const confirmDeleteEmployee = async () => {
+    if (!employeeToDelete) return;
+    try {
+      setIsDeleting(true);
+      const token = localStorage.getItem('token');
+      const tenantId = localStorage.getItem('tenantId');
+      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+      const res = await fetch(`${baseUrl}/api/v1/employees/${employeeToDelete.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          ...(tenantId ? { 'x-tenant-id': tenantId } : {})
+        }
+      });
+      if (res.ok) {
+        toast.success(`Empleado ${employeeToDelete.firstName} ${employeeToDelete.lastName} eliminado correctamente`);
+        setEmployeeToDelete(null);
+        fetchEmployees();
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        toast.error(errData.error || errData.message || 'Error al eliminar empleado');
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error('Error de conexión al eliminar');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const fetchEmployees = async () => {
     try {
       setLoading(true);
       setError(null);
       const token = localStorage.getItem('token');
+      const tenantId = localStorage.getItem('tenantId');
+      const headers = {
+        'Authorization': `Bearer ${token}`,
+        ...(tenantId ? { 'x-tenant-id': tenantId } : {})
+      };
       
       const [resEmp, resDep] = await Promise.all([
         fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:4000'}/api/v1/employees`, {
-          headers: { 'Authorization': `Bearer ${token}` }
+          headers
         }),
         fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:4000'}/api/v1/departments`, {
-          headers: { 'Authorization': `Bearer ${token}` }
+          headers
         })
       ]);
 
@@ -447,7 +487,7 @@ const EmployeesPage = () => {
                         </span>
                       </td>
                       <td style={{ ...tdStyle, textAlign: 'center' }}>
-                        <ActionMenu hasBiometric={hasBiometric} employee={emp} navigate={navigate} onRefresh={fetchEmployees} setIsEditModalOpen={setIsEditModalOpen} setEmployeeToEdit={setEmployeeToEdit} />
+                        <ActionMenu hasBiometric={hasBiometric} employee={emp} navigate={navigate} onRefresh={fetchEmployees} setIsEditModalOpen={setIsEditModalOpen} setEmployeeToEdit={setEmployeeToEdit} setEmployeeToDelete={setEmployeeToDelete} />
                       </td>
                     </tr>
                   )
@@ -766,6 +806,87 @@ const EmployeesPage = () => {
           }}
         />
       )}
+
+      {/* Delete Confirmation Modal con estilos elegantes */}
+      {employeeToDelete && (
+        <div className="modal-overlay" onClick={() => !isDeleting && setEmployeeToDelete(null)}>
+          <div 
+            className="modal-content page-glow" 
+            onClick={(e) => e.stopPropagation()} 
+            style={{ maxWidth: '440px', padding: '1.75rem', borderRadius: '16px', background: '#18181b', border: '1px solid rgba(239, 68, 68, 0.3)' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
+              <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'rgba(239, 68, 68, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ef4444', flexShrink: 0 }}>
+                <AlertTriangle size={26} />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, color: '#fff', fontSize: '1.2rem', fontWeight: 600 }}>Eliminar Empleado</h3>
+                <p style={{ margin: '0.25rem 0 0', color: '#a1a1aa', fontSize: '0.85rem' }}>Esta acción es permanente e irreversible</p>
+              </div>
+            </div>
+
+            <div style={{ background: 'rgba(255, 255, 255, 0.03)', borderRadius: '10px', padding: '1rem', marginBottom: '1.25rem', border: '1px solid rgba(255, 255, 255, 0.06)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.9rem' }}>
+                <span style={{ color: '#a1a1aa' }}>Nombre:</span>
+                <strong style={{ color: '#fff' }}>{employeeToDelete.firstName} {employeeToDelete.lastName}</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.9rem' }}>
+                <span style={{ color: '#a1a1aa' }}>Identificador:</span>
+                <code style={{ color: '#f97316', background: 'rgba(249, 115, 22, 0.1)', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>{employeeToDelete.identifier}</code>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}>
+                <span style={{ color: '#a1a1aa' }}>Correo:</span>
+                <span style={{ color: '#e4e4e7' }}>{employeeToDelete.email || 'Sin correo'}</span>
+              </div>
+            </div>
+
+            <p style={{ color: '#f87171', fontSize: '0.85rem', marginBottom: '1.5rem', lineHeight: '1.4' }}>
+              ⚠️ Se eliminará su biometría facial registrada, asistencias, eventos y turnos asociados.
+            </p>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+              <button 
+                type="button" 
+                onClick={() => setEmployeeToDelete(null)}
+                disabled={isDeleting}
+                style={{ ...btnSecondary, padding: '0.6rem 1.25rem', fontSize: '0.9rem' }}
+              >
+                Cancelar
+              </button>
+              <button 
+                type="button" 
+                onClick={confirmDeleteEmployee}
+                disabled={isDeleting}
+                style={{ 
+                  background: '#dc2626', 
+                  color: 'white', 
+                  border: 'none', 
+                  borderRadius: '8px', 
+                  padding: '0.6rem 1.25rem', 
+                  fontWeight: 600, 
+                  fontSize: '0.9rem',
+                  cursor: isDeleting ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  opacity: isDeleting ? 0.7 : 1,
+                  boxShadow: '0 2px 10px rgba(220, 38, 38, 0.3)'
+                }}
+              >
+                {isDeleting ? (
+                  <>
+                    <RefreshCw size={16} className="spin" /> Eliminando...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 size={16} /> Eliminar definitivamente
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
         </>
       )}
     </div>
@@ -778,26 +899,10 @@ const Skeleton = ({ width, height, borderRadius = '4px', style = {} }) => (
   <div style={{ width, height, borderRadius, background: 'linear-gradient(90deg, #27272a 25%, #3f3f46 50%, #27272a 75%)', backgroundSize: '200% 100%', animation: 'skeleton-loading 1.5s infinite', ...style }} className="skeleton" />
 );
 
-const ActionMenu = ({ hasBiometric, employee, navigate, onRefresh, setIsEditModalOpen, setEmployeeToEdit }) => {
-  const handleDeleteEmployee = async (e) => {
+const ActionMenu = ({ hasBiometric, employee, navigate, onRefresh, setIsEditModalOpen, setEmployeeToEdit, setEmployeeToDelete }) => {
+  const handleDeleteClick = (e) => {
     e.stopPropagation();
-    if (window.confirm(`¿Eliminar permanentemente al empleado ${employee.firstName} ${employee.lastName}?\nEsta acción no se puede deshacer.`)) {
-      try {
-        const token = localStorage.getItem('token') || 'dev-token';
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/v1/employees/${employee.id}`, {
-          method: 'DELETE',
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (res.ok) {
-          onRefresh();
-        } else {
-          alert('Error al eliminar empleado');
-        }
-      } catch (err) {
-        console.error(err);
-        alert('Error de conexión al eliminar');
-      }
-    }
+    setEmployeeToDelete(employee);
   };
 
   const handleEditEmployee = (e) => {
@@ -825,7 +930,7 @@ const ActionMenu = ({ hasBiometric, employee, navigate, onRefresh, setIsEditModa
       </button>
 
       <button 
-        onClick={handleDeleteEmployee}
+        onClick={handleDeleteClick}
         title="Eliminar empleado"
         style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)', color: '#ef4444', cursor: 'pointer', padding: '0.4rem', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
       >

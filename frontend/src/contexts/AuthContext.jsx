@@ -13,6 +13,9 @@ export const AuthProvider = ({ children }) => {
       try {
         const response = await api.get('/auth/me');
         setUser(response.data.user);
+        if (response.data?.user?.companyId) {
+          localStorage.setItem('tenantId', response.data.user.companyId);
+        }
       } catch (error) {
         setUser(null);
       } finally {
@@ -25,6 +28,7 @@ export const AuthProvider = ({ children }) => {
     // Escuchar el evento personalizado desde api.js cuando hay 401
     const handleUnauthorized = () => {
       localStorage.removeItem('token');
+      localStorage.removeItem('tenantId');
       setUser(null);
     };
 
@@ -39,6 +43,9 @@ export const AuthProvider = ({ children }) => {
     if (response.data?.token) {
       localStorage.setItem('token', response.data.token);
     }
+    if (response.data?.user?.companyId) {
+      localStorage.setItem('tenantId', response.data.user.companyId);
+    }
     setUser(response.data.user);
     return response.data.user;
   };
@@ -50,6 +57,7 @@ export const AuthProvider = ({ children }) => {
       console.error('Error logging out on backend', error);
     } finally {
       localStorage.removeItem('token');
+      localStorage.removeItem('tenantId');
       setUser(null);
     }
   };

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, Clock, Calendar, FileText, Monitor, Bell, Settings, LogOut, Maximize, Menu, X, ClipboardList } from 'lucide-react';
+import { LayoutDashboard, Users, Clock, Calendar, FileText, Monitor, Bell, Settings, LogOut, Maximize, Menu, X, ClipboardList, Building2 } from 'lucide-react';
 import { Toaster } from 'sonner';
 import { useNotifications } from '../contexts/NotificationContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -79,7 +79,8 @@ const DashboardLayout = () => {
   ];
 
   const navItemsSistema = [
-    ...(user?.role === 'SUPER_ADMIN' ? [{ name: 'Dispositivos', path: '/dashboard/devices', icon: <Monitor size={18} /> }] : []),
+    { name: 'Dispositivos', path: '/dashboard/devices', icon: <Monitor size={18} /> },
+    ...(user?.role === 'SUPER_ADMIN' ? [{ name: 'Empresas SaaS', path: '/dashboard/companies', icon: <Building2 size={18} /> }] : []),
     { name: 'Notificaciones', path: '/dashboard/notifications', icon: <Bell size={18} />, badge: unreadCount > 0 ? unreadCount : undefined },
     { name: 'Configuración', path: '/dashboard/settings', icon: <Settings size={18} /> },
   ];

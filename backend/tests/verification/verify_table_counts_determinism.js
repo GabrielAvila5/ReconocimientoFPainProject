@@ -60,7 +60,9 @@ function compareCounts(countsBefore, countsAfter, runName) {
 
 function runSuites() {
   const suites = [
-    'node backend/tests/integration/test_routers_http_real.js',
+    'node backend/tests/integration/test_employees_isolation.test.js',
+    'node backend/tests/integration/test_attendance_isolation.test.js',
+    'node backend/tests/integration/test_devices_isolation.test.js',
     'node backend/tests/integration/test_pairing_cross_tenant_isolation.test.js',
     'node backend/tests/integration/test_nested_writes_real_db.test.js',
     'node backend/tests/unit/test_prisma_comprehensive_matrix.test.js',

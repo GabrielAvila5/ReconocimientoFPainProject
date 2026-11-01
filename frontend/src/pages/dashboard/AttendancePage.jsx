@@ -23,7 +23,11 @@ const AttendancePage = () => {
       setError(null);
       
       const token = localStorage.getItem('token');
-      const headers = { 'Authorization': `Bearer ${token}` };
+      const tenantId = localStorage.getItem('tenantId');
+      const headers = {
+        'Authorization': `Bearer ${token}`,
+        ...(tenantId ? { 'x-tenant-id': tenantId } : {})
+      };
 
       const [attRes, empRes, setRes] = await Promise.all([
         fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:4000'}/api/v1/attendance?date=${selectedDate}`, { headers }),

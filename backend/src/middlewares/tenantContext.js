@@ -69,6 +69,9 @@ async function tenantContextMiddleware(req, res, next) {
         if (headerTenantId) {
           companyId = Array.isArray(headerTenantId) ? headerTenantId[0] : headerTenantId;
           isImpersonating = true;
+        } else if (req.user.companyId) {
+          // Si el Super Admin tiene una empresa base asociada en su usuario, usarla por defecto
+          companyId = req.user.companyId;
         }
       } else {
         // Administrador de empresa: su companyId es fijo desde el token JWT

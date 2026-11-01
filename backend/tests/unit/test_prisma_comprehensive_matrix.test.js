@@ -290,14 +290,15 @@ async function main() {
     if (depts.some(d => d.companyId !== 'default-company-pain')) throw new Error('Fallo en $transaction secuencial');
 
     console.log('\n2. Ejecutando $transaction interactiva con lógica transaccional...');
+    const baseCount = await basePrisma.employee.count({ where: { companyId: 'default-company-pain' } });
     const txResult = await prisma.$transaction(async (tx) => {
       const empCount = await tx.employee.count();
       const firstDept = await tx.department.findFirst();
       return { empCount, deptId: firstDept?.id };
     });
     console.log(`  ✓ Transacción interactiva completada exitosamente: count = ${txResult.empCount}`);
-    if (txResult.empCount !== 7) {
-      throw new Error(`Conteo no determinista en prueba interactiva: esperado 7, obtenido ${txResult.empCount}`);
+    if (txResult.empCount !== baseCount) {
+      throw new Error(`Conteo no determinista en prueba interactiva: esperado ${baseCount}, obtenido ${txResult.empCount}`);
     }
   });
 

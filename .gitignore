@@ -17,3 +17,7 @@ node_modules
 
 # Diagnostics scratch scripts
 backend/scripts/diagnostics/
+*.log
+dist/
+build/
+coverage/

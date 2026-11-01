@@ -74,11 +74,16 @@ const DashboardOverview = () => {
     const fetchData = async () => {
       try {
         const token = localStorage.getItem('token');
-        const headers = { 'Authorization': `Bearer ${token}` };
+        const tenantId = localStorage.getItem('tenantId');
+        const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+        const headers = {
+          'Authorization': `Bearer ${token}`,
+          ...(tenantId ? { 'x-tenant-id': tenantId } : {})
+        };
         
         const [attRes, empRes] = await Promise.all([
-          fetch(`${import.meta.env.VITE_API_URL}/api/v1/attendance`, { headers }),
-          fetch(`${import.meta.env.VITE_API_URL}/api/v1/employees`, { headers })
+          fetch(`${baseUrl}/api/v1/attendance`, { headers }),
+          fetch(`${baseUrl}/api/v1/employees`, { headers })
         ]);
 
         if (attRes.ok) {

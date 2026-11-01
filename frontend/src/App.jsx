@@ -24,6 +24,7 @@ import CalendarPage from './pages/dashboard/CalendarPage';
 import ReportsPage from './pages/dashboard/ReportsPage';
 import EventsPage from './pages/dashboard/EventsPage';
 import DevicesPage from './pages/dashboard/DevicesPage';
+import CompaniesPage from './pages/dashboard/CompaniesPage';
 import NotificationsPage from './pages/dashboard/NotificationsPage';
 import SettingsPage from './pages/dashboard/SettingsPage';
 
@@ -125,9 +126,10 @@ function App() {
             <Route path="calendar" element={<CalendarPage />} />
             <Route path="reports" element={<ReportsPage />} />
             <Route path="events" element={<EventsPage />} />
-            <Route path="devices" element={
+            <Route path="devices" element={<DevicesPage />} />
+            <Route path="companies" element={
               <SuperAdminRoute>
-                <DevicesPage />
+                <CompaniesPage />
               </SuperAdminRoute>
             } />
             <Route path="notifications" element={<NotificationsPage />} />

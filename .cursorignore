@@ -1,0 +1,11 @@
+node_modules/
+dist/
+build/
+coverage/
+.git/
+.system_generated/
+backend/node_modules/
+frontend/node_modules/
+backend/dist/
+frontend/dist/
+*.log

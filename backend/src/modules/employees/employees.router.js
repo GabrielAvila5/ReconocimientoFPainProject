@@ -627,8 +627,8 @@ router.delete('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Empleado no encontrado' });
     }
 
-    // Proteger al Super Administrador contra borrado accidental
-    if (employee.email) {
+    // Proteger al Super Administrador contra borrado accidental por parte de otros administradores
+    if (employee.email && req.user?.role !== 'SUPER_ADMIN') {
       const admin = await prisma.adminUser.findUnique({
         where: { email: employee.email }
       });
@@ -640,6 +640,10 @@ router.delete('/:id', async (req, res) => {
     }
 
     // Eliminar registros asociados primero para evitar errores de llave foránea
+    await prisma.eventRequest.deleteMany({
+      where: { employeeId: req.params.id }
+    });
+
     await prisma.attendanceRecord.deleteMany({
       where: { employeeId: req.params.id }
     });
