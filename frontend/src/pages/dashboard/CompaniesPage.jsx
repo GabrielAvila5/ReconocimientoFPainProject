@@ -4,7 +4,7 @@ import {
   CheckCircle2, Copy, Check, Edit, Power, Search, Filter, 
   Clock, Globe, Shield, Sparkles, X, ChevronRight, Key,
   Trash2, Eye, AlertTriangle, ShieldCheck, Fingerprint, Calendar,
-  ArrowUpRight, Info
+  ArrowUpRight, Info, LayoutGrid, List, UserCheck
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -32,6 +32,16 @@ const CompaniesPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Modo de visualización: 'table' (compacta) o 'grid' (tarjetas)
+  const [viewMode, setViewMode] = useState(() => {
+    return localStorage.getItem('companies_view_mode') || 'table';
+  });
+
+  const handleViewModeChange = (mode) => {
+    setViewMode(mode);
+    localStorage.setItem('companies_view_mode', mode);
+  };
 
   // Filtros
   const [searchTerm, setSearchTerm] = useState('');
@@ -458,7 +468,53 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
             Gestión centralizada del ciclo de vida comercial, credenciales, monitoreo en tiempo real y cuotas B2B.
           </p>
         </div>
-        <div style={{ display: 'flex', gap: '0.75rem' }}>
+        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+          {/* Selector de Vista: Tabla Compacta vs Tarjetas */}
+          <div style={{ display: 'flex', background: '#18181b', border: '1px solid #27272a', borderRadius: '8px', padding: '0.2rem' }}>
+            <button
+              type="button"
+              onClick={() => handleViewModeChange('table')}
+              title="Vista de Tabla Compacta (Sin scroll horizontal)"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                padding: '0.45rem 0.75rem',
+                borderRadius: '6px',
+                border: 'none',
+                background: viewMode === 'table' ? 'var(--primary-orange, #f97316)' : 'transparent',
+                color: viewMode === 'table' ? '#fff' : '#a1a1aa',
+                cursor: 'pointer',
+                fontSize: '0.82rem',
+                fontWeight: 600,
+                transition: 'all 0.15s'
+              }}
+            >
+              <List size={15} /> Tabla
+            </button>
+            <button
+              type="button"
+              onClick={() => handleViewModeChange('grid')}
+              title="Vista de Cuadrícula / Tarjetas"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                padding: '0.45rem 0.75rem',
+                borderRadius: '6px',
+                border: 'none',
+                background: viewMode === 'grid' ? 'var(--primary-orange, #f97316)' : 'transparent',
+                color: viewMode === 'grid' ? '#fff' : '#a1a1aa',
+                cursor: 'pointer',
+                fontSize: '0.82rem',
+                fontWeight: 600,
+                transition: 'all 0.15s'
+              }}
+            >
+              <LayoutGrid size={15} /> Tarjetas
+            </button>
+          </div>
+
           <button 
             onClick={() => fetchCompanies(true)}
             style={{ ...btnSecondary, display: 'flex', alignItems: 'center', gap: '0.5rem' }}
@@ -575,7 +631,7 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
         </div>
       </div>
 
-      {/* Tabla de Empresas */}
+      {/* Contenido Principal: Tabla Compacta O Cuadrícula de Tarjetas */}
       {loading ? (
         <div style={{ textAlign: 'center', padding: '4rem 0' }}>
           <RefreshCw className="spin" size={32} style={{ color: '#f97316', margin: '0 auto 1rem' }} />
@@ -588,213 +644,388 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
           <p style={{ margin: '0 0 1rem', color: '#fca5a5' }}>{error}</p>
           <button onClick={() => fetchCompanies(true)} style={btnPrimary}>Reintentar</button>
         </div>
-      ) : (
+      ) : filteredCompanies.length === 0 ? (
+        <div className="card" style={{ padding: '3.5rem', textAlign: 'center', color: '#71717a' }}>
+          <Building2 size={40} style={{ margin: '0 auto 0.75rem', opacity: 0.4 }} />
+          <p style={{ margin: 0, fontSize: '0.95rem' }}>No se encontraron empresas con los filtros especificados.</p>
+        </div>
+      ) : viewMode === 'table' ? (
+        /* ========================================================= */
+        /* VISTA 1: TABLA COMPACTA (100% SIN SCROLL HORIZONTAL)      */
+        /* ========================================================= */
         <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
-              <thead>
-                <tr style={{ borderBottom: '1px solid var(--border-color)', background: 'rgba(255, 255, 255, 0.02)' }}>
-                  <th style={thStyle}>Empresa / Slug</th>
-                  <th style={thStyle}>Administrador</th>
-                  <th style={thStyle}>Plan</th>
-                  <th style={thStyle}>Empleados (Cuota)</th>
-                  <th style={thStyle}>Kioscos (Cuota)</th>
-                  <th style={thStyle}>Estado</th>
-                  <th style={thStyle}>Zona Horaria</th>
-                  <th style={{ ...thStyle, textAlign: 'center' }}>Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredCompanies.length === 0 ? (
-                  <tr>
-                    <td colSpan="8" style={{ padding: '3rem', textAlign: 'center', color: '#71717a' }}>
-                      No se encontraron empresas con los filtros especificados.
+          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.88rem' }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid var(--border-color)', background: 'rgba(255, 255, 255, 0.02)' }}>
+                <th style={{ ...thCompact, width: '30%' }}>Empresa / Plan</th>
+                <th style={{ ...thCompact, width: '24%' }}>Administrador</th>
+                <th style={{ ...thCompact, width: '22%' }}>Cuotas (Uso Real)</th>
+                <th style={{ ...thCompact, width: '10%' }}>Estado</th>
+                <th style={{ ...thCompact, width: '14%', textAlign: 'center' }}>Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredCompanies.map(comp => {
+                const preset = PLAN_PRESETS[comp.plan] || PLAN_PRESETS.STARTER;
+                const empsCount = comp._count?.employees || 0;
+                const enrolledCount = comp._count?.enrolledEmployees || 0;
+                const devsCount = comp._count?.devices || 0;
+                const empPct = Math.min(100, Math.round((empsCount / comp.maxEmployees) * 100));
+                const devPct = Math.min(100, Math.round((devsCount / comp.maxDevices) * 100));
+                const mainAdmin = comp.adminUsers?.[0];
+                const isProtected = comp.id === 'default-company-pain';
+
+                return (
+                  <tr key={comp.id} style={{ borderBottom: '1px solid var(--border-color)', transition: 'background 0.15s' }} className="table-row-hover">
+                    {/* 1. Empresa + Slug + Plan */}
+                    <td style={tdCompact}>
+                      <div 
+                        style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', cursor: 'pointer' }}
+                        onClick={() => openCompanyDetails(comp)}
+                        title="Click para ver ficha integral"
+                      >
+                        <div style={{ width: '34px', height: '34px', minWidth: '34px', borderRadius: '8px', background: 'rgba(249, 115, 22, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f97316', fontWeight: 700, fontSize: '0.92rem', border: '1px solid rgba(249, 115, 22, 0.25)' }}>
+                          {comp.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div style={{ overflow: 'hidden' }}>
+                          <strong style={{ color: '#fff', fontSize: '0.92rem', display: 'flex', alignItems: 'center', gap: '0.35rem', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                            {comp.name}
+                            <Eye size={12} style={{ color: '#71717a', opacity: 0.7 }} />
+                          </strong>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.15rem', flexWrap: 'wrap' }}>
+                            <code style={{ fontSize: '0.72rem', color: '#f97316', background: 'rgba(249, 115, 22, 0.08)', padding: '0.05rem 0.35rem', borderRadius: '4px' }}>
+                              {comp.slug}
+                            </code>
+                            <span style={{ 
+                              padding: '0.1rem 0.45rem', 
+                              borderRadius: '4px', 
+                              fontSize: '0.7rem', 
+                              fontWeight: 700, 
+                              color: preset.badgeColor, 
+                              background: preset.bgBadge,
+                              border: `1px solid ${preset.badgeColor}33`
+                            }}>
+                              {comp.plan}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+
+                    {/* 2. Administrador */}
+                    <td style={tdCompact}>
+                      {mainAdmin ? (
+                        <div style={{ overflow: 'hidden' }}>
+                          <div style={{ color: '#fff', fontSize: '0.85rem', fontWeight: 500, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                            {mainAdmin.name}
+                          </div>
+                          <div style={{ color: '#a1a1aa', fontSize: '0.75rem', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                            {mainAdmin.email}
+                          </div>
+                        </div>
+                      ) : (
+                        <span style={{ color: '#71717a', fontSize: '0.78rem' }}>Sin administrador</span>
+                      )}
+                    </td>
+
+                    {/* 3. Cuotas de Plan (Empleados & Kioscos Unificados) */}
+                    <td style={tdCompact}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                        {/* Empleados */}
+                        <div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: '#d4d4d8', marginBottom: '0.15rem' }}>
+                            <span>👥 {empsCount} / {comp.maxEmployees} <span style={{ color: '#10b981', fontSize: '0.7rem' }}>({enrolledCount} 👤)</span></span>
+                            <span style={{ color: '#71717a' }}>{empPct}%</span>
+                          </div>
+                          <div style={{ height: '3px', background: '#27272a', borderRadius: '99px', overflow: 'hidden' }}>
+                            <div style={{ width: `${empPct}%`, height: '100%', background: empPct > 90 ? '#ef4444' : '#10b981' }} />
+                          </div>
+                        </div>
+
+                        {/* Kioscos */}
+                        <div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: '#d4d4d8', marginBottom: '0.15rem' }}>
+                            <span>💻 {devsCount} / {comp.maxDevices} kioscos</span>
+                            <span style={{ color: '#71717a' }}>{devPct}%</span>
+                          </div>
+                          <div style={{ height: '3px', background: '#27272a', borderRadius: '99px', overflow: 'hidden' }}>
+                            <div style={{ width: `${devPct}%`, height: '100%', background: devPct > 90 ? '#ef4444' : '#3b82f6' }} />
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+
+                    {/* 4. Estado */}
+                    <td style={tdCompact}>
+                      <span style={{
+                        padding: '0.2rem 0.55rem',
+                        borderRadius: '99px',
+                        fontSize: '0.72rem',
+                        fontWeight: 600,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.3rem',
+                        color: comp.isActive ? '#10b981' : '#ef4444',
+                        background: comp.isActive ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                        border: `1px solid ${comp.isActive ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)'}`
+                      }}>
+                        <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: comp.isActive ? '#10b981' : '#ef4444' }} />
+                        {comp.isActive ? 'Activa' : 'Suspendida'}
+                      </span>
+                    </td>
+
+                    {/* 5. Acciones */}
+                    <td style={{ ...tdCompact, textAlign: 'center' }}>
+                      <div style={{ display: 'flex', justifyContent: 'center', gap: '0.35rem' }}>
+                        {/* Ficha Completa */}
+                        <button
+                          onClick={() => openCompanyDetails(comp)}
+                          title="Ficha Integral y Métricas"
+                          style={{ background: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.15)', color: '#d4d4d8', padding: '0.35rem', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                        >
+                          <Eye size={14} />
+                        </button>
+
+                        {/* Credenciales */}
+                        <button
+                          onClick={() => openCredentialModal(comp)}
+                          title="Copiar Credenciales de Acceso"
+                          style={{ background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.25)', color: '#10b981', padding: '0.35rem', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                        >
+                          <Key size={14} />
+                        </button>
+
+                        {/* Modificar Plan */}
+                        <button
+                          onClick={() => openEditModal(comp)}
+                          title="Modificar Plan y Cuotas"
+                          style={{ background: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.25)', color: '#60a5fa', padding: '0.35rem', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                        >
+                          <Edit size={14} />
+                        </button>
+
+                        {/* Suspender / Activar */}
+                        <button
+                          onClick={() => openSuspendModal(comp)}
+                          title={comp.isActive ? "Suspender Servicio" : "Reactivar Servicio"}
+                          style={{
+                            background: comp.isActive ? 'rgba(239, 68, 68, 0.1)' : 'rgba(16, 185, 129, 0.1)',
+                            border: `1px solid ${comp.isActive ? 'rgba(239, 68, 68, 0.25)' : 'rgba(16, 185, 129, 0.25)'}`,
+                            color: comp.isActive ? '#ef4444' : '#10b981',
+                            padding: '0.35rem',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center'
+                          }}
+                        >
+                          <Power size={14} />
+                        </button>
+
+                        {/* Baja Definitiva (ARCO) */}
+                        <button
+                          onClick={() => !isProtected && openDeleteModal(comp)}
+                          disabled={isProtected}
+                          title={isProtected ? "Empresa principal protegida" : "Dar de baja por completo (ARCO)"}
+                          style={{
+                            background: isProtected ? 'rgba(255, 255, 255, 0.02)' : 'rgba(239, 68, 68, 0.1)',
+                            border: `1px solid ${isProtected ? 'rgba(255, 255, 255, 0.05)' : 'rgba(239, 68, 68, 0.25)'}`,
+                            color: isProtected ? '#52525b' : '#f87171',
+                            padding: '0.35rem',
+                            borderRadius: '6px',
+                            cursor: isProtected ? 'not-allowed' : 'pointer',
+                            display: 'flex',
+                            alignItems: 'center'
+                          }}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
-                ) : (
-                  filteredCompanies.map(comp => {
-                    const preset = PLAN_PRESETS[comp.plan] || PLAN_PRESETS.STARTER;
-                    const empsCount = comp._count?.employees || 0;
-                    const enrolledCount = comp._count?.enrolledEmployees || 0;
-                    const devsCount = comp._count?.devices || 0;
-                    const empPct = Math.min(100, Math.round((empsCount / comp.maxEmployees) * 100));
-                    const devPct = Math.min(100, Math.round((devsCount / comp.maxDevices) * 100));
-                    const mainAdmin = comp.adminUsers?.[0];
-                    const isProtected = comp.id === 'default-company-pain';
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        /* ========================================================= */
+        /* VISTA 2: CUADRÍCULA DE TARJETAS (CARDS GRID EJECUTIVAS)   */
+        /* ========================================================= */
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1.25rem' }}>
+          {filteredCompanies.map(comp => {
+            const preset = PLAN_PRESETS[comp.plan] || PLAN_PRESETS.STARTER;
+            const empsCount = comp._count?.employees || 0;
+            const enrolledCount = comp._count?.enrolledEmployees || 0;
+            const devsCount = comp._count?.devices || 0;
+            const empPct = Math.min(100, Math.round((empsCount / comp.maxEmployees) * 100));
+            const devPct = Math.min(100, Math.round((devsCount / comp.maxDevices) * 100));
+            const mainAdmin = comp.adminUsers?.[0];
+            const isProtected = comp.id === 'default-company-pain';
 
-                    return (
-                      <tr key={comp.id} style={{ borderBottom: '1px solid var(--border-color)', transition: 'background 0.15s' }} className="table-row-hover">
-                        <td style={tdStyle}>
-                          <div 
-                            style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer' }}
-                            onClick={() => openCompanyDetails(comp)}
-                            title="Click para ver ficha completa"
-                          >
-                            <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: 'rgba(249, 115, 22, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f97316', fontWeight: 700, fontSize: '1rem', border: '1px solid rgba(249, 115, 22, 0.25)' }}>
-                              {comp.name.charAt(0).toUpperCase()}
-                            </div>
-                            <div>
-                              <strong style={{ color: '#fff', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                                {comp.name}
-                                <Eye size={13} style={{ color: '#71717a', opacity: 0.7 }} />
-                              </strong>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.15rem' }}>
-                                <code style={{ fontSize: '0.75rem', color: '#f97316', background: 'rgba(249, 115, 22, 0.08)', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>
-                                  {comp.slug}
-                                </code>
-                                {comp.customDomain && (
-                                  <span style={{ fontSize: '0.75rem', color: '#a1a1aa' }}>· {comp.customDomain}</span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        </td>
+            return (
+              <div 
+                key={comp.id} 
+                className="card card-glow"
+                style={{ 
+                  padding: '1.25rem', 
+                  display: 'flex', 
+                  flexDirection: 'column', 
+                  justifyContent: 'space-between',
+                  borderRadius: '14px',
+                  border: '1px solid #27272a',
+                  background: '#141416',
+                  transition: 'transform 0.15s, border-color 0.15s'
+                }}
+              >
+                {/* Cabecera Tarjeta */}
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
+                    <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                      <div style={{ width: '42px', height: '42px', borderRadius: '10px', background: 'rgba(249, 115, 22, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f97316', fontWeight: 800, fontSize: '1.1rem', border: '1px solid rgba(249, 115, 22, 0.3)' }}>
+                        {comp.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        <h3 
+                          onClick={() => openCompanyDetails(comp)}
+                          style={{ margin: 0, fontSize: '1.05rem', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+                        >
+                          {comp.name}
+                          <Eye size={13} style={{ color: '#71717a' }} />
+                        </h3>
+                        <code style={{ fontSize: '0.75rem', color: '#f97316' }}>{comp.slug}</code>
+                      </div>
+                    </div>
 
-                        <td style={tdStyle}>
-                          {mainAdmin ? (
-                            <div>
-                              <span style={{ color: '#fff', fontSize: '0.85rem', fontWeight: 500 }}>{mainAdmin.name}</span>
-                              <div style={{ color: '#a1a1aa', fontSize: '0.75rem' }}>{mainAdmin.email}</div>
-                            </div>
-                          ) : (
-                            <span style={{ color: '#71717a', fontSize: '0.8rem' }}>Sin admin</span>
-                          )}
-                        </td>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.35rem' }}>
+                      <span style={{ 
+                        padding: '0.15rem 0.55rem', 
+                        borderRadius: '99px', 
+                        fontSize: '0.7rem', 
+                        fontWeight: 700, 
+                        color: preset.badgeColor, 
+                        background: preset.bgBadge,
+                        border: `1px solid ${preset.badgeColor}33`
+                      }}>
+                        {comp.plan}
+                      </span>
+                      <span style={{
+                        padding: '0.1rem 0.45rem',
+                        borderRadius: '99px',
+                        fontSize: '0.68rem',
+                        fontWeight: 600,
+                        color: comp.isActive ? '#10b981' : '#ef4444',
+                        background: comp.isActive ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)'
+                      }}>
+                        {comp.isActive ? '● Activa' : '● Suspendida'}
+                      </span>
+                    </div>
+                  </div>
 
-                        <td style={tdStyle}>
-                          <span style={{ 
-                            padding: '0.25rem 0.65rem', 
-                            borderRadius: '99px', 
-                            fontSize: '0.75rem', 
-                            fontWeight: 700, 
-                            color: preset.badgeColor, 
-                            background: preset.bgBadge,
-                            border: `1px solid ${preset.badgeColor}33`
-                          }}>
-                            {comp.plan}
-                          </span>
-                        </td>
+                  {/* Administrador */}
+                  <div style={{ background: '#18181b', borderRadius: '8px', padding: '0.65rem 0.85rem', marginBottom: '1rem', border: '1px solid #27272a' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.8rem', color: '#fff', fontWeight: 500 }}>
+                      <UserCheck size={14} style={{ color: '#10b981' }} />
+                      <span>{mainAdmin?.name || 'Sin administrador asignado'}</span>
+                    </div>
+                    {mainAdmin?.email && (
+                      <div style={{ fontSize: '0.74rem', color: '#a1a1aa', marginTop: '0.15rem', paddingLeft: '1.35rem' }}>
+                        {mainAdmin.email}
+                      </div>
+                    )}
+                  </div>
 
-                        <td style={tdStyle}>
-                          <div style={{ minWidth: '120px' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginBottom: '0.25rem' }}>
-                              <span style={{ color: '#fff' }}>{empsCount} <span style={{ color: '#10b981', fontSize: '0.72rem' }}>({enrolledCount} 👤)</span></span>
-                              <span style={{ color: '#71717a' }}>/ {comp.maxEmployees}</span>
-                            </div>
-                            <div style={{ height: '4px', background: '#27272a', borderRadius: '99px', overflow: 'hidden' }}>
-                              <div style={{ width: `${empPct}%`, height: '100%', background: empPct > 90 ? '#ef4444' : '#10b981' }} />
-                            </div>
-                          </div>
-                        </td>
+                  {/* Barras de Consumo */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', marginBottom: '1.25rem' }}>
+                    {/* Empleados */}
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', marginBottom: '0.25rem' }}>
+                        <span style={{ color: '#d4d4d8' }}>Empleados: <strong>{empsCount}</strong> / {comp.maxEmployees}</span>
+                        <span style={{ color: '#10b981', fontSize: '0.72rem' }}>{enrolledCount} con rostro</span>
+                      </div>
+                      <div style={{ height: '4px', background: '#27272a', borderRadius: '99px', overflow: 'hidden' }}>
+                        <div style={{ width: `${empPct}%`, height: '100%', background: empPct > 90 ? '#ef4444' : '#10b981' }} />
+                      </div>
+                    </div>
 
-                        <td style={tdStyle}>
-                          <div style={{ minWidth: '100px' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginBottom: '0.25rem' }}>
-                              <span style={{ color: '#fff' }}>{devsCount}</span>
-                              <span style={{ color: '#71717a' }}>/ {comp.maxDevices}</span>
-                            </div>
-                            <div style={{ height: '4px', background: '#27272a', borderRadius: '99px', overflow: 'hidden' }}>
-                              <div style={{ width: `${devPct}%`, height: '100%', background: devPct > 90 ? '#ef4444' : '#3b82f6' }} />
-                            </div>
-                          </div>
-                        </td>
+                    {/* Kioscos */}
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', marginBottom: '0.25rem' }}>
+                        <span style={{ color: '#d4d4d8' }}>Kioscos: <strong>{devsCount}</strong> / {comp.maxDevices}</span>
+                        <span style={{ color: '#71717a' }}>{devPct}% cupo</span>
+                      </div>
+                      <div style={{ height: '4px', background: '#27272a', borderRadius: '99px', overflow: 'hidden' }}>
+                        <div style={{ width: `${devPct}%`, height: '100%', background: devPct > 90 ? '#ef4444' : '#3b82f6' }} />
+                      </div>
+                    </div>
+                  </div>
+                </div>
 
-                        <td style={tdStyle}>
-                          <span style={{
-                            padding: '0.25rem 0.65rem',
-                            borderRadius: '99px',
-                            fontSize: '0.75rem',
-                            fontWeight: 600,
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '0.35rem',
-                            color: comp.isActive ? '#10b981' : '#ef4444',
-                            background: comp.isActive ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-                            border: `1px solid ${comp.isActive ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)'}`
-                          }}>
-                            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: comp.isActive ? '#10b981' : '#ef4444' }} />
-                            {comp.isActive ? 'Activa' : 'Suspendida'}
-                          </span>
-                        </td>
+                {/* Pie de Tarjeta / Botones de Acción */}
+                <div style={{ borderTop: '1px solid #27272a', paddingTop: '0.85rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <button
+                    onClick={() => openCompanyDetails(comp)}
+                    style={{ ...btnSecondary, padding: '0.35rem 0.75rem', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+                  >
+                    <Eye size={13} /> Ficha
+                  </button>
 
-                        <td style={tdStyle}>
-                          <span style={{ color: '#a1a1aa', fontSize: '0.8rem' }}>{comp.timezone.replace('America/', '')}</span>
-                        </td>
+                  <div style={{ display: 'flex', gap: '0.35rem' }}>
+                    <button
+                      onClick={() => openCredentialModal(comp)}
+                      title="Copiar Credenciales de Acceso"
+                      style={{ background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.25)', color: '#10b981', padding: '0.35rem 0.55rem', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                    >
+                      <Key size={14} />
+                    </button>
 
-                        <td style={{ ...tdStyle, textAlign: 'center' }}>
-                          <div style={{ display: 'flex', justifyContent: 'center', gap: '0.4rem' }}>
-                            {/* Ver Ficha Completa */}
-                            <button
-                              onClick={() => openCompanyDetails(comp)}
-                              title="Ver Ficha y Estadísticas Completas"
-                              style={{ background: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.15)', color: '#d4d4d8', padding: '0.45rem', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
-                            >
-                              <Eye size={15} />
-                            </button>
+                    <button
+                      onClick={() => openEditModal(comp)}
+                      title="Modificar Plan y Cuotas"
+                      style={{ background: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.25)', color: '#60a5fa', padding: '0.35rem 0.55rem', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                    >
+                      <Edit size={14} />
+                    </button>
 
-                            {/* Copiar / Ver Credenciales */}
-                            <button
-                              onClick={() => openCredentialModal(comp)}
-                              title="Ver y Copiar Credenciales de Acceso"
-                              style={{ background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.25)', color: '#10b981', padding: '0.45rem', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
-                            >
-                              <Key size={15} />
-                            </button>
+                    <button
+                      onClick={() => openSuspendModal(comp)}
+                      title={comp.isActive ? "Suspender Servicio" : "Reactivar Servicio"}
+                      style={{
+                        background: comp.isActive ? 'rgba(239, 68, 68, 0.1)' : 'rgba(16, 185, 129, 0.1)',
+                        border: `1px solid ${comp.isActive ? 'rgba(239, 68, 68, 0.25)' : 'rgba(16, 185, 129, 0.25)'}`,
+                        color: comp.isActive ? '#ef4444' : '#10b981',
+                        padding: '0.35rem 0.55rem',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center'
+                      }}
+                    >
+                      <Power size={14} />
+                    </button>
 
-                            {/* Editar Cuotas */}
-                            <button
-                              onClick={() => openEditModal(comp)}
-                              title="Modificar Plan y Cuotas"
-                              style={{ background: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.25)', color: '#60a5fa', padding: '0.45rem', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
-                            >
-                              <Edit size={15} />
-                            </button>
-
-                            {/* Suspender / Activar (Con modal estilizado) */}
-                            <button
-                              onClick={() => openSuspendModal(comp)}
-                              title={comp.isActive ? "Suspender Servicio de la Empresa" : "Reactivar Servicio de la Empresa"}
-                              style={{
-                                background: comp.isActive ? 'rgba(239, 68, 68, 0.1)' : 'rgba(16, 185, 129, 0.1)',
-                                border: `1px solid ${comp.isActive ? 'rgba(239, 68, 68, 0.25)' : 'rgba(16, 185, 129, 0.25)'}`,
-                                color: comp.isActive ? '#ef4444' : '#10b981',
-                                padding: '0.45rem',
-                                borderRadius: '8px',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center'
-                              }}
-                            >
-                              <Power size={15} />
-                            </button>
-
-                            {/* Dar de Baja Definitiva (ARCO) */}
-                            <button
-                              onClick={() => !isProtected && openDeleteModal(comp)}
-                              disabled={isProtected}
-                              title={isProtected ? "Empresa principal protegida contra eliminación" : "Dar de baja por completo (Derecho ARCO)"}
-                              style={{
-                                background: isProtected ? 'rgba(255, 255, 255, 0.02)' : 'rgba(239, 68, 68, 0.1)',
-                                border: `1px solid ${isProtected ? 'rgba(255, 255, 255, 0.05)' : 'rgba(239, 68, 68, 0.25)'}`,
-                                color: isProtected ? '#52525b' : '#f87171',
-                                padding: '0.45rem',
-                                borderRadius: '8px',
-                                cursor: isProtected ? 'not-allowed' : 'pointer',
-                                display: 'flex',
-                                alignItems: 'center'
-                              }}
-                            >
-                              <Trash2 size={15} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
+                    <button
+                      onClick={() => !isProtected && openDeleteModal(comp)}
+                      disabled={isProtected}
+                      title={isProtected ? "Empresa principal protegida" : "Dar de baja por completo (ARCO)"}
+                      style={{
+                        background: isProtected ? 'rgba(255, 255, 255, 0.02)' : 'rgba(239, 68, 68, 0.1)',
+                        border: `1px solid ${isProtected ? 'rgba(255, 255, 255, 0.05)' : 'rgba(239, 68, 68, 0.25)'}`,
+                        color: isProtected ? '#52525b' : '#f87171',
+                        padding: '0.35rem 0.55rem',
+                        borderRadius: '6px',
+                        cursor: isProtected ? 'not-allowed' : 'pointer',
+                        display: 'flex',
+                        alignItems: 'center'
+                      }}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -1784,18 +2015,18 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
   );
 };
 
-// --- Estilos de Apoyo ---
-const thStyle = {
-  padding: '1rem 1.25rem',
+// --- Estilos de Apoyo (Compactos) ---
+const thCompact = {
+  padding: '0.85rem 0.85rem',
   color: '#a1a1aa',
-  fontSize: '0.8rem',
+  fontSize: '0.78rem',
   fontWeight: 600,
   textTransform: 'uppercase',
-  letterSpacing: '0.05em'
+  letterSpacing: '0.04em'
 };
 
-const tdStyle = {
-  padding: '1rem 1.25rem',
+const tdCompact = {
+  padding: '0.75rem 0.85rem',
   verticalAlign: 'middle'
 };
 
