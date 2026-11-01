@@ -18,23 +18,52 @@ const PLAN_DEFAULTS = {
 
 /**
  * GET /api/v1/companies
- * Listar todas las empresas registradas (Super Admin)
+ * Listar todas las empresas registradas (Super Admin) con métricas enriquecidas
  */
 router.get('/', async (req, res) => {
   try {
     const companies = await prisma.company.findMany({
       orderBy: { createdAt: 'desc' },
       include: {
+        adminUsers: {
+          select: { id: true, name: true, email: true, role: true, createdAt: true },
+          take: 3
+        },
         _count: {
           select: {
             employees: true,
             devices: true,
+            departments: true,
+            shifts: true,
+            attendances: true,
             adminUsers: true
           }
         }
       }
     });
-    res.json(companies);
+
+    // Enriquecer con conteo de empleados con enrolamiento biométrico completado
+    const enrichedCompanies = await Promise.all(
+      companies.map(async (comp) => {
+        const enrolledCount = await runWithTenantContext({ companyId: comp.id, isSuperAdmin: true }, async () => {
+          return prisma.employee.count({
+            where: {
+              companyId: comp.id,
+              faceDescriptor: { not: null }
+            }
+          });
+        });
+        return {
+          ...comp,
+          _count: {
+            ...comp._count,
+            enrolledEmployees: enrolledCount
+          }
+        };
+      })
+    );
+
+    res.json(enrichedCompanies);
   } catch (error) {
     console.error('Error al listar empresas:', error);
     res.status(500).json({ error: 'Error al listar empresas' });
@@ -43,7 +72,7 @@ router.get('/', async (req, res) => {
 
 /**
  * GET /api/v1/companies/:id
- * Detalle de una empresa específica
+ * Detalle completo y enriquecido de una empresa específica (Super Admin)
  */
 router.get('/:id', async (req, res) => {
   try {
@@ -59,8 +88,24 @@ router.get('/:id', async (req, res) => {
           select: { id: true, name: true, email: true, role: true, createdAt: true }
         },
         settings: true,
+        departments: {
+          select: { id: true, name: true, _count: { select: { employees: true } } }
+        },
+        shifts: {
+          select: { id: true, name: true, startTime: true, endTime: true, isActive: true }
+        },
+        devices: {
+          select: { id: true, name: true, type: true, status: true, ipAddress: true, isActive: true, createdAt: true, lastSeenAt: true }
+        },
         _count: {
-          select: { employees: true, devices: true }
+          select: {
+            employees: true,
+            devices: true,
+            departments: true,
+            shifts: true,
+            attendances: true,
+            adminUsers: true
+          }
         }
       }
     });
@@ -69,7 +114,23 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Empresa no encontrada' });
     }
 
-    res.json(company);
+    // Contar empleados enrolados biométricamente
+    const enrolledEmployees = await runWithTenantContext({ companyId: company.id, isSuperAdmin: true }, async () => {
+      return prisma.employee.count({
+        where: {
+          companyId: company.id,
+          faceDescriptor: { not: null }
+        }
+      });
+    });
+
+    res.json({
+      ...company,
+      _count: {
+        ...company._count,
+        enrolledEmployees
+      }
+    });
   } catch (error) {
     console.error('Error al obtener empresa:', error);
     res.status(500).json({ error: 'Error al obtener empresa' });
@@ -393,6 +454,175 @@ router.patch('/:id/status', async (req, res) => {
     }
     console.error('Error al actualizar estado de la empresa:', error);
     res.status(500).json({ error: 'Error al actualizar estado de la empresa' });
+  }
+});
+
+/**
+ * POST /api/v1/companies/:id/reset-admin-password
+ * Restablecer o regenerar contraseña del administrador de la empresa (Super Admin)
+ */
+router.post('/:id/reset-admin-password', async (req, res) => {
+  try {
+    const companyId = req.params.id;
+    const { newPassword } = req.body;
+
+    if (!companyId) {
+      return res.status(400).json({ error: 'ID de empresa inválido' });
+    }
+
+    const company = await prisma.company.findUnique({
+      where: { id: companyId },
+      include: {
+        adminUsers: {
+          where: { role: 'ADMIN' },
+          orderBy: { createdAt: 'asc' },
+          take: 1
+        }
+      }
+    });
+
+    if (!company) {
+      return res.status(404).json({ error: 'Empresa no encontrada' });
+    }
+
+    const admin = company.adminUsers[0];
+    if (!admin) {
+      return res.status(404).json({ error: 'La empresa no cuenta con un usuario Administrador registrado.' });
+    }
+
+    // Generar contraseña aleatoria si no fue provista
+    let finalPassword = newPassword;
+    if (!finalPassword || typeof finalPassword !== 'string' || finalPassword.length < 6) {
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%';
+      finalPassword = '';
+      for (let i = 0; i < 12; i++) {
+        finalPassword += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+    }
+
+    const hashedPassword = await bcrypt.hash(finalPassword, 10);
+
+    await runWithTenantContext({ companyId: company.id, isSuperAdmin: true }, async () => {
+      await prisma.adminUser.update({
+        where: {
+          id_companyId: {
+            id: admin.id,
+            companyId: company.id
+          }
+        },
+        data: {
+          password: hashedPassword
+        }
+      });
+
+      await prisma.adminAuditLog.create({
+        data: {
+          action: 'RESET_ADMIN_PASSWORD',
+          performedById: req.user.id,
+          performedByName: req.user.name || req.user.email || 'Super Admin',
+          targetName: company.name,
+          targetEmail: admin.email,
+          companyId: company.id
+        }
+      });
+    });
+
+    res.json({
+      success: true,
+      message: `Contraseña del administrador "${admin.email}" restablecida exitosamente.`,
+      company: {
+        id: company.id,
+        name: company.name,
+        slug: company.slug,
+        plan: company.plan,
+        maxEmployees: company.maxEmployees,
+        maxDevices: company.maxDevices
+      },
+      admin: {
+        id: admin.id,
+        name: admin.name,
+        email: admin.email
+      },
+      newPassword: finalPassword
+    });
+  } catch (error) {
+    console.error('Error al restablecer contraseña de administrador:', error);
+    res.status(500).json({ error: 'Error al restablecer contraseña', message: error.message });
+  }
+});
+
+/**
+ * DELETE /api/v1/companies/:id
+ * Dar de baja por completo a una empresa cliente (Derecho ARCO y Purga de Datos)
+ */
+router.delete('/:id', async (req, res) => {
+  try {
+    const companyId = req.params.id;
+
+    if (!companyId) {
+      return res.status(400).json({ error: 'ID de empresa inválido' });
+    }
+
+    // Regla de salvaguarda: No permitir eliminar la empresa matriz principal
+    if (companyId === 'default-company-pain' || companyId === req.user.companyId) {
+      return res.status(400).json({
+        error: 'CANNOT_DELETE_PRIMARY_COMPANY',
+        message: 'No está permitido eliminar la empresa principal o la empresa del usuario actual en sesión.'
+      });
+    }
+
+    const company = await prisma.company.findUnique({
+      where: { id: companyId }
+    });
+
+    if (!company) {
+      return res.status(404).json({ error: 'Empresa no encontrada' });
+    }
+
+    // 1. Desconectar sockets y kioskos en tiempo real
+    const appModule = require('../../app');
+    if (typeof appModule.disconnectCompanySockets === 'function') {
+      appModule.disconnectCompanySockets(companyId, 'COMPANY_PURGED');
+    }
+
+    // 2. Cascada de eliminación limpia en orden de integridad referencial
+    await runWithTenantContext({ companyId: company.id, isSuperAdmin: true }, async () => {
+      // 2.1 Eventos y Asistencias
+      await prisma.eventRequest.deleteMany({ where: { companyId } });
+      await prisma.attendanceRecord.deleteMany({ where: { companyId } });
+
+      // 2.2 Turnos y Asignaciones
+      await prisma.employeeShift.deleteMany({ where: { companyId } });
+      await prisma.departmentShift.deleteMany({ where: { companyId } });
+      await prisma.shift.deleteMany({ where: { companyId } });
+
+      // 2.3 Empleados y Departamentos
+      await prisma.employee.deleteMany({ where: { companyId } });
+      await prisma.department.deleteMany({ where: { companyId } });
+
+      // 2.4 Kioskos y Solicitudes de Emparejamiento
+      await prisma.deviceAuthRequest.deleteMany({ where: { companyId } });
+      await prisma.device.deleteMany({ where: { companyId } });
+
+      // 2.5 Notificaciones, Auditorías, Usuarios Administradores y Settings
+      await prisma.notification.deleteMany({ where: { companyId } });
+      await prisma.adminAuditLog.deleteMany({ where: { companyId } });
+      await prisma.adminUser.deleteMany({ where: { companyId } });
+      await prisma.systemSettings.deleteMany({ where: { companyId } });
+    });
+
+    // 2.6 Registro principal de la Empresa
+    await prisma.company.delete({
+      where: { id: companyId }
+    });
+
+    res.json({
+      success: true,
+      message: `Empresa "${company.name}" (${company.slug}) y la totalidad de sus datos fueron eliminados de forma definitiva.`
+    });
+  } catch (error) {
+    console.error('Error al dar de baja empresa:', error);
+    res.status(500).json({ error: 'Error al dar de baja la empresa', message: error.message });
   }
 });
 

@@ -2,7 +2,9 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Building2, Users, Monitor, Plus, RefreshCw, AlertCircle, 
   CheckCircle2, Copy, Check, Edit, Power, Search, Filter, 
-  Clock, Globe, Shield, Sparkles, X, ChevronRight
+  Clock, Globe, Shield, Sparkles, X, ChevronRight, Key,
+  Trash2, Eye, AlertTriangle, ShieldCheck, Fingerprint, Calendar,
+  ArrowUpRight, Info
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -67,6 +69,28 @@ const CompaniesPage = () => {
     customDomain: ''
   });
 
+  // Modal de Ver Ficha Completa (Detalles de Empresa)
+  const [detailCompany, setDetailCompany] = useState(null);
+  const [detailData, setDetailData] = useState(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailTab, setDetailTab] = useState('overview'); // 'overview' | 'admins' | 'devices' | 'structure'
+
+  // Modal de Credenciales / Copiar Acceso
+  const [credentialCompany, setCredentialCompany] = useState(null);
+  const [credResetLoading, setCredResetLoading] = useState(false);
+  const [credGeneratedPassword, setCredGeneratedPassword] = useState('');
+  const [credCopied, setCredCopied] = useState(false);
+
+  // Modal de Suspensión / Reactivación con Estilos
+  const [suspendModalCompany, setSuspendModalCompany] = useState(null);
+  const [suspendReason, setSuspendReason] = useState('');
+  const [isSuspending, setIsSuspending] = useState(false);
+
+  // Modal de Baja Definitiva (Derecho ARCO)
+  const [deleteModalCompany, setDeleteModalCompany] = useState(null);
+  const [deleteConfirmSlug, setDeleteConfirmSlug] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const getAuthHeaders = () => {
     const token = localStorage.getItem('token');
     const tenantId = localStorage.getItem('tenantId');
@@ -107,7 +131,7 @@ const CompaniesPage = () => {
     fetchCompanies();
   }, []);
 
-  // Generador automático de slug en base al nombre
+  // Generador de slug
   const handleNameChange = (name) => {
     const autoSlug = name
       .toLowerCase()
@@ -143,7 +167,7 @@ const CompaniesPage = () => {
     setFormData(prev => ({ ...prev, adminPassword: pass }));
   };
 
-  // Enviar Alta de Empresa
+  // Crear Empresa
   const handleCreateCompany = async (e) => {
     e.preventDefault();
     try {
@@ -178,18 +202,104 @@ const CompaniesPage = () => {
     }
   };
 
-  // Alternar Estado Activo / Suspendido
-  const handleToggleStatus = async (company) => {
-    const willBeActive = !company.isActive;
-    const actionText = willBeActive ? 'reactivar' : 'suspender';
-    
-    if (!window.confirm(`¿Estás seguro de ${actionText} a "${company.name}"?\n${willBeActive ? 'Se restaurará el acceso de sus administradores y kioskos.' : 'Se cerrarán las sesiones de sus administradores y sus kioskos no podrán checar asistencias.'}`)) {
-      return;
-    }
-
+  // Detalle de Empresa
+  const openCompanyDetails = async (company) => {
+    setDetailCompany(company);
+    setDetailData(null);
+    setDetailLoading(true);
+    setDetailTab('overview');
     try {
       const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
-      const res = await fetch(`${baseUrl}/api/v1/superadmin/companies/${company.id}/status`, {
+      const res = await fetch(`${baseUrl}/api/v1/superadmin/companies/${company.id}`, {
+        headers: getAuthHeaders(),
+        credentials: 'include'
+      });
+      if (res.ok) {
+        const fullData = await res.json();
+        setDetailData(fullData);
+      } else {
+        setDetailData(company);
+      }
+    } catch (err) {
+      console.error('Error fetching detail:', err);
+      setDetailData(company);
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
+  // Modal de Credenciales / Copiar Acceso
+  const openCredentialModal = (company) => {
+    setCredentialCompany(company);
+    setCredGeneratedPassword('');
+    setCredCopied(false);
+  };
+
+  // Generar / Restablecer Contraseña de Admin
+  const handleResetAdminPassword = async () => {
+    if (!credentialCompany) return;
+    try {
+      setCredResetLoading(true);
+      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+      const res = await fetch(`${baseUrl}/api/v1/superadmin/companies/${credentialCompany.id}/reset-admin-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders()
+        },
+        credentials: 'include',
+        body: JSON.stringify({})
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || data.error || 'Error al restablecer contraseña');
+      }
+
+      setCredGeneratedPassword(data.newPassword);
+      toast.success('Nueva contraseña generada y actualizada en base de datos.');
+    } catch (err) {
+      toast.error(err.message);
+    } finally {
+      setCredResetLoading(false);
+    }
+  };
+
+  // Copiar plantilla completa de credenciales
+  const copyFullCredentials = (comp, customPassword = '') => {
+    const adminEmail = comp.adminUsers?.[0]?.email || 'admin@empresa.com';
+    const pwdText = customPassword ? `Contraseña Temporal: ${customPassword}` : '(Contraseña configurada por el cliente)';
+    const text = `======================================
+ACCESO AL SISTEMA DE ASISTENCIA FACIAL
+======================================
+Empresa: ${comp.name}
+Portal de Acceso: ${window.location.origin}/login
+Identificador (Slug): ${comp.slug}
+Usuario Administrador: ${adminEmail}
+${pwdText}
+Plan: ${comp.plan} (Máx: ${comp.maxEmployees} empleados, ${comp.maxDevices} kioscos)
+======================================
+Por seguridad, ingrese al portal y configure sus credenciales.`;
+
+    navigator.clipboard.writeText(text);
+    setCredCopied(true);
+    toast.success('Datos de acceso copiados al portapapeles');
+    setTimeout(() => setCredCopied(false), 3000);
+  };
+
+  // Modal de Suspensión con Estilos
+  const openSuspendModal = (company) => {
+    setSuspendModalCompany(company);
+    setSuspendReason(company.isActive ? 'Falta de pago o mora comercial' : 'Reactivación por regularización de pago');
+  };
+
+  const handleConfirmSuspend = async () => {
+    if (!suspendModalCompany) return;
+    const willBeActive = !suspendModalCompany.isActive;
+    try {
+      setIsSuspending(true);
+      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+      const res = await fetch(`${baseUrl}/api/v1/superadmin/companies/${suspendModalCompany.id}/status`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -198,23 +308,69 @@ const CompaniesPage = () => {
         credentials: 'include',
         body: JSON.stringify({
           isActive: willBeActive,
-          reason: willBeActive ? 'Empresa reactivada por Super Admin' : 'Empresa suspendida por falta de pago o solicitud'
+          reason: suspendReason || (willBeActive ? 'Reactivación por Super Admin' : 'Suspensión de servicio')
         })
       });
 
+      const data = await res.json();
       if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || 'Error al actualizar estado');
+        throw new Error(data.error || 'Error al cambiar estado de la empresa');
       }
 
-      toast.success(`Empresa ${willBeActive ? 'activada' : 'suspendida'} exitosamente`);
+      toast.success(willBeActive ? `Empresa "${suspendModalCompany.name}" reactivada con éxito.` : `Empresa "${suspendModalCompany.name}" suspendida. Kioscos desconectados.`);
+      setSuspendModalCompany(null);
       fetchCompanies();
+      if (detailCompany?.id === suspendModalCompany.id) {
+        openCompanyDetails({ ...detailCompany, isActive: willBeActive });
+      }
     } catch (err) {
-      toast.error('Error:', { description: err.message });
+      toast.error(err.message);
+    } finally {
+      setIsSuspending(false);
     }
   };
 
-  // Abrir Modal de Edición
+  // Modal de Baja Definitiva (ARCO)
+  const openDeleteModal = (company) => {
+    setDeleteModalCompany(company);
+    setDeleteConfirmSlug('');
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteModalCompany) return;
+    if (deleteConfirmSlug !== deleteModalCompany.slug) {
+      toast.error('El identificador (slug) ingresado no coincide.');
+      return;
+    }
+
+    try {
+      setIsDeleting(true);
+      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+      const res = await fetch(`${baseUrl}/api/v1/superadmin/companies/${deleteModalCompany.id}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders(),
+        credentials: 'include'
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || data.error || 'Error al eliminar empresa');
+      }
+
+      toast.success(data.message || `Empresa "${deleteModalCompany.name}" eliminada por completo.`);
+      setDeleteModalCompany(null);
+      if (detailCompany?.id === deleteModalCompany.id) {
+        setDetailCompany(null);
+      }
+      fetchCompanies();
+    } catch (err) {
+      toast.error(err.message);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  // Edición de Plan y Cuotas
   const openEditModal = (company) => {
     setEditingCompany(company);
     setEditFormData({
@@ -230,7 +386,6 @@ const CompaniesPage = () => {
   const handleUpdateCompany = async (e) => {
     e.preventDefault();
     if (!editingCompany) return;
-
     try {
       setIsSubmitting(true);
       const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
@@ -252,30 +407,14 @@ const CompaniesPage = () => {
       toast.success('Empresa actualizada correctamente');
       setEditingCompany(null);
       fetchCompanies();
+      if (detailCompany?.id === editingCompany.id) {
+        openCompanyDetails({ ...detailCompany, ...editFormData });
+      }
     } catch (err) {
       toast.error(err.message);
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-  const copyCredentialsToClipboard = () => {
-    if (!createdSummary) return;
-    const text = `======================================
-ACCESO AL SISTEMA DE ASISTENCIA FACIAL
-======================================
-Empresa: ${createdSummary.company.name}
-Portal de Acceso: ${window.location.origin}/login
-Usuario / Correo: ${createdSummary.admin.email}
-Contraseña Inicial: ${createdSummary.initialPassword}
-Plan Asignado: ${createdSummary.company.plan} (Máx: ${createdSummary.company.maxEmployees} empleados, ${createdSummary.company.maxDevices} kioskos)
-======================================
-Por seguridad, cambie su contraseña al ingresar.`;
-
-    navigator.clipboard.writeText(text);
-    setCopiedSuccess(true);
-    toast.success('Credenciales copiadas al portapapeles');
-    setTimeout(() => setCopiedSuccess(false), 3000);
   };
 
   // Filtrado de Empresas
@@ -284,7 +423,8 @@ Por seguridad, cambie su contraseña al ingresar.`;
       const matchSearch = 
         c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         c.slug.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (c.customDomain || '').toLowerCase().includes(searchTerm.toLowerCase());
+        (c.customDomain || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (c.adminUsers?.[0]?.email || '').toLowerCase().includes(searchTerm.toLowerCase());
       
       const matchPlan = selectedPlan === 'ALL' || c.plan === selectedPlan;
       const matchStatus = selectedStatus === 'ALL' || 
@@ -295,14 +435,15 @@ Por seguridad, cambie su contraseña al ingresar.`;
     });
   }, [companies, searchTerm, selectedPlan, selectedStatus]);
 
-  // Métricas
+  // Métricas Globales
   const stats = useMemo(() => {
     const total = companies.length;
     const active = companies.filter(c => c.isActive).length;
     const suspended = total - active;
     const totalEmps = companies.reduce((acc, c) => acc + (c._count?.employees || 0), 0);
+    const totalEnrolled = companies.reduce((acc, c) => acc + (c._count?.enrolledEmployees || 0), 0);
     const totalDevs = companies.reduce((acc, c) => acc + (c._count?.devices || 0), 0);
-    return { total, active, suspended, totalEmps, totalDevs };
+    return { total, active, suspended, totalEmps, totalEnrolled, totalDevs };
   }, [companies]);
 
   return (
@@ -314,7 +455,7 @@ Por seguridad, cambie su contraseña al ingresar.`;
             <Building2 size={28} style={{ color: '#f97316' }} /> Empresas SaaS (Tenants)
           </h1>
           <p style={{ color: '#a1a1aa', margin: '0.4rem 0 0 0', fontSize: '0.95rem' }}>
-            Gestión centralizada del ciclo de vida comercial, cuotas de plan y aprovisionamiento B2B.
+            Gestión centralizada del ciclo de vida comercial, credenciales, monitoreo en tiempo real y cuotas B2B.
           </p>
         </div>
         <div style={{ display: 'flex', gap: '0.75rem' }}>
@@ -350,7 +491,7 @@ Por seguridad, cambie su contraseña al ingresar.`;
       </div>
 
       {/* KPI Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.25rem', marginBottom: '2rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: '1.25rem', marginBottom: '2rem' }}>
         <div className="card card-glow" style={{ padding: '1.25rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#a1a1aa', fontSize: '0.85rem' }}>
             <span>Total Empresas</span>
@@ -375,25 +516,25 @@ Por seguridad, cambie su contraseña al ingresar.`;
             <Power size={18} style={{ color: '#ef4444' }} />
           </div>
           <h2 style={{ fontSize: '2rem', margin: '0.5rem 0 0', color: stats.suspended > 0 ? '#ef4444' : '#a1a1aa' }}>{stats.suspended}</h2>
-          <span style={{ fontSize: '0.75rem', color: '#a1a1aa' }}>Sin acceso a kioscos</span>
+          <span style={{ fontSize: '0.75rem', color: '#a1a1aa' }}>Kioscos desconectados</span>
         </div>
 
         <div className="card card-glow" style={{ padding: '1.25rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#a1a1aa', fontSize: '0.85rem' }}>
-            <span>Total Empleados Enrolados</span>
+            <span>Empleados Totales</span>
             <Users size={18} style={{ color: '#f97316' }} />
           </div>
           <h2 style={{ fontSize: '2rem', margin: '0.5rem 0 0', color: '#f97316' }}>{stats.totalEmps}</h2>
-          <span style={{ fontSize: '0.75rem', color: '#a1a1aa' }}>En todos los tenants</span>
+          <span style={{ fontSize: '0.75rem', color: '#10b981' }}>{stats.totalEnrolled} con rostro (AES-256)</span>
         </div>
 
         <div className="card card-glow" style={{ padding: '1.25rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#a1a1aa', fontSize: '0.85rem' }}>
-            <span>Kioscos Conectados</span>
+            <span>Kioscos Autorizados</span>
             <Monitor size={18} style={{ color: '#a855f7' }} />
           </div>
           <h2 style={{ fontSize: '2rem', margin: '0.5rem 0 0', color: '#a855f7' }}>{stats.totalDevs}</h2>
-          <span style={{ fontSize: '0.75rem', color: '#a1a1aa' }}>Nodos físicos activos</span>
+          <span style={{ fontSize: '0.75rem', color: '#a1a1aa' }}>Nodos físicos operando</span>
         </div>
       </div>
 
@@ -403,7 +544,7 @@ Por seguridad, cambie su contraseña al ingresar.`;
           <Search size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: '#71717a' }} />
           <input 
             type="text" 
-            placeholder="Buscar por nombre de empresa o slug..."
+            placeholder="Buscar por nombre, slug, dominio o correo de admin..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             style={{ ...inputStyle, paddingLeft: '2.75rem' }}
@@ -454,12 +595,12 @@ Por seguridad, cambie su contraseña al ingresar.`;
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--border-color)', background: 'rgba(255, 255, 255, 0.02)' }}>
                   <th style={thStyle}>Empresa / Slug</th>
-                  <th style={thStyle}>Plan Comercial</th>
-                  <th style={thStyle}>Cuota de Empleados</th>
-                  <th style={thStyle}>Cuota de Kioscos</th>
+                  <th style={thStyle}>Administrador</th>
+                  <th style={thStyle}>Plan</th>
+                  <th style={thStyle}>Empleados (Cuota)</th>
+                  <th style={thStyle}>Kioscos (Cuota)</th>
                   <th style={thStyle}>Estado</th>
                   <th style={thStyle}>Zona Horaria</th>
-                  <th style={thStyle}>Fecha de Alta</th>
                   <th style={{ ...thStyle, textAlign: 'center' }}>Acciones</th>
                 </tr>
               </thead>
@@ -474,19 +615,29 @@ Por seguridad, cambie su contraseña al ingresar.`;
                   filteredCompanies.map(comp => {
                     const preset = PLAN_PRESETS[comp.plan] || PLAN_PRESETS.STARTER;
                     const empsCount = comp._count?.employees || 0;
+                    const enrolledCount = comp._count?.enrolledEmployees || 0;
                     const devsCount = comp._count?.devices || 0;
                     const empPct = Math.min(100, Math.round((empsCount / comp.maxEmployees) * 100));
                     const devPct = Math.min(100, Math.round((devsCount / comp.maxDevices) * 100));
+                    const mainAdmin = comp.adminUsers?.[0];
+                    const isProtected = comp.id === 'default-company-pain';
 
                     return (
                       <tr key={comp.id} style={{ borderBottom: '1px solid var(--border-color)', transition: 'background 0.15s' }} className="table-row-hover">
                         <td style={tdStyle}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                          <div 
+                            style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer' }}
+                            onClick={() => openCompanyDetails(comp)}
+                            title="Click para ver ficha completa"
+                          >
                             <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: 'rgba(249, 115, 22, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f97316', fontWeight: 700, fontSize: '1rem', border: '1px solid rgba(249, 115, 22, 0.25)' }}>
                               {comp.name.charAt(0).toUpperCase()}
                             </div>
                             <div>
-                              <strong style={{ color: '#fff', fontSize: '0.95rem' }}>{comp.name}</strong>
+                              <strong style={{ color: '#fff', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                {comp.name}
+                                <Eye size={13} style={{ color: '#71717a', opacity: 0.7 }} />
+                              </strong>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.15rem' }}>
                                 <code style={{ fontSize: '0.75rem', color: '#f97316', background: 'rgba(249, 115, 22, 0.08)', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>
                                   {comp.slug}
@@ -497,6 +648,17 @@ Por seguridad, cambie su contraseña al ingresar.`;
                               </div>
                             </div>
                           </div>
+                        </td>
+
+                        <td style={tdStyle}>
+                          {mainAdmin ? (
+                            <div>
+                              <span style={{ color: '#fff', fontSize: '0.85rem', fontWeight: 500 }}>{mainAdmin.name}</span>
+                              <div style={{ color: '#a1a1aa', fontSize: '0.75rem' }}>{mainAdmin.email}</div>
+                            </div>
+                          ) : (
+                            <span style={{ color: '#71717a', fontSize: '0.8rem' }}>Sin admin</span>
+                          )}
                         </td>
 
                         <td style={tdStyle}>
@@ -516,7 +678,7 @@ Por seguridad, cambie su contraseña al ingresar.`;
                         <td style={tdStyle}>
                           <div style={{ minWidth: '120px' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginBottom: '0.25rem' }}>
-                              <span style={{ color: '#fff' }}>{empsCount}</span>
+                              <span style={{ color: '#fff' }}>{empsCount} <span style={{ color: '#10b981', fontSize: '0.72rem' }}>({enrolledCount} 👤)</span></span>
                               <span style={{ color: '#71717a' }}>/ {comp.maxEmployees}</span>
                             </div>
                             <div style={{ height: '4px', background: '#27272a', borderRadius: '99px', overflow: 'hidden' }}>
@@ -556,32 +718,47 @@ Por seguridad, cambie su contraseña al ingresar.`;
                         </td>
 
                         <td style={tdStyle}>
-                          <span style={{ color: '#a1a1aa', fontSize: '0.85rem' }}>{comp.timezone.replace('America/', '')}</span>
-                        </td>
-
-                        <td style={tdStyle}>
-                          <span style={{ color: '#a1a1aa', fontSize: '0.85rem' }}>
-                            {new Date(comp.createdAt).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })}
-                          </span>
+                          <span style={{ color: '#a1a1aa', fontSize: '0.8rem' }}>{comp.timezone.replace('America/', '')}</span>
                         </td>
 
                         <td style={{ ...tdStyle, textAlign: 'center' }}>
-                          <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem' }}>
+                          <div style={{ display: 'flex', justifyContent: 'center', gap: '0.4rem' }}>
+                            {/* Ver Ficha Completa */}
+                            <button
+                              onClick={() => openCompanyDetails(comp)}
+                              title="Ver Ficha y Estadísticas Completas"
+                              style={{ background: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.15)', color: '#d4d4d8', padding: '0.45rem', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                            >
+                              <Eye size={15} />
+                            </button>
+
+                            {/* Copiar / Ver Credenciales */}
+                            <button
+                              onClick={() => openCredentialModal(comp)}
+                              title="Ver y Copiar Credenciales de Acceso"
+                              style={{ background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.25)', color: '#10b981', padding: '0.45rem', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                            >
+                              <Key size={15} />
+                            </button>
+
+                            {/* Editar Cuotas */}
                             <button
                               onClick={() => openEditModal(comp)}
                               title="Modificar Plan y Cuotas"
-                              style={{ background: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.25)', color: '#60a5fa', padding: '0.4rem', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                              style={{ background: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.25)', color: '#60a5fa', padding: '0.45rem', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
                             >
                               <Edit size={15} />
                             </button>
+
+                            {/* Suspender / Activar (Con modal estilizado) */}
                             <button
-                              onClick={() => handleToggleStatus(comp)}
-                              title={comp.isActive ? "Suspender Empresa" : "Activar Empresa"}
+                              onClick={() => openSuspendModal(comp)}
+                              title={comp.isActive ? "Suspender Servicio de la Empresa" : "Reactivar Servicio de la Empresa"}
                               style={{
                                 background: comp.isActive ? 'rgba(239, 68, 68, 0.1)' : 'rgba(16, 185, 129, 0.1)',
                                 border: `1px solid ${comp.isActive ? 'rgba(239, 68, 68, 0.25)' : 'rgba(16, 185, 129, 0.25)'}`,
                                 color: comp.isActive ? '#ef4444' : '#10b981',
-                                padding: '0.4rem',
+                                padding: '0.45rem',
                                 borderRadius: '8px',
                                 cursor: 'pointer',
                                 display: 'flex',
@@ -589,6 +766,25 @@ Por seguridad, cambie su contraseña al ingresar.`;
                               }}
                             >
                               <Power size={15} />
+                            </button>
+
+                            {/* Dar de Baja Definitiva (ARCO) */}
+                            <button
+                              onClick={() => !isProtected && openDeleteModal(comp)}
+                              disabled={isProtected}
+                              title={isProtected ? "Empresa principal protegida contra eliminación" : "Dar de baja por completo (Derecho ARCO)"}
+                              style={{
+                                background: isProtected ? 'rgba(255, 255, 255, 0.02)' : 'rgba(239, 68, 68, 0.1)',
+                                border: `1px solid ${isProtected ? 'rgba(255, 255, 255, 0.05)' : 'rgba(239, 68, 68, 0.25)'}`,
+                                color: isProtected ? '#52525b' : '#f87171',
+                                padding: '0.45rem',
+                                borderRadius: '8px',
+                                cursor: isProtected ? 'not-allowed' : 'pointer',
+                                display: 'flex',
+                                alignItems: 'center'
+                              }}
+                            >
+                              <Trash2 size={15} />
                             </button>
                           </div>
                         </td>
@@ -602,7 +798,9 @@ Por seguridad, cambie su contraseña al ingresar.`;
         </div>
       )}
 
-      {/* Modal: Alta de Nueva Empresa (Onboarding) */}
+      {/* ========================================================= */}
+      {/* MODAL 1: ALTA DE NUEVA EMPRESA                            */}
+      {/* ========================================================= */}
       {isCreateModalOpen && (
         <div className="modal-overlay" onClick={() => !isSubmitting && setIsCreateModalOpen(false)}>
           <div 
@@ -611,7 +809,6 @@ Por seguridad, cambie su contraseña al ingresar.`;
             style={{ maxWidth: '640px', width: '90%', borderRadius: '16px', background: '#141416', border: '1px solid rgba(255, 255, 255, 0.1)', padding: '2rem', maxHeight: '90vh', overflowY: 'auto' }}
           >
             {createdSummary ? (
-              // Vista de Éxito con Credenciales para Entregar al Cliente
               <div>
                 <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
                   <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem' }}>
@@ -649,12 +846,12 @@ Por seguridad, cambie su contraseña al ingresar.`;
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
+                <div style={{ display: 'flex', gap: '0.75rem' }}>
                   <button 
-                    onClick={copyCredentialsToClipboard}
-                    style={{ ...btnPrimary, display: 'flex', alignItems: 'center', gap: '0.5rem', background: copiedSuccess ? '#10b981' : 'var(--primary-orange)' }}
+                    onClick={() => copyFullCredentials(createdSummary.company, createdSummary.initialPassword)}
+                    style={{ ...btnPrimary, flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
                   >
-                    {copiedSuccess ? <Check size={16} /> : <Copy size={16} />}
+                    {copiedSuccess ? <Check size={18} /> : <Copy size={18} />}
                     {copiedSuccess ? '¡Copiado!' : 'Copiar Credenciales para Cliente'}
                   </button>
                   <button 
@@ -669,192 +866,161 @@ Por seguridad, cambie su contraseña al ingresar.`;
                 </div>
               </div>
             ) : (
-              // Formulario de Alta
               <form onSubmit={handleCreateCompany}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '1rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                    <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(249, 115, 22, 0.15)', color: '#f97316', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <Building2 size={22} />
-                    </div>
-                    <div>
-                      <h3 style={{ margin: 0, color: '#fff', fontSize: '1.25rem', fontWeight: 600 }}>Alta Manual de Nueva Empresa</h3>
-                      <p style={{ margin: '0.2rem 0 0', color: '#a1a1aa', fontSize: '0.85rem' }}>Aprovisionamiento B2B transaccional</p>
-                    </div>
-                  </div>
+                  <h2 style={{ margin: 0, fontSize: '1.3rem', color: '#fff', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <Plus size={20} style={{ color: '#f97316' }} /> Alta de Nueva Empresa (Cliente B2B)
+                  </h2>
                   <button type="button" onClick={() => setIsCreateModalOpen(false)} style={{ background: 'transparent', border: 'none', color: '#71717a', cursor: 'pointer' }}>
                     <X size={20} />
                   </button>
                 </div>
 
-                {/* Sección 1: Datos de la Empresa */}
-                <h4 style={{ color: '#f97316', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '1rem' }}>
-                  1. Datos de la Organización & Plan
-                </h4>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
-                  <div style={{ gridColumn: 'span 2' }}>
-                    <label style={labelStyle}>Nombre de la Empresa *</label>
-                    <input 
-                      type="text" 
-                      required
-                      placeholder="Ej. Corporativo Sigma S.A."
-                      value={formData.name}
-                      onChange={(e) => handleNameChange(e.target.value)}
-                      style={inputStyle}
-                    />
-                  </div>
-
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', marginBottom: '1.5rem' }}>
                   <div>
-                    <label style={labelStyle}>Slug Identificador *</label>
-                    <input 
-                      type="text" 
-                      required
-                      placeholder="ej. corporativo-sigma"
-                      value={formData.slug}
-                      onChange={(e) => setFormData(prev => ({ ...prev, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') }))}
-                      style={inputStyle}
-                    />
-                    <span style={{ fontSize: '0.75rem', color: '#71717a' }}>Letras minúsculas y guiones</span>
-                  </div>
-
-                  <div>
-                    <label style={labelStyle}>Plan Comercial *</label>
-                    <select 
-                      value={formData.plan}
-                      onChange={(e) => handlePlanChange(e.target.value)}
-                      style={selectFilterStyle}
-                    >
-                      <option value="STARTER">Starter (50 emp / 3 kioscos)</option>
-                      <option value="PRO">Pro (200 emp / 10 kioscos)</option>
-                      <option value="ENTERPRISE">Enterprise (1000 emp / 50 kioscos)</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label style={labelStyle}>Límite de Empleados (Cuota)</label>
-                    <input 
-                      type="number" 
-                      required
-                      min="1"
-                      value={formData.maxEmployees}
-                      onChange={(e) => setFormData(prev => ({ ...prev, maxEmployees: parseInt(e.target.value, 10) || 1 }))}
-                      style={inputStyle}
-                    />
-                  </div>
-
-                  <div>
-                    <label style={labelStyle}>Límite de Kioscos (Cuota)</label>
-                    <input 
-                      type="number" 
-                      required
-                      min="1"
-                      value={formData.maxDevices}
-                      onChange={(e) => setFormData(prev => ({ ...prev, maxDevices: parseInt(e.target.value, 10) || 1 }))}
-                      style={inputStyle}
-                    />
-                  </div>
-
-                  <div>
-                    <label style={labelStyle}>Zona Horaria *</label>
-                    <select 
-                      value={formData.timezone}
-                      onChange={(e) => setFormData(prev => ({ ...prev, timezone: e.target.value }))}
-                      style={selectFilterStyle}
-                    >
-                      {TIMEZONES.map(tz => (
-                        <option key={tz} value={tz}>{tz}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label style={labelStyle}>Dominio Personalizado (Opcional)</label>
-                    <input 
-                      type="text" 
-                      placeholder="ej. asistencia.sigma.com"
-                      value={formData.customDomain}
-                      onChange={(e) => setFormData(prev => ({ ...prev, customDomain: e.target.value }))}
-                      style={inputStyle}
-                    />
-                  </div>
-                </div>
-
-                {/* Sección 2: Administrador Inicial */}
-                <h4 style={{ color: '#f97316', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '1.5rem 0 1rem' }}>
-                  2. Administrador Inicial de la Empresa
-                </h4>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '2rem' }}>
-                  <div style={{ gridColumn: 'span 2' }}>
-                    <label style={labelStyle}>Nombre Completo del Administrador *</label>
-                    <input 
-                      type="text" 
-                      required
-                      placeholder="Ej. Roberto Morales Sánchez"
-                      value={formData.adminName}
-                      onChange={(e) => setFormData(prev => ({ ...prev, adminName: e.target.value }))}
-                      style={inputStyle}
-                    />
-                  </div>
-
-                  <div>
-                    <label style={labelStyle}>Correo Electrónico (Login) *</label>
-                    <input 
-                      type="email" 
-                      required
-                      placeholder="admin@empresa.com"
-                      value={formData.adminEmail}
-                      onChange={(e) => setFormData(prev => ({ ...prev, adminEmail: e.target.value }))}
-                      style={inputStyle}
-                    />
-                  </div>
-
-                  <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <label style={labelStyle}>Contraseña Inicial *</label>
-                      <button 
-                        type="button" 
-                        onClick={generateRandomPassword}
-                        style={{ background: 'transparent', border: 'none', color: '#f97316', fontSize: '0.75rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.2rem' }}
-                      >
-                        <Sparkles size={12} /> Generar
-                      </button>
+                    <h3 style={{ fontSize: '0.85rem', textTransform: 'uppercase', color: '#f97316', margin: '0 0 0.75rem', letterSpacing: '0.05em' }}>
+                      1. Datos de la Empresa
+                    </h3>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                      <div>
+                        <label style={labelStyle}>Nombre Comercial *</label>
+                        <input 
+                          type="text" 
+                          required
+                          placeholder="ej. Grupo Industrial Acme"
+                          value={formData.name}
+                          onChange={(e) => handleNameChange(e.target.value)}
+                          style={inputStyle}
+                        />
+                      </div>
+                      <div>
+                        <label style={labelStyle}>Identificador Slug *</label>
+                        <input 
+                          type="text" 
+                          required
+                          placeholder="ej. grupo-acme"
+                          value={formData.slug}
+                          onChange={(e) => setFormData(prev => ({ ...prev, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') }))}
+                          style={inputStyle}
+                        />
+                      </div>
                     </div>
-                    <input 
-                      type="text" 
-                      required
-                      minLength="6"
-                      placeholder="Mínimo 6 caracteres"
-                      value={formData.adminPassword}
-                      onChange={(e) => setFormData(prev => ({ ...prev, adminPassword: e.target.value }))}
-                      style={inputStyle}
-                    />
+                  </div>
+
+                  <div>
+                    <h3 style={{ fontSize: '0.85rem', textTransform: 'uppercase', color: '#3b82f6', margin: '0 0 0.75rem', letterSpacing: '0.05em' }}>
+                      2. Plan Comercial y Cuotas
+                    </h3>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem', marginBottom: '1rem' }}>
+                      {Object.keys(PLAN_PRESETS).map(planKey => {
+                        const isSelected = formData.plan === planKey;
+                        const p = PLAN_PRESETS[planKey];
+                        return (
+                          <div
+                            key={planKey}
+                            onClick={() => handlePlanChange(planKey)}
+                            style={{
+                              border: isSelected ? `2px solid ${p.badgeColor}` : '1px solid #27272a',
+                              background: isSelected ? p.bgBadge : '#18181b',
+                              borderRadius: '10px',
+                              padding: '0.75rem',
+                              cursor: 'pointer',
+                              transition: 'all 0.15s'
+                            }}
+                          >
+                            <div style={{ fontWeight: 700, color: isSelected ? p.badgeColor : '#fff', fontSize: '0.9rem' }}>{p.label}</div>
+                            <div style={{ fontSize: '0.75rem', color: '#a1a1aa', marginTop: '0.25rem' }}>
+                              {p.maxEmployees} empleados<br/>{p.maxDevices} kioscos
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                      <div>
+                        <label style={labelStyle}>Máx. Empleados Permitidos</label>
+                        <input 
+                          type="number" 
+                          min="1"
+                          required
+                          value={formData.maxEmployees}
+                          onChange={(e) => setFormData(prev => ({ ...prev, maxEmployees: parseInt(e.target.value, 10) || 1 }))}
+                          style={inputStyle}
+                        />
+                      </div>
+                      <div>
+                        <label style={labelStyle}>Máx. Kioscos Físicos</label>
+                        <input 
+                          type="number" 
+                          min="1"
+                          required
+                          value={formData.maxDevices}
+                          onChange={(e) => setFormData(prev => ({ ...prev, maxDevices: parseInt(e.target.value, 10) || 1 }))}
+                          style={inputStyle}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h3 style={{ fontSize: '0.85rem', textTransform: 'uppercase', color: '#10b981', margin: '0 0 0.75rem', letterSpacing: '0.05em' }}>
+                      3. Primer Usuario Administrador
+                    </h3>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                      <div>
+                        <label style={labelStyle}>Nombre Completo *</label>
+                        <input 
+                          type="text" 
+                          required
+                          placeholder="ej. Lic. Roberto Gómez"
+                          value={formData.adminName}
+                          onChange={(e) => setFormData(prev => ({ ...prev, adminName: e.target.value }))}
+                          style={inputStyle}
+                        />
+                      </div>
+                      <div>
+                        <label style={labelStyle}>Correo Electrónico (Login) *</label>
+                        <input 
+                          type="email" 
+                          required
+                          placeholder="admin@empresa.com"
+                          value={formData.adminEmail}
+                          onChange={(e) => setFormData(prev => ({ ...prev, adminEmail: e.target.value }))}
+                          style={inputStyle}
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                        <label style={{ ...labelStyle, margin: 0 }}>Contraseña Inicial *</label>
+                        <button 
+                          type="button" 
+                          onClick={generateRandomPassword}
+                          style={{ background: 'none', border: 'none', color: '#f97316', fontSize: '0.75rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                        >
+                          <Sparkles size={12} /> Generar Segura
+                        </button>
+                      </div>
+                      <input 
+                        type="text" 
+                        required
+                        placeholder="Mínimo 6 caracteres"
+                        value={formData.adminPassword}
+                        onChange={(e) => setFormData(prev => ({ ...prev, adminPassword: e.target.value }))}
+                        style={{ ...inputStyle, fontFamily: 'monospace' }}
+                      />
+                    </div>
                   </div>
                 </div>
 
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', borderTop: '1px solid rgba(255, 255, 255, 0.08)', paddingTop: '1.25rem' }}>
-                  <button 
-                    type="button" 
-                    onClick={() => setIsCreateModalOpen(false)}
-                    disabled={isSubmitting}
-                    style={btnSecondary}
-                  >
+                  <button type="button" onClick={() => setIsCreateModalOpen(false)} style={btnSecondary}>
                     Cancelar
                   </button>
-                  <button 
-                    type="submit" 
-                    disabled={isSubmitting}
-                    style={{ ...btnPrimary, display: 'flex', alignItems: 'center', gap: '0.5rem' }}
-                  >
-                    {isSubmitting ? (
-                      <>
-                        <RefreshCw size={16} className="spin" /> Aprovisionando Empresa...
-                      </>
-                    ) : (
-                      <>
-                        <Plus size={16} /> Dar de Alta Empresa
-                      </>
-                    )}
+                  <button type="submit" disabled={isSubmitting} style={btnPrimary}>
+                    {isSubmitting ? 'Registrando en BD...' : 'Aprovisionar Empresa'}
                   </button>
                 </div>
               </form>
@@ -863,28 +1029,663 @@ Por seguridad, cambie su contraseña al ingresar.`;
         </div>
       )}
 
-      {/* Modal: Editar Cuotas y Plan */}
+      {/* ========================================================= */}
+      {/* MODAL 2: VER FICHA COMPLETA (DETALLES INTEGRALES DE TENANT)*/}
+      {/* ========================================================= */}
+      {detailCompany && (
+        <div className="modal-overlay" onClick={() => setDetailCompany(null)}>
+          <div 
+            className="modal-content page-glow" 
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: '800px', width: '92%', borderRadius: '16px', background: '#141416', border: '1px solid rgba(255, 255, 255, 0.12)', padding: '2rem', maxHeight: '90vh', overflowY: 'auto' }}
+          >
+            {/* Cabecera Ficha */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '1.25rem' }}>
+              <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'rgba(249, 115, 22, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f97316', fontWeight: 800, fontSize: '1.3rem', border: '1px solid rgba(249, 115, 22, 0.3)' }}>
+                  {detailCompany.name.charAt(0).toUpperCase()}
+                </div>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <h2 style={{ margin: 0, fontSize: '1.4rem', color: '#fff' }}>{detailCompany.name}</h2>
+                    <span style={{
+                      padding: '0.2rem 0.6rem',
+                      borderRadius: '99px',
+                      fontSize: '0.72rem',
+                      fontWeight: 700,
+                      color: detailCompany.isActive ? '#10b981' : '#ef4444',
+                      background: detailCompany.isActive ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                      border: `1px solid ${detailCompany.isActive ? 'rgba(16, 185, 129, 0.25)' : 'rgba(239, 68, 68, 0.25)'}`
+                    }}>
+                      {detailCompany.isActive ? 'Activa' : 'Suspendida'}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginTop: '0.25rem', fontSize: '0.82rem', color: '#a1a1aa' }}>
+                    <code>slug: {detailCompany.slug}</code>
+                    <span>·</span>
+                    <span>Zona: {detailCompany.timezone}</span>
+                    <span>·</span>
+                    <span>Alta: {new Date(detailCompany.createdAt).toLocaleDateString('es-MX')}</span>
+                  </div>
+                </div>
+              </div>
+
+              <button onClick={() => setDetailCompany(null)} style={{ background: 'transparent', border: 'none', color: '#71717a', cursor: 'pointer' }}>
+                <X size={22} />
+              </button>
+            </div>
+
+            {/* Métricas Principales */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '1rem', marginBottom: '1.75rem' }}>
+              {/* Empleados */}
+              <div style={{ background: '#18181b', border: '1px solid #27272a', borderRadius: '10px', padding: '1rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#a1a1aa', fontSize: '0.78rem' }}>
+                  <span>Empleados</span>
+                  <Users size={16} style={{ color: '#f97316' }} />
+                </div>
+                <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#fff', margin: '0.3rem 0' }}>
+                  {detailData?._count?.employees ?? detailCompany._count?.employees ?? 0}
+                  <span style={{ fontSize: '0.85rem', color: '#71717a', fontWeight: 400 }}> / {detailCompany.maxEmployees}</span>
+                </div>
+                <div style={{ height: '4px', background: '#27272a', borderRadius: '99px', overflow: 'hidden' }}>
+                  <div style={{
+                    width: `${Math.min(100, Math.round(((detailData?._count?.employees ?? detailCompany._count?.employees ?? 0) / detailCompany.maxEmployees) * 100))}%`,
+                    height: '100%',
+                    background: '#f97316'
+                  }} />
+                </div>
+              </div>
+
+              {/* Cobertura Biométrica */}
+              <div style={{ background: '#18181b', border: '1px solid #27272a', borderRadius: '10px', padding: '1rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#a1a1aa', fontSize: '0.78rem' }}>
+                  <span>Rostros Enrolados</span>
+                  <Fingerprint size={16} style={{ color: '#10b981' }} />
+                </div>
+                <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#10b981', margin: '0.3rem 0' }}>
+                  {detailData?._count?.enrolledEmployees ?? detailCompany._count?.enrolledEmployees ?? 0}
+                  <span style={{ fontSize: '0.85rem', color: '#71717a', fontWeight: 400 }}>
+                    {' '}({Math.round(((detailData?._count?.enrolledEmployees ?? detailCompany._count?.enrolledEmployees ?? 0) / Math.max(1, (detailData?._count?.employees ?? detailCompany._count?.employees ?? 1))) * 100)}%)
+                  </span>
+                </div>
+                <span style={{ fontSize: '0.72rem', color: '#a1a1aa' }}>Cifrados con AES-256-GCM</span>
+              </div>
+
+              {/* Kioscos */}
+              <div style={{ background: '#18181b', border: '1px solid #27272a', borderRadius: '10px', padding: '1rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#a1a1aa', fontSize: '0.78rem' }}>
+                  <span>Kioscos Físicos</span>
+                  <Monitor size={16} style={{ color: '#3b82f6' }} />
+                </div>
+                <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#fff', margin: '0.3rem 0' }}>
+                  {detailData?._count?.devices ?? detailCompany._count?.devices ?? 0}
+                  <span style={{ fontSize: '0.85rem', color: '#71717a', fontWeight: 400 }}> / {detailCompany.maxDevices}</span>
+                </div>
+                <div style={{ height: '4px', background: '#27272a', borderRadius: '99px', overflow: 'hidden' }}>
+                  <div style={{
+                    width: `${Math.min(100, Math.round(((detailData?._count?.devices ?? detailCompany._count?.devices ?? 0) / detailCompany.maxDevices) * 100))}%`,
+                    height: '100%',
+                    background: '#3b82f6'
+                  }} />
+                </div>
+              </div>
+
+              {/* Asistencias Históricas */}
+              <div style={{ background: '#18181b', border: '1px solid #27272a', borderRadius: '10px', padding: '1rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#a1a1aa', fontSize: '0.78rem' }}>
+                  <span>Asistencias Totales</span>
+                  <Clock size={16} style={{ color: '#a855f7' }} />
+                </div>
+                <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#a855f7', margin: '0.3rem 0' }}>
+                  {detailData?._count?.attendances ?? 0}
+                </div>
+                <span style={{ fontSize: '0.72rem', color: '#a1a1aa' }}>Registros auditados</span>
+              </div>
+            </div>
+
+            {/* Pestañas de la Ficha */}
+            <div style={{ display: 'flex', gap: '0.5rem', borderBottom: '1px solid #27272a', marginBottom: '1.25rem' }}>
+              <button
+                onClick={() => setDetailTab('overview')}
+                style={{
+                  padding: '0.5rem 1rem',
+                  background: 'none',
+                  border: 'none',
+                  borderBottom: detailTab === 'overview' ? '2px solid #f97316' : '2px solid transparent',
+                  color: detailTab === 'overview' ? '#fff' : '#a1a1aa',
+                  fontWeight: 600,
+                  fontSize: '0.88rem',
+                  cursor: 'pointer'
+                }}
+              >
+                Resumen de Contrato
+              </button>
+              <button
+                onClick={() => setDetailTab('admins')}
+                style={{
+                  padding: '0.5rem 1rem',
+                  background: 'none',
+                  border: 'none',
+                  borderBottom: detailTab === 'admins' ? '2px solid #f97316' : '2px solid transparent',
+                  color: detailTab === 'admins' ? '#fff' : '#a1a1aa',
+                  fontWeight: 600,
+                  fontSize: '0.88rem',
+                  cursor: 'pointer'
+                }}
+              >
+                Administradores ({detailData?.adminUsers?.length ?? detailCompany.adminUsers?.length ?? 1})
+              </button>
+              <button
+                onClick={() => setDetailTab('devices')}
+                style={{
+                  padding: '0.5rem 1rem',
+                  background: 'none',
+                  border: 'none',
+                  borderBottom: detailTab === 'devices' ? '2px solid #f97316' : '2px solid transparent',
+                  color: detailTab === 'devices' ? '#fff' : '#a1a1aa',
+                  fontWeight: 600,
+                  fontSize: '0.88rem',
+                  cursor: 'pointer'
+                }}
+              >
+                Kioscos ({detailData?.devices?.length ?? 0})
+              </button>
+              <button
+                onClick={() => setDetailTab('structure')}
+                style={{
+                  padding: '0.5rem 1rem',
+                  background: 'none',
+                  border: 'none',
+                  borderBottom: detailTab === 'structure' ? '2px solid #f97316' : '2px solid transparent',
+                  color: detailTab === 'structure' ? '#fff' : '#a1a1aa',
+                  fontWeight: 600,
+                  fontSize: '0.88rem',
+                  cursor: 'pointer'
+                }}
+              >
+                Departamentos y Turnos
+              </button>
+            </div>
+
+            {/* Contenido según pestaña */}
+            {detailLoading ? (
+              <div style={{ textAlign: 'center', padding: '2rem 0' }}>
+                <RefreshCw className="spin" size={24} style={{ color: '#f97316', margin: '0 auto 0.5rem' }} />
+                <p style={{ color: '#a1a1aa', fontSize: '0.85rem' }}>Cargando datos completos del cliente...</p>
+              </div>
+            ) : detailTab === 'overview' ? (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', fontSize: '0.88rem' }}>
+                <div style={{ background: '#18181b', border: '1px solid #27272a', borderRadius: '10px', padding: '1.25rem' }}>
+                  <h4 style={{ margin: '0 0 1rem', color: '#f97316', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <Shield size={16} /> Parámetros del Plan
+                  </h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: '#a1a1aa' }}>Plan Contratado:</span>
+                      <strong style={{ color: '#fff' }}>{detailCompany.plan}</strong>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: '#a1a1aa' }}>Límite Empleados:</span>
+                      <span style={{ color: '#fff' }}>{detailCompany.maxEmployees}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: '#a1a1aa' }}>Límite Kioscos:</span>
+                      <span style={{ color: '#fff' }}>{detailCompany.maxDevices}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: '#a1a1aa' }}>Dominio Dedicado:</span>
+                      <span style={{ color: '#38bdf8' }}>{detailCompany.customDomain || 'No configurado (Usa app.dominio.com)'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ background: '#18181b', border: '1px solid #27272a', borderRadius: '10px', padding: '1.25rem' }}>
+                  <h4 style={{ margin: '0 0 1rem', color: '#10b981', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <Info size={16} /> Estado del Servicio
+                  </h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: '#a1a1aa' }}>Estado Operativo:</span>
+                      <strong style={{ color: detailCompany.isActive ? '#10b981' : '#ef4444' }}>
+                        {detailCompany.isActive ? 'Activo (En servicio)' : 'Suspendido (Bloqueado)'}
+                      </strong>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: '#a1a1aa' }}>Zona Horaria:</span>
+                      <span style={{ color: '#fff' }}>{detailCompany.timezone}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: '#a1a1aa' }}>Portal Web:</span>
+                      <span style={{ color: '#fff' }}>{window.location.origin}/login</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: '#a1a1aa' }}>Versión Descriptores:</span>
+                      <span style={{ color: '#eab308' }}>v{detailCompany.descriptorsVersion || 1} (128 floats)</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : detailTab === 'admins' ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                {(detailData?.adminUsers ?? detailCompany.adminUsers ?? []).map(admin => (
+                  <div key={admin.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#18181b', border: '1px solid #27272a', borderRadius: '10px', padding: '1rem' }}>
+                    <div>
+                      <strong style={{ color: '#fff', fontSize: '0.92rem' }}>{admin.name}</strong>
+                      <div style={{ color: '#10b981', fontSize: '0.82rem', marginTop: '0.15rem' }}>{admin.email}</div>
+                      <span style={{ color: '#71717a', fontSize: '0.75rem' }}>Alta: {new Date(admin.createdAt).toLocaleDateString('es-MX')}</span>
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                      <span style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#60a5fa', padding: '0.2rem 0.6rem', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 600 }}>
+                        {admin.role}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : detailTab === 'devices' ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                {(!detailData?.devices || detailData.devices.length === 0) ? (
+                  <div style={{ textAlign: 'center', padding: '2rem', color: '#71717a' }}>
+                    La empresa aún no tiene kioscos físicos autorizados. Se emparejan desde /kiosk/setup con código de 8 caracteres.
+                  </div>
+                ) : (
+                  detailData.devices.map(dev => (
+                    <div key={dev.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#18181b', border: '1px solid #27272a', borderRadius: '10px', padding: '1rem' }}>
+                      <div>
+                        <strong style={{ color: '#fff', fontSize: '0.92rem' }}>{dev.name}</strong>
+                        <div style={{ color: '#a1a1aa', fontSize: '0.78rem', marginTop: '0.2rem' }}>
+                          IP: <code>{dev.ipAddress || 'Dinámica'}</code> · Tipo: {dev.type || 'KIOSK'}
+                        </div>
+                        {dev.lastSeenAt && (
+                          <span style={{ color: '#71717a', fontSize: '0.75rem' }}>
+                            Última conexión: {new Date(dev.lastSeenAt).toLocaleString('es-MX')}
+                          </span>
+                        )}
+                      </div>
+                      <span style={{
+                        padding: '0.2rem 0.6rem',
+                        borderRadius: '99px',
+                        fontSize: '0.75rem',
+                        fontWeight: 600,
+                        color: dev.isActive ? '#10b981' : '#ef4444',
+                        background: dev.isActive ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)'
+                      }}>
+                        {dev.isActive ? 'En línea' : 'Inactivo'}
+                      </span>
+                    </div>
+                  ))
+                )}
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div style={{ background: '#18181b', border: '1px solid #27272a', borderRadius: '10px', padding: '1.25rem' }}>
+                  <h4 style={{ margin: '0 0 1rem', color: '#fff', fontSize: '0.9rem' }}>
+                    Departamentos ({detailData?.departments?.length ?? 0})
+                  </h4>
+                  {(!detailData?.departments || detailData.departments.length === 0) ? (
+                    <span style={{ color: '#71717a', fontSize: '0.82rem' }}>Sin departamentos creados aún.</span>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      {detailData.departments.map(dept => (
+                        <div key={dept.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                          <span style={{ color: '#d4d4d8' }}>{dept.name}</span>
+                          <span style={{ color: '#f97316', fontWeight: 600 }}>{dept._count?.employees || 0} emp</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ background: '#18181b', border: '1px solid #27272a', borderRadius: '10px', padding: '1.25rem' }}>
+                  <h4 style={{ margin: '0 0 1rem', color: '#fff', fontSize: '0.9rem' }}>
+                    Turnos ({detailData?.shifts?.length ?? 0})
+                  </h4>
+                  {(!detailData?.shifts || detailData.shifts.length === 0) ? (
+                    <span style={{ color: '#71717a', fontSize: '0.82rem' }}>Sin turnos configurados aún.</span>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      {detailData.shifts.map(shift => (
+                        <div key={shift.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                          <span style={{ color: '#d4d4d8' }}>{shift.name}</span>
+                          <code style={{ color: '#38bdf8' }}>{shift.startTime} - {shift.endTime}</code>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Barra de Acciones de la Ficha */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid rgba(255, 255, 255, 0.08)', paddingTop: '1.5rem', marginTop: '1.75rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button
+                  onClick={() => openCredentialModal(detailCompany)}
+                  style={{ ...btnSecondary, display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#10b981', borderColor: 'rgba(16, 185, 129, 0.3)' }}
+                >
+                  <Key size={15} /> Credenciales de Acceso
+                </button>
+                <button
+                  onClick={() => openEditModal(detailCompany)}
+                  style={{ ...btnSecondary, display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#60a5fa', borderColor: 'rgba(59, 130, 246, 0.3)' }}
+                >
+                  <Edit size={15} /> Modificar Cuotas
+                </button>
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button
+                  onClick={() => openSuspendModal(detailCompany)}
+                  style={{
+                    ...btnSecondary,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                    color: detailCompany.isActive ? '#ef4444' : '#10b981',
+                    borderColor: detailCompany.isActive ? 'rgba(239, 68, 68, 0.3)' : 'rgba(16, 185, 129, 0.3)'
+                  }}
+                >
+                  <Power size={15} /> {detailCompany.isActive ? 'Suspender Servicio' : 'Reactivar Servicio'}
+                </button>
+                {detailCompany.id !== 'default-company-pain' && (
+                  <button
+                    onClick={() => openDeleteModal(detailCompany)}
+                    style={{ ...btnSecondary, display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#f87171', borderColor: 'rgba(239, 68, 68, 0.3)' }}
+                  >
+                    <Trash2 size={15} /> Dar de Baja
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL 3: CREDENCIALES DE ACCESO Y COPIADO EN 1 CLIC        */}
+      {/* ========================================================= */}
+      {credentialCompany && (
+        <div className="modal-overlay" onClick={() => setCredentialCompany(null)}>
+          <div 
+            className="modal-content page-glow" 
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: '560px', width: '90%', borderRadius: '16px', background: '#141416', border: '1px solid rgba(16, 185, 129, 0.25)', padding: '2rem' }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '1rem' }}>
+              <h2 style={{ margin: 0, fontSize: '1.25rem', color: '#fff', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Key size={20} style={{ color: '#10b981' }} /> Credenciales de Acceso
+              </h2>
+              <button onClick={() => setCredentialCompany(null)} style={{ background: 'transparent', border: 'none', color: '#71717a', cursor: 'pointer' }}>
+                <X size={20} />
+              </button>
+            </div>
+
+            <p style={{ color: '#a1a1aa', fontSize: '0.88rem', margin: '0 0 1.25rem' }}>
+              Copia los datos de acceso para entregárselos al cliente o genera una nueva contraseña temporal si la olvidó.
+            </p>
+
+            <div style={{ background: '#18181b', border: '1px solid #27272a', borderRadius: '12px', padding: '1.25rem', marginBottom: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.9rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: '#a1a1aa' }}>Empresa:</span>
+                <strong style={{ color: '#fff' }}>{credentialCompany.name}</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: '#a1a1aa' }}>Identificador (Slug):</span>
+                <code style={{ color: '#f97316' }}>{credentialCompany.slug}</code>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: '#a1a1aa' }}>Portal Web:</span>
+                <span style={{ color: '#fff' }}>{window.location.origin}/login</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: '#a1a1aa' }}>Usuario Admin:</span>
+                <strong style={{ color: '#10b981' }}>{credentialCompany.adminUsers?.[0]?.email || 'Sin admin asignado'}</strong>
+              </div>
+
+              {credGeneratedPassword && (
+                <div style={{ borderTop: '1px solid #27272a', paddingTop: '0.75rem', marginTop: '0.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ color: '#eab308', fontWeight: 600 }}>Nueva Clave Temporal:</span>
+                  <code style={{ fontSize: '1rem', color: '#eab308', background: 'rgba(234, 179, 8, 0.1)', padding: '0.2rem 0.5rem', borderRadius: '4px' }}>
+                    {credGeneratedPassword}
+                  </code>
+                </div>
+              )}
+            </div>
+
+            {/* Restablecer Contraseña */}
+            <div style={{ background: 'rgba(234, 179, 8, 0.05)', border: '1px solid rgba(234, 179, 8, 0.15)', borderRadius: '10px', padding: '1rem', marginBottom: '1.5rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ color: '#eab308', fontWeight: 600, fontSize: '0.85rem' }}>¿El cliente olvidó su contraseña?</div>
+                  <div style={{ color: '#a1a1aa', fontSize: '0.75rem', marginTop: '0.15rem' }}>
+                    Genera una contraseña nueva y segura en 1 clic directamente en la base de datos.
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleResetAdminPassword}
+                  disabled={credResetLoading}
+                  style={{ ...btnSecondary, padding: '0.45rem 0.85rem', fontSize: '0.8rem', color: '#eab308', borderColor: 'rgba(234, 179, 8, 0.3)', whiteSpace: 'nowrap' }}
+                >
+                  {credResetLoading ? 'Generando...' : 'Generar Nueva Clave'}
+                </button>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.75rem' }}>
+              <button
+                onClick={() => copyFullCredentials(credentialCompany, credGeneratedPassword)}
+                style={{ ...btnPrimary, flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
+              >
+                {credCopied ? <Check size={18} /> : <Copy size={18} />}
+                {credCopied ? '¡Credenciales Copiadas!' : 'Copiar Plantilla de Acceso'}
+              </button>
+              <button onClick={() => setCredentialCompany(null)} style={btnSecondary}>
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL 4: SUSPENSIÓN / REACTIVACIÓN CON ESTILOS RICOS     */}
+      {/* ========================================================= */}
+      {suspendModalCompany && (
+        <div className="modal-overlay" onClick={() => !isSuspending && setSuspendModalCompany(null)}>
+          <div 
+            className="modal-content page-glow" 
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              maxWidth: '520px',
+              width: '90%',
+              borderRadius: '16px',
+              background: '#141416',
+              border: `1px solid ${suspendModalCompany.isActive ? 'rgba(239, 68, 68, 0.3)' : 'rgba(16, 185, 129, 0.3)'}`,
+              padding: '2rem'
+            }}
+          >
+            <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
+              <div style={{
+                width: '60px',
+                height: '60px',
+                borderRadius: '50%',
+                background: suspendModalCompany.isActive ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)',
+                color: suspendModalCompany.isActive ? '#ef4444' : '#10b981',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 1rem',
+                border: `1px solid ${suspendModalCompany.isActive ? 'rgba(239, 68, 68, 0.3)' : 'rgba(16, 185, 129, 0.3)'}`
+              }}>
+                <Power size={30} />
+              </div>
+              <h2 style={{ color: '#fff', margin: '0 0 0.5rem', fontSize: '1.35rem' }}>
+                {suspendModalCompany.isActive ? `¿Suspender servicio de "${suspendModalCompany.name}"?` : `¿Reactivar servicio de "${suspendModalCompany.name}"?`}
+              </h2>
+              <p style={{ color: '#a1a1aa', fontSize: '0.88rem', margin: 0 }}>
+                {suspendModalCompany.isActive
+                  ? 'Al suspender, los administradores perderán acceso al portal y los kioscos físicos se desconectarán de inmediato.'
+                  : 'Al reactivar, se restaurará el acceso de sus usuarios y los kioscos podrán volver a checar asistencias.'
+                }
+              </p>
+            </div>
+
+            <div style={{ background: '#18181b', border: '1px solid #27272a', borderRadius: '10px', padding: '1rem', marginBottom: '1.25rem', fontSize: '0.85rem' }}>
+              <div style={{ color: '#d4d4d8', fontWeight: 600, marginBottom: '0.4rem' }}>Consecuencias operativas:</div>
+              <ul style={{ margin: 0, paddingLeft: '1.2rem', color: '#a1a1aa' }}>
+                {suspendModalCompany.isActive ? (
+                  <>
+                    <li>Peticiones HTTP retornarán <code style={{ color: '#ef4444' }}>HTTP 403 COMPANY_SUSPENDED</code>.</li>
+                    <li>WebSockets de kioscos físicos se desconectarán forzosamente en tiempo real.</li>
+                    <li>No se registrarán nuevas asistencias en sucursal.</li>
+                  </>
+                ) : (
+                  <>
+                    <li>Administradores podrán iniciar sesión nuevamente en el portal.</li>
+                    <li>Kioscos autorizados podrán reanudar checadas biométricas faciales.</li>
+                  </>
+                )}
+              </ul>
+            </div>
+
+            <div style={{ marginBottom: '1.5rem' }}>
+              <label style={labelStyle}>Motivo / Justificación de la acción:</label>
+              <input 
+                type="text" 
+                value={suspendReason}
+                onChange={(e) => setSuspendReason(e.target.value)}
+                placeholder="ej. Retraso en pago de mensualidad o solicitud comercial"
+                style={inputStyle}
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+              <button 
+                type="button" 
+                onClick={() => setSuspendModalCompany(null)} 
+                disabled={isSuspending}
+                style={btnSecondary}
+              >
+                Cancelar
+              </button>
+              <button 
+                type="button"
+                onClick={handleConfirmSuspend}
+                disabled={isSuspending}
+                style={{
+                  ...btnPrimary,
+                  background: suspendModalCompany.isActive ? '#ef4444' : '#10b981',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem'
+                }}
+              >
+                {isSuspending ? 'Actualizando estado...' : (suspendModalCompany.isActive ? 'Confirmar Suspensión' : 'Confirmar Reactivación')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL 5: DAR DE BAJA DEFINITIVA (DERECHO ARCO / PURGA)     */}
+      {/* ========================================================= */}
+      {deleteModalCompany && (
+        <div className="modal-overlay" onClick={() => !isDeleting && setDeleteModalCompany(null)}>
+          <div 
+            className="modal-content page-glow" 
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: '540px', width: '90%', borderRadius: '16px', background: '#141416', border: '1px solid rgba(239, 68, 68, 0.4)', padding: '2rem' }}
+          >
+            <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
+              <div style={{ width: '60px', height: '60px', borderRadius: '50%', background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
+                <AlertTriangle size={32} />
+              </div>
+              <h2 style={{ color: '#fff', margin: '0 0 0.5rem', fontSize: '1.35rem' }}>
+                Baja Definitiva y Purga Total (ARCO)
+              </h2>
+              <p style={{ color: '#fca5a5', fontSize: '0.88rem', margin: 0 }}>
+                Esta acción es <strong>irreversible</strong>. Se eliminará la empresa "{deleteModalCompany.name}" y todos sus datos en MariaDB.
+              </p>
+            </div>
+
+            <div style={{ background: '#1c1515', border: '1px solid rgba(239, 68, 68, 0.25)', borderRadius: '10px', padding: '1rem', marginBottom: '1.25rem', fontSize: '0.85rem' }}>
+              <div style={{ color: '#ef4444', fontWeight: 700, marginBottom: '0.4rem' }}>Datos que serán destruidos permanentemente:</div>
+              <ul style={{ margin: 0, paddingLeft: '1.2rem', color: '#d4d4d8' }}>
+                <li>Todos los perfiles de empleados y vectores faciales cifrados (AES-256).</li>
+                <li>La totalidad de asistencias y eventos registrados.</li>
+                <li>Desconexión y revocación definitiva de todos sus kioscos físicos.</li>
+                <li>Departamentos, turnos, administradores y configuraciones.</li>
+              </ul>
+            </div>
+
+            <div style={{ marginBottom: '1.5rem' }}>
+              <label style={{ ...labelStyle, color: '#fca5a5' }}>
+                Para confirmar la purga definitiva, escribe el slug de la empresa: <code style={{ color: '#fff', fontWeight: 700 }}>{deleteModalCompany.slug}</code>
+              </label>
+              <input 
+                type="text" 
+                value={deleteConfirmSlug}
+                onChange={(e) => setDeleteConfirmSlug(e.target.value)}
+                placeholder={deleteModalCompany.slug}
+                style={{ ...inputStyle, borderColor: deleteConfirmSlug === deleteModalCompany.slug ? '#ef4444' : '#27272a' }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+              <button 
+                type="button" 
+                onClick={() => setDeleteModalCompany(null)} 
+                disabled={isDeleting}
+                style={btnSecondary}
+              >
+                Cancelar
+              </button>
+              <button 
+                type="button"
+                onClick={handleConfirmDelete}
+                disabled={isDeleting || deleteConfirmSlug !== deleteModalCompany.slug}
+                style={{
+                  ...btnPrimary,
+                  background: '#ef4444',
+                  cursor: (isDeleting || deleteConfirmSlug !== deleteModalCompany.slug) ? 'not-allowed' : 'pointer',
+                  opacity: deleteConfirmSlug === deleteModalCompany.slug ? 1 : 0.5,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem'
+                }}
+              >
+                {isDeleting ? 'Purgando datos de MariaDB...' : 'Eliminar Empresa Definitivamente'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL 6: EDICIÓN DE CUOTAS Y PLAN                         */}
+      {/* ========================================================= */}
       {editingCompany && (
         <div className="modal-overlay" onClick={() => !isSubmitting && setEditingCompany(null)}>
           <div 
             className="modal-content page-glow" 
             onClick={(e) => e.stopPropagation()}
-            style={{ maxWidth: '500px', width: '90%', borderRadius: '16px', background: '#141416', border: '1px solid rgba(255, 255, 255, 0.1)', padding: '2rem' }}
+            style={{ maxWidth: '520px', width: '90%', borderRadius: '16px', background: '#141416', border: '1px solid rgba(255, 255, 255, 0.1)', padding: '2rem' }}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '1rem' }}>
-              <div>
-                <h3 style={{ margin: 0, color: '#fff', fontSize: '1.25rem', fontWeight: 600 }}>Modificar Plan y Cuotas</h3>
-                <p style={{ margin: '0.2rem 0 0', color: '#a1a1aa', fontSize: '0.85rem' }}>{editingCompany.name}</p>
-              </div>
-              <button type="button" onClick={() => setEditingCompany(null)} style={{ background: 'transparent', border: 'none', color: '#71717a', cursor: 'pointer' }}>
-                <X size={20} />
-              </button>
-            </div>
-
             <form onSubmit={handleUpdateCompany}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.5rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '1rem' }}>
+                <h2 style={{ margin: 0, fontSize: '1.25rem', color: '#fff', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Edit size={18} style={{ color: '#3b82f6' }} /> Modificar Plan y Cuotas: {editingCompany.name}
+                </h2>
+                <button type="button" onClick={() => setEditingCompany(null)} style={{ background: 'transparent', border: 'none', color: '#71717a', cursor: 'pointer' }}>
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', marginBottom: '1.5rem' }}>
                 <div>
-                  <label style={labelStyle}>Nombre de la Empresa</label>
+                  <label style={labelStyle}>Nombre Comercial</label>
                   <input 
                     type="text" 
                     required
@@ -983,7 +1784,7 @@ Por seguridad, cambie su contraseña al ingresar.`;
   );
 };
 
-// --- Estilos ---
+// --- Estilos de Apoyo ---
 const thStyle = {
   padding: '1rem 1.25rem',
   color: '#a1a1aa',
