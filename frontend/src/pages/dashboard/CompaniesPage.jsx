@@ -27,6 +27,28 @@ const TIMEZONES = [
   'Europe/Madrid'
 ];
 
+const formatSuspensionDetails = (dateString) => {
+  if (!dateString) return null;
+  const d = new Date(dateString);
+  if (isNaN(d.getTime())) return null;
+
+  const dayName = d.toLocaleDateString('es-MX', { weekday: 'long' });
+  const capitalizedDay = dayName.charAt(0).toUpperCase() + dayName.slice(1);
+  const fullDate = d.toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' });
+  const shortDate = d.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
+  const time = d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+  const shortTime = d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', hour12: true });
+
+  return {
+    capitalizedDay,
+    fullDate,
+    shortDate,
+    time,
+    shortTime,
+    fullFormatted: `${capitalizedDay}, ${fullDate} a las ${time}`
+  };
+};
+
 const CompaniesPage = () => {
   const [companies, setCompanies] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -227,6 +249,7 @@ const CompaniesPage = () => {
       if (res.ok) {
         const fullData = await res.json();
         setDetailData(fullData);
+        setDetailCompany(fullData);
       } else {
         setDetailData(company);
       }
@@ -331,7 +354,11 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
       setSuspendModalCompany(null);
       fetchCompanies();
       if (detailCompany?.id === suspendModalCompany.id) {
-        openCompanyDetails({ ...detailCompany, isActive: willBeActive });
+        if (data.company) {
+          openCompanyDetails({ ...detailCompany, ...data.company });
+        } else {
+          openCompanyDetails({ ...detailCompany, isActive: willBeActive });
+        }
       }
     } catch (err) {
       toast.error(err.message);
@@ -772,6 +799,18 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
                         <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: comp.isActive ? '#10b981' : '#ef4444' }} />
                         {comp.isActive ? 'Activa' : 'Suspendida'}
                       </span>
+                      {!comp.isActive && comp.suspendedAt && (
+                        <div 
+                          style={{ fontSize: '0.7rem', color: '#f87171', marginTop: '0.3rem', lineHeight: '1.25' }}
+                          title={`Suspendida el ${formatSuspensionDetails(comp.suspendedAt)?.fullFormatted} por ${comp.suspendedByName || 'Super Admin'}`}
+                        >
+                          <div style={{ fontWeight: 600 }}>{formatSuspensionDetails(comp.suspendedAt)?.capitalizedDay} {formatSuspensionDetails(comp.suspendedAt)?.shortDate}</div>
+                          <div style={{ color: '#d4d4d8' }}>{formatSuspensionDetails(comp.suspendedAt)?.shortTime}</div>
+                          <div style={{ color: '#a1a1aa', maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            Por: {comp.suspendedByName ? comp.suspendedByName.split(' ')[0] : 'Admin'}
+                          </div>
+                        </div>
+                      )}
                     </td>
 
                     {/* 5. Acciones */}
@@ -923,7 +962,7 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
                   </div>
 
                   {/* Administrador */}
-                  <div style={{ background: '#18181b', borderRadius: '8px', padding: '0.65rem 0.85rem', marginBottom: '1rem', border: '1px solid #27272a' }}>
+                  <div style={{ background: '#18181b', borderRadius: '8px', padding: '0.65rem 0.85rem', marginBottom: '0.85rem', border: '1px solid #27272a' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.8rem', color: '#fff', fontWeight: 500 }}>
                       <UserCheck size={14} style={{ color: '#10b981' }} />
                       <span>{mainAdmin?.name || 'Sin administrador asignado'}</span>
@@ -934,6 +973,31 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
                       </div>
                     )}
                   </div>
+
+                  {/* Auditoría de Suspensión (si no está activa) */}
+                  {!comp.isActive && comp.suspendedAt && (
+                    <div style={{
+                      background: 'rgba(239, 68, 68, 0.08)',
+                      border: '1px solid rgba(239, 68, 68, 0.25)',
+                      borderRadius: '8px',
+                      padding: '0.6rem 0.75rem',
+                      marginBottom: '1rem',
+                      fontSize: '0.76rem',
+                      color: '#fca5a5'
+                    }}>
+                      <div style={{ fontWeight: 600, color: '#ef4444', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                        <Power size={13} /> Suspendida el {formatSuspensionDetails(comp.suspendedAt)?.capitalizedDay}, {formatSuspensionDetails(comp.suspendedAt)?.shortDate}
+                      </div>
+                      <div style={{ marginTop: '0.2rem', color: '#d4d4d8' }}>
+                        Hora: <strong>{formatSuspensionDetails(comp.suspendedAt)?.shortTime}</strong> · Por: <strong>{comp.suspendedByName || 'Super Admin'}</strong>
+                      </div>
+                      {comp.suspensionReason && (
+                        <div style={{ color: '#a1a1aa', fontSize: '0.72rem', marginTop: '0.2rem', fontStyle: 'italic' }}>
+                          "{comp.suspensionReason}"
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {/* Barras de Consumo */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', marginBottom: '1.25rem' }}>
@@ -1374,6 +1438,72 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
               </div>
             </div>
 
+            {/* Banner de Empresa Suspendida con Auditoría (Día, Fecha, Hora y Administrador) */}
+            {!detailCompany.isActive && (
+              <div style={{
+                background: 'rgba(239, 68, 68, 0.08)',
+                border: '1px solid rgba(239, 68, 68, 0.35)',
+                borderRadius: '12px',
+                padding: '1.1rem 1.25rem',
+                marginBottom: '1.5rem',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '1rem'
+              }}>
+                <div style={{
+                  width: '38px',
+                  height: '38px',
+                  borderRadius: '10px',
+                  background: 'rgba(239, 68, 68, 0.15)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#ef4444',
+                  flexShrink: 0
+                }}>
+                  <AlertTriangle size={20} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.35rem', flexWrap: 'wrap' }}>
+                    <strong style={{ color: '#ef4444', fontSize: '0.95rem' }}>Empresa Actualmente Suspendida</strong>
+                    <span style={{ fontSize: '0.72rem', color: '#fca5a5', background: 'rgba(239, 68, 68, 0.2)', padding: '0.15rem 0.5rem', borderRadius: '4px', fontWeight: 600 }}>
+                      Acceso bloqueado en portal y kioscos
+                    </span>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.5rem', marginTop: '0.65rem', fontSize: '0.83rem', color: '#d4d4d8' }}>
+                    <div>
+                      <span style={{ color: '#a1a1aa' }}>Día y Fecha: </span>
+                      <strong style={{ color: '#fff' }}>
+                        {formatSuspensionDetails(detailCompany.suspendedAt)?.capitalizedDay
+                          ? `${formatSuspensionDetails(detailCompany.suspendedAt).capitalizedDay}, ${formatSuspensionDetails(detailCompany.suspendedAt).fullDate}`
+                          : 'No registrada'}
+                      </strong>
+                    </div>
+                    <div>
+                      <span style={{ color: '#a1a1aa' }}>Hora de Suspensión: </span>
+                      <strong style={{ color: '#fca5a5' }}>
+                        {formatSuspensionDetails(detailCompany.suspendedAt)?.time || 'No registrada'}
+                      </strong>
+                    </div>
+                    <div>
+                      <span style={{ color: '#a1a1aa' }}>Suspendido por: </span>
+                      <strong style={{ color: '#60a5fa' }}>
+                        {detailCompany.suspendedByName || 'Super Administrador'}
+                      </strong>
+                    </div>
+                    {detailCompany.suspensionReason && (
+                      <div style={{ gridColumn: '1 / -1', marginTop: '0.2rem' }}>
+                        <span style={{ color: '#a1a1aa' }}>Motivo / Justificación: </span>
+                        <span style={{ color: '#fed7aa', fontStyle: 'italic' }}>
+                          "{detailCompany.suspensionReason}"
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Pestañas de la Ficha */}
             <div style={{ display: 'flex', gap: '0.5rem', borderBottom: '1px solid #27272a', marginBottom: '1.25rem' }}>
               <button
@@ -1471,7 +1601,7 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
                 </div>
 
                 <div style={{ background: '#18181b', border: '1px solid #27272a', borderRadius: '10px', padding: '1.25rem' }}>
-                  <h4 style={{ margin: '0 0 1rem', color: '#10b981', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <h4 style={{ margin: '0 0 1rem', color: detailCompany.isActive ? '#10b981' : '#ef4444', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <Info size={16} /> Estado del Servicio
                   </h4>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
@@ -1481,6 +1611,32 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
                         {detailCompany.isActive ? 'Activo (En servicio)' : 'Suspendido (Bloqueado)'}
                       </strong>
                     </div>
+                    {!detailCompany.isActive && (
+                      <>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ color: '#a1a1aa' }}>Día de Suspensión:</span>
+                          <span style={{ color: '#fff', fontWeight: 600 }}>{formatSuspensionDetails(detailCompany.suspendedAt)?.capitalizedDay || 'N/A'}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ color: '#a1a1aa' }}>Fecha de Suspensión:</span>
+                          <span style={{ color: '#fff' }}>{formatSuspensionDetails(detailCompany.suspendedAt)?.fullDate || 'N/A'}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ color: '#a1a1aa' }}>Hora de Suspensión:</span>
+                          <span style={{ color: '#ef4444', fontWeight: 600 }}>{formatSuspensionDetails(detailCompany.suspendedAt)?.time || 'N/A'}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ color: '#a1a1aa' }}>Administrador:</span>
+                          <span style={{ color: '#60a5fa', fontWeight: 500 }}>{detailCompany.suspendedByName || 'Super Administrador'}</span>
+                        </div>
+                        {detailCompany.suspensionReason && (
+                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <span style={{ color: '#a1a1aa' }}>Motivo:</span>
+                            <span style={{ color: '#fed7aa', fontSize: '0.82rem', textAlign: 'right', maxWidth: '60%' }}>{detailCompany.suspensionReason}</span>
+                          </div>
+                        )}
+                      </>
+                    )}
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                       <span style={{ color: '#a1a1aa' }}>Zona Horaria:</span>
                       <span style={{ color: '#fff' }}>{detailCompany.timezone}</span>
@@ -1761,6 +1917,31 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
                 }
               </p>
             </div>
+
+            {!suspendModalCompany.isActive && suspendModalCompany.suspendedAt && (
+              <div style={{
+                background: 'rgba(239, 68, 68, 0.08)',
+                border: '1px solid rgba(239, 68, 68, 0.25)',
+                borderRadius: '8px',
+                padding: '0.75rem 1rem',
+                marginBottom: '1.25rem',
+                fontSize: '0.82rem',
+                textAlign: 'left'
+              }}>
+                <div style={{ color: '#fca5a5', fontWeight: 600, marginBottom: '0.25rem' }}>Registro de Suspensión Previa:</div>
+                <div style={{ color: '#d4d4d8' }}>
+                  <strong>Día y Fecha:</strong> {formatSuspensionDetails(suspendModalCompany.suspendedAt)?.capitalizedDay}, {formatSuspensionDetails(suspendModalCompany.suspendedAt)?.fullDate} a las {formatSuspensionDetails(suspendModalCompany.suspendedAt)?.time}
+                </div>
+                <div style={{ color: '#d4d4d8', marginTop: '0.2rem' }}>
+                  <strong>Suspendido por:</strong> <span style={{ color: '#60a5fa' }}>{suspendModalCompany.suspendedByName || 'Super Administrador'}</span>
+                </div>
+                {suspendModalCompany.suspensionReason && (
+                  <div style={{ color: '#fed7aa', marginTop: '0.2rem', fontStyle: 'italic' }}>
+                    <strong>Motivo:</strong> "{suspendModalCompany.suspensionReason}"
+                  </div>
+                )}
+              </div>
+            )}
 
             <div style={{ background: '#18181b', border: '1px solid #27272a', borderRadius: '10px', padding: '1rem', marginBottom: '1.25rem', fontSize: '0.85rem' }}>
               <div style={{ color: '#d4d4d8', fontWeight: 600, marginBottom: '0.4rem' }}>Consecuencias operativas:</div>

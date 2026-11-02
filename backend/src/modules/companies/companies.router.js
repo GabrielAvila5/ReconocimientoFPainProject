@@ -403,6 +403,7 @@ router.patch('/:id', async (req, res) => {
  * Activar o suspender una empresa.
  * Si se suspende (isActive: false), desconecta forzosamente todos los sockets
  * de dicha empresa en tiempo real invocando disconnectCompanySockets.
+ * Registra día, fecha, hora exacta y administrador que ejecutó la suspensión.
  */
 router.patch('/:id/status', async (req, res) => {
   try {
@@ -416,18 +417,48 @@ router.patch('/:id/status', async (req, res) => {
       return res.status(400).json({ error: 'El campo booleano isActive es obligatorio' });
     }
 
+    const currentCompany = await prisma.company.findUnique({
+      where: { id: companyId }
+    });
+    if (!currentCompany) {
+      return res.status(404).json({ error: 'Empresa no encontrada' });
+    }
+
+    const adminIdentity = req.user.name 
+      ? `${req.user.name} (${req.user.email})` 
+      : (req.user.email || 'Super Admin');
+
+    const updateData = {
+      isActive
+    };
+
+    if (!isActive) {
+      updateData.suspendedAt = new Date();
+      updateData.suspensionReason = reason && typeof reason === 'string' && reason.trim()
+        ? reason.trim()
+        : 'Empresa suspendida por Super Admin';
+      updateData.suspendedById = req.user.id;
+      updateData.suspendedByName = adminIdentity;
+    } else {
+      // Al reactivar, limpiamos los datos de suspensión activa
+      updateData.suspendedAt = null;
+      updateData.suspensionReason = null;
+      updateData.suspendedById = null;
+      updateData.suspendedByName = null;
+    }
+
     const company = await prisma.company.update({
       where: { id: companyId },
-      data: { isActive }
+      data: updateData
     });
 
     // Auditoría de acción de Super Admin en AdminAuditLog
     await runWithTenantContext({ companyId: company.id, isSuperAdmin: true }, async () => {
       await prisma.adminAuditLog.create({
         data: {
-          action: 'UPDATE_COMPANY_STATUS',
+          action: isActive ? 'REACTIVATE_COMPANY' : 'SUSPEND_COMPANY',
           performedById: req.user.id,
-          performedByName: req.user.name || req.user.email || 'Super Admin',
+          performedByName: adminIdentity,
           targetName: company.name,
           targetEmail: req.user.email || 'superadmin@system.local',
           companyId: company.id
@@ -439,7 +470,7 @@ router.patch('/:id/status', async (req, res) => {
     if (!isActive) {
       const appModule = require('../../app');
       if (typeof appModule.disconnectCompanySockets === 'function') {
-        appModule.disconnectCompanySockets(companyId, reason || 'COMPANY_SUSPENDED');
+        appModule.disconnectCompanySockets(companyId, updateData.suspensionReason || 'COMPANY_SUSPENDED');
       }
     }
 

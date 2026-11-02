@@ -14,6 +14,10 @@ model Company {
   customDomain       String?          @unique
   plan               String           @default("STARTER") // "STARTER" | "PRO" | "ENTERPRISE"
   isActive           Boolean          @default(true)
+  suspendedAt        DateTime?
+  suspensionReason   String?
+  suspendedById      String?
+  suspendedByName    String?
   maxEmployees       Int              @default(50)
   maxDevices         Int              @default(3)
   timezone           String           @default("America/Mexico_City")
