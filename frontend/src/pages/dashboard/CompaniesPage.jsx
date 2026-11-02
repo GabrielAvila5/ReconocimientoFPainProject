@@ -4,7 +4,7 @@ import {
   CheckCircle2, Copy, Check, Edit, Power, Search, Filter, 
   Clock, Globe, Shield, Sparkles, X, ChevronRight, Key,
   Trash2, Eye, AlertTriangle, ShieldCheck, Fingerprint, Calendar,
-  ArrowUpRight, Info, LayoutGrid, List, UserCheck, Timer, BellRing, CalendarPlus
+  ArrowUpRight, Info, LayoutGrid, List, UserCheck, Timer, BellRing, CalendarPlus,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
