@@ -17,11 +17,81 @@ const PLAN_DEFAULTS = {
 };
 
 /**
+ * Evalúa empresas suspendidas temporalmente, verifica si su plazo de gracia ha expirado,
+ * dispara alertas de alta prioridad (Notificaciones + WebSockets) y marca deletionAlertSent = true.
+ */
+async function checkAndTriggerSuspensionAlerts() {
+  try {
+    const now = new Date();
+    const expiredCompanies = await prisma.company.findMany({
+      where: {
+        isActive: false,
+        suspensionExpiresAt: {
+          lte: now
+        },
+        deletionAlertSent: false
+      }
+    });
+
+    if (!expiredCompanies.length) return [];
+
+    const appModule = require('../../app');
+    for (const comp of expiredCompanies) {
+      await prisma.company.update({
+        where: { id: comp.id },
+        data: {
+          deletionAlertSent: true,
+          deletionAlertAt: now
+        }
+      });
+
+      // Crear notificación de alta prioridad en Notification
+      try {
+        await runWithTenantContext({ companyId: comp.id, isSuperAdmin: true }, async () => {
+          await prisma.notification.create({
+            data: {
+              companyId: comp.id,
+              title: `🚨 PRIORIDAD ALTA: Plazo de gracia vencido (${comp.name})`,
+              message: `El plazo de baja temporal de ${comp.suspensionGraceDays || 30} días por falta de pago ha concluido. Requiere acción manual del administrador para baja definitiva bajo protocolo ARCO.`,
+              type: 'ERROR',
+              category: 'security',
+              entityId: comp.id
+            }
+          });
+        });
+      } catch (notifErr) {
+        console.warn('Advertencia al registrar Notification para alerta de baja:', notifErr.message);
+      }
+
+      // Emitir alerta en tiempo real a administradores
+      if (appModule.io) {
+        appModule.io.emit('high_priority_suspension_alert', {
+          companyId: comp.id,
+          companyName: comp.name,
+          slug: comp.slug,
+          graceDays: comp.suspensionGraceDays,
+          suspendedAt: comp.suspendedAt,
+          expiredAt: comp.suspensionExpiresAt,
+          message: `El plazo de gracia para "${comp.name}" ha concluido. Requiere baja definitiva manual.`
+        });
+      }
+    }
+    return expiredCompanies;
+  } catch (err) {
+    console.error('Error al evaluar alertas de suspensión:', err);
+    return [];
+  }
+}
+
+/**
  * GET /api/v1/companies
  * Listar todas las empresas registradas (Super Admin) con métricas enriquecidas
  */
 router.get('/', async (req, res) => {
   try {
+    // Evaluar y disparar alertas de alta prioridad si hay plazos vencidos
+    await checkAndTriggerSuspensionAlerts();
+
     const companies = await prisma.company.findMany({
       orderBy: { createdAt: 'desc' },
       include: {
@@ -42,7 +112,9 @@ router.get('/', async (req, res) => {
       }
     });
 
-    // Enriquecer con conteo de empleados con enrolamiento biométrico completado
+    const now = new Date();
+
+    // Enriquecer con conteo de empleados con enrolamiento biométrico y estado del timer de gracia
     const enrichedCompanies = await Promise.all(
       companies.map(async (comp) => {
         const enrolledCount = await runWithTenantContext({ companyId: comp.id, isSuperAdmin: true }, async () => {
@@ -53,8 +125,20 @@ router.get('/', async (req, res) => {
             }
           });
         });
+
+        const isGraceExpired = !comp.isActive && comp.suspensionExpiresAt && new Date(comp.suspensionExpiresAt) <= now;
+        const msRemaining = !comp.isActive && comp.suspensionExpiresAt 
+          ? (new Date(comp.suspensionExpiresAt).getTime() - now.getTime()) 
+          : null;
+        const daysRemaining = msRemaining !== null 
+          ? Math.ceil(msRemaining / (1000 * 60 * 60 * 24)) 
+          : null;
+
         return {
           ...comp,
+          isGraceExpired: !!isGraceExpired,
+          daysRemaining,
+          msRemaining,
           _count: {
             ...comp._count,
             enrolledEmployees: enrolledCount
@@ -124,8 +208,20 @@ router.get('/:id', async (req, res) => {
       });
     });
 
+    const now = new Date();
+    const isGraceExpired = !company.isActive && company.suspensionExpiresAt && new Date(company.suspensionExpiresAt) <= now;
+    const msRemaining = !company.isActive && company.suspensionExpiresAt 
+      ? (new Date(company.suspensionExpiresAt).getTime() - now.getTime()) 
+      : null;
+    const daysRemaining = msRemaining !== null 
+      ? Math.ceil(msRemaining / (1000 * 60 * 60 * 24)) 
+      : null;
+
     res.json({
       ...company,
+      isGraceExpired: !!isGraceExpired,
+      daysRemaining,
+      msRemaining,
       _count: {
         ...company._count,
         enrolledEmployees
@@ -403,12 +499,13 @@ router.patch('/:id', async (req, res) => {
  * Activar o suspender una empresa.
  * Si se suspende (isActive: false), desconecta forzosamente todos los sockets
  * de dicha empresa en tiempo real invocando disconnectCompanySockets.
- * Registra día, fecha, hora exacta y administrador que ejecutó la suspensión.
+ * Registra día, fecha, hora exacta, administrador que ejecutó la suspensión,
+ * y configura el timer de gracia temporal antes de emitir alerta de baja definitiva manual.
  */
 router.patch('/:id/status', async (req, res) => {
   try {
     const companyId = req.params.id;
-    const { isActive, reason } = req.body;
+    const { isActive, reason, graceDays, customExpiresAt } = req.body;
 
     if (!companyId) {
       return res.status(400).json({ error: 'ID de empresa inválido' });
@@ -433,18 +530,41 @@ router.patch('/:id/status', async (req, res) => {
     };
 
     if (!isActive) {
+      const parsedGraceDays = Number.isInteger(Number(graceDays)) && Number(graceDays) > 0 
+        ? Number(graceDays) 
+        : (currentCompany.suspensionGraceDays || 30);
+
+      let expiresAt = null;
+      if (customExpiresAt) {
+        const d = new Date(customExpiresAt);
+        if (!isNaN(d.getTime())) {
+          expiresAt = d;
+        }
+      }
+      if (!expiresAt) {
+        expiresAt = new Date(Date.now() + (parsedGraceDays * 24 * 60 * 60 * 1000));
+      }
+
       updateData.suspendedAt = new Date();
       updateData.suspensionReason = reason && typeof reason === 'string' && reason.trim()
         ? reason.trim()
-        : 'Empresa suspendida por Super Admin';
+        : 'Empresa suspendida temporalmente por falta de pago';
       updateData.suspendedById = req.user.id;
       updateData.suspendedByName = adminIdentity;
+      updateData.suspensionGraceDays = parsedGraceDays;
+      updateData.suspensionExpiresAt = expiresAt;
+      updateData.deletionAlertSent = false;
+      updateData.deletionAlertAt = null;
     } else {
-      // Al reactivar, limpiamos los datos de suspensión activa
+      // Al reactivar, limpiamos los datos de suspensión activa y el timer
       updateData.suspendedAt = null;
       updateData.suspensionReason = null;
       updateData.suspendedById = null;
       updateData.suspendedByName = null;
+      updateData.suspensionGraceDays = null;
+      updateData.suspensionExpiresAt = null;
+      updateData.deletionAlertSent = false;
+      updateData.deletionAlertAt = null;
     }
 
     const company = await prisma.company.update({
@@ -476,7 +596,9 @@ router.patch('/:id/status', async (req, res) => {
 
     res.json({
       success: true,
-      message: isActive ? 'Empresa activada exitosamente' : 'Empresa suspendida exitosamente',
+      message: isActive 
+        ? 'Empresa activada exitosamente' 
+        : `Empresa suspendida temporalmente. Plazo de gracia: ${updateData.suspensionGraceDays} días.`,
       company
     });
   } catch (error) {
@@ -485,6 +607,89 @@ router.patch('/:id/status', async (req, res) => {
     }
     console.error('Error al actualizar estado de la empresa:', error);
     res.status(500).json({ error: 'Error al actualizar estado de la empresa' });
+  }
+});
+
+/**
+ * PATCH /api/v1/companies/:id/grace-period
+ * Extender o modificar el plazo de gracia temporal de una empresa suspendida (Super Admin)
+ */
+router.patch('/:id/grace-period', async (req, res) => {
+  try {
+    const companyId = req.params.id;
+    const { additionalDays, totalGraceDays, customExpiresAt, reason } = req.body;
+
+    if (!companyId) {
+      return res.status(400).json({ error: 'ID de empresa inválido' });
+    }
+
+    const company = await prisma.company.findUnique({
+      where: { id: companyId }
+    });
+
+    if (!company) {
+      return res.status(404).json({ error: 'Empresa no encontrada' });
+    }
+
+    if (company.isActive) {
+      return res.status(400).json({ error: 'La empresa está activa. El plazo de gracia solo aplica a empresas en baja temporal.' });
+    }
+
+    const currentBase = company.suspendedAt ? new Date(company.suspendedAt) : new Date();
+    let newGraceDays = company.suspensionGraceDays || 30;
+
+    if (additionalDays && Number.isInteger(Number(additionalDays)) && Number(additionalDays) > 0) {
+      newGraceDays += Number(additionalDays);
+    } else if (totalGraceDays && Number.isInteger(Number(totalGraceDays)) && Number(totalGraceDays) > 0) {
+      newGraceDays = Number(totalGraceDays);
+    }
+
+    let newExpiresAt = null;
+    if (customExpiresAt) {
+      const d = new Date(customExpiresAt);
+      if (!isNaN(d.getTime())) {
+        newExpiresAt = d;
+      }
+    }
+    if (!newExpiresAt) {
+      newExpiresAt = new Date(currentBase.getTime() + (newGraceDays * 24 * 60 * 60 * 1000));
+    }
+
+    const isNowExpired = newExpiresAt <= new Date();
+
+    const updated = await prisma.company.update({
+      where: { id: companyId },
+      data: {
+        suspensionGraceDays: newGraceDays,
+        suspensionExpiresAt: newExpiresAt,
+        deletionAlertSent: isNowExpired ? company.deletionAlertSent : false,
+        deletionAlertAt: isNowExpired ? company.deletionAlertAt : null,
+        ...(reason && typeof reason === 'string' && reason.trim() ? { suspensionReason: reason.trim() } : {})
+      }
+    });
+
+    const adminIdentity = req.user.name ? `${req.user.name} (${req.user.email})` : (req.user.email || 'Super Admin');
+    await runWithTenantContext({ companyId: company.id, isSuperAdmin: true }, async () => {
+      await prisma.adminAuditLog.create({
+        data: {
+          action: 'EXTEND_SUSPENSION_GRACE_PERIOD',
+          performedById: req.user.id,
+          performedByName: adminIdentity,
+          targetName: company.name,
+          targetEmail: req.user.email || 'superadmin@system.local',
+          companyId: company.id
+        }
+      });
+    });
+
+    res.json({
+      success: true,
+      message: `Plazo de gracia temporal actualizado a ${newGraceDays} días (Vence: ${newExpiresAt.toLocaleDateString('es-MX')})`,
+      company: updated
+    });
+  } catch (error) {
+    console.error('Error al actualizar plazo de gracia:', error);
+    res.status(500).json({ error: 'Error al actualizar plazo de gracia' });
   }
 });
 

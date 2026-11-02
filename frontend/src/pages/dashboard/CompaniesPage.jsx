@@ -4,7 +4,7 @@ import {
   CheckCircle2, Copy, Check, Edit, Power, Search, Filter, 
   Clock, Globe, Shield, Sparkles, X, ChevronRight, Key,
   Trash2, Eye, AlertTriangle, ShieldCheck, Fingerprint, Calendar,
-  ArrowUpRight, Info, LayoutGrid, List, UserCheck
+  ArrowUpRight, Info, LayoutGrid, List, UserCheck, Timer, BellRing, CalendarPlus
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -46,6 +46,70 @@ const formatSuspensionDetails = (dateString) => {
     time,
     shortTime,
     fullFormatted: `${capitalizedDay}, ${fullDate} a las ${time}`
+  };
+};
+
+const formatGraceTimer = (comp) => {
+  if (!comp || comp.isActive) return null;
+  const graceDays = comp.suspensionGraceDays || 30;
+  const suspendedAt = comp.suspendedAt ? new Date(comp.suspendedAt) : null;
+  const expiresAt = comp.suspensionExpiresAt 
+    ? new Date(comp.suspensionExpiresAt) 
+    : (suspendedAt ? new Date(suspendedAt.getTime() + (graceDays * 24 * 60 * 60 * 1000)) : null);
+
+  if (!expiresAt || isNaN(expiresAt.getTime())) return null;
+
+  const now = new Date();
+  const diffMs = expiresAt.getTime() - now.getTime();
+  const isExpired = diffMs <= 0 || !!comp.isGraceExpired;
+
+  const totalDurationMs = suspendedAt && !isNaN(suspendedAt.getTime())
+    ? Math.max(1, expiresAt.getTime() - suspendedAt.getTime()) 
+    : (graceDays * 24 * 60 * 60 * 1000);
+  const elapsedMs = suspendedAt && !isNaN(suspendedAt.getTime())
+    ? Math.max(0, now.getTime() - suspendedAt.getTime()) 
+    : Math.max(0, totalDurationMs - diffMs);
+  const progressPercent = Math.min(100, Math.max(0, Math.round((elapsedMs / totalDurationMs) * 100)));
+
+  const absDiffDays = Math.ceil(Math.abs(diffMs) / (1000 * 60 * 60 * 24));
+  const absDiffHours = Math.ceil(Math.abs(diffMs) / (1000 * 60 * 60));
+
+  let label = '';
+  let badgeText = '';
+  let urgency = 'ok'; // 'ok' | 'warning' | 'danger'
+
+  if (isExpired) {
+    label = `Plazo vencido hace ${absDiffDays} ${absDiffDays === 1 ? 'día' : 'días'}`;
+    badgeText = `🚨 VENCIDO (${absDiffDays}d)`;
+    urgency = 'danger';
+  } else if (absDiffDays <= 3) {
+    label = `Vence en ${absDiffHours} horas (Crítico)`;
+    badgeText = `⚠️ ${absDiffDays}d restantes`;
+    urgency = 'warning';
+  } else {
+    label = `Quedan ${absDiffDays} días de gracia`;
+    badgeText = `⏱️ ${absDiffDays}d restantes`;
+    urgency = 'ok';
+  }
+
+  const formattedExpires = expiresAt.toLocaleDateString('es-MX', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+
+  return {
+    isExpired,
+    graceDays,
+    expiresAt,
+    formattedExpires,
+    label,
+    badgeText,
+    urgency,
+    absDiffDays,
+    progressPercent
   };
 };
 
@@ -113,10 +177,17 @@ const CompaniesPage = () => {
   const [credGeneratedPassword, setCredGeneratedPassword] = useState('');
   const [credCopied, setCredCopied] = useState(false);
 
-  // Modal de Suspensión / Reactivación con Estilos
+  // Modal de Suspensión / Reactivación con Estilos y Timer
   const [suspendModalCompany, setSuspendModalCompany] = useState(null);
   const [suspendReason, setSuspendReason] = useState('');
+  const [suspendGraceDays, setSuspendGraceDays] = useState(30);
   const [isSuspending, setIsSuspending] = useState(false);
+
+  // Modal para Extender Plazo de Gracia Temporal
+  const [extendModalCompany, setExtendModalCompany] = useState(null);
+  const [extendDaysToAdd, setExtendDaysToAdd] = useState(15);
+  const [extendReason, setExtendReason] = useState('Prórroga comercial acordada');
+  const [isExtending, setIsExtending] = useState(false);
 
   // Modal de Baja Definitiva (Derecho ARCO)
   const [deleteModalCompany, setDeleteModalCompany] = useState(null);
@@ -320,10 +391,11 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
     setTimeout(() => setCredCopied(false), 3000);
   };
 
-  // Modal de Suspensión con Estilos
+  // Modal de Suspensión con Estilos y Timer
   const openSuspendModal = (company) => {
     setSuspendModalCompany(company);
-    setSuspendReason(company.isActive ? 'Falta de pago o mora comercial' : 'Reactivación por regularización de pago');
+    setSuspendReason(company.isActive ? 'Falta de pago de mensualidad o mora comercial' : 'Reactivación por regularización de pago');
+    setSuspendGraceDays(company.suspensionGraceDays || 30);
   };
 
   const handleConfirmSuspend = async () => {
@@ -341,7 +413,8 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
         credentials: 'include',
         body: JSON.stringify({
           isActive: willBeActive,
-          reason: suspendReason || (willBeActive ? 'Reactivación por Super Admin' : 'Suspensión de servicio')
+          reason: suspendReason || (willBeActive ? 'Reactivación por Super Admin' : 'Suspensión temporal por falta de pago'),
+          graceDays: Number(suspendGraceDays) || 30
         })
       });
 
@@ -350,7 +423,9 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
         throw new Error(data.error || 'Error al cambiar estado de la empresa');
       }
 
-      toast.success(willBeActive ? `Empresa "${suspendModalCompany.name}" reactivada con éxito.` : `Empresa "${suspendModalCompany.name}" suspendida. Kioscos desconectados.`);
+      toast.success(willBeActive 
+        ? `Empresa "${suspendModalCompany.name}" reactivada con éxito.` 
+        : `Empresa "${suspendModalCompany.name}" dada de baja temporal. Plazo de gracia: ${suspendGraceDays} días.`);
       setSuspendModalCompany(null);
       fetchCompanies();
       if (detailCompany?.id === suspendModalCompany.id) {
@@ -364,6 +439,53 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
       toast.error(err.message);
     } finally {
       setIsSuspending(false);
+    }
+  };
+
+  // Modal de Prórroga / Extensión del Plazo de Gracia Temporal
+  const openExtendModal = (company) => {
+    setExtendModalCompany(company);
+    setExtendDaysToAdd(15);
+    setExtendReason('Prórroga comercial acordada con el cliente');
+  };
+
+  const handleConfirmExtend = async () => {
+    if (!extendModalCompany) return;
+    try {
+      setIsExtending(true);
+      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+      const res = await fetch(`${baseUrl}/api/v1/superadmin/companies/${extendModalCompany.id}/grace-period`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders()
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          additionalDays: Number(extendDaysToAdd) || 15,
+          reason: extendReason
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Error al extender plazo de gracia');
+      }
+
+      toast.success(data.message || 'Plazo de gracia temporal extendido con éxito.');
+      setExtendModalCompany(null);
+      fetchCompanies();
+      if (detailCompany?.id === extendModalCompany.id) {
+        if (data.company) {
+          openCompanyDetails({ ...detailCompany, ...data.company });
+        } else {
+          openCompanyDetails(detailCompany);
+        }
+      }
+    } catch (err) {
+      toast.error(err.message);
+    } finally {
+      setIsExtending(false);
     }
   };
 
@@ -472,6 +594,16 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
     });
   }, [companies, searchTerm, selectedPlan, selectedStatus]);
 
+  // Empresas con Plazo de Gracia Vencido (Alerta de Prioridad Alta)
+  const expiredCompanies = useMemo(() => {
+    return companies.filter(c => {
+      if (c.isActive) return false;
+      if (c.isGraceExpired) return true;
+      if (c.suspensionExpiresAt && new Date(c.suspensionExpiresAt) <= new Date()) return true;
+      return false;
+    });
+  }, [companies]);
+
   // Métricas Globales
   const stats = useMemo(() => {
     const total = companies.length;
@@ -572,6 +704,129 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
           </button>
         </div>
       </div>
+
+      {/* Banner de Alerta de Prioridad Alta: Empresas con Plazo de Gracia Vencido */}
+      {expiredCompanies.length > 0 && (
+        <div style={{
+          background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.16) 0%, rgba(185, 28, 28, 0.08) 100%)',
+          border: '1px solid rgba(239, 68, 68, 0.55)',
+          boxShadow: '0 0 25px rgba(239, 68, 68, 0.22)',
+          borderRadius: '14px',
+          padding: '1.25rem 1.5rem',
+          marginBottom: '2rem',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '1rem'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.75rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+              <div style={{
+                width: '44px',
+                height: '44px',
+                borderRadius: '12px',
+                background: 'rgba(239, 68, 68, 0.25)',
+                border: '1px solid rgba(239, 68, 68, 0.5)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#ef4444',
+                flexShrink: 0
+              }}>
+                <BellRing size={22} className="spin-slow" />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.15rem', color: '#fff', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <span style={{ color: '#ef4444', fontWeight: 800 }}>ALERTA DE PRIORIDAD ALTA:</span> 
+                  <span>Plazo de Baja Temporal Vencido ({expiredCompanies.length} {expiredCompanies.length === 1 ? 'empresa' : 'empresas'})</span>
+                </h3>
+                <p style={{ margin: '0.25rem 0 0', color: '#fca5a5', fontSize: '0.85rem' }}>
+                  El período de gracia por falta de pago ha concluido. Por protocolo de salvaguarda y derecho ARCO, <strong>la eliminación debe ser ejecutada manualmente por un Super Administrador</strong>.
+                </p>
+              </div>
+            </div>
+            <span style={{
+              padding: '0.3rem 0.85rem',
+              background: 'rgba(239, 68, 68, 0.3)',
+              border: '1px solid #ef4444',
+              borderRadius: '99px',
+              color: '#fff',
+              fontSize: '0.75rem',
+              fontWeight: 700,
+              letterSpacing: '0.5px'
+            }}>
+              ACCIÓN MANUAL REQUERIDA
+            </span>
+          </div>
+
+          {/* Fila de empresas en alerta */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '0.75rem' }}>
+            {expiredCompanies.map(comp => {
+              const timer = formatGraceTimer(comp);
+              return (
+                <div 
+                  key={comp.id}
+                  style={{
+                    background: '#141416',
+                    border: '1px solid rgba(239, 68, 68, 0.4)',
+                    borderRadius: '10px',
+                    padding: '0.85rem 1rem',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    gap: '0.75rem'
+                  }}
+                >
+                  <div style={{ overflow: 'hidden' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                      <strong style={{ color: '#fff', fontSize: '0.95rem' }}>{comp.name}</strong>
+                      <code style={{ fontSize: '0.72rem', color: '#f97316' }}>{comp.slug}</code>
+                    </div>
+                    <div style={{ fontSize: '0.76rem', color: '#f87171', marginTop: '0.2rem' }}>
+                      {timer?.label || 'Plazo agotado'} · Límite: {timer?.formattedExpires}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.45rem', flexShrink: 0 }}>
+                    <button
+                      onClick={() => openExtendModal(comp)}
+                      style={{
+                        ...btnSecondary,
+                        padding: '0.35rem 0.7rem',
+                        fontSize: '0.75rem',
+                        color: '#fbbf24',
+                        borderColor: 'rgba(251, 191, 36, 0.3)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.3rem'
+                      }}
+                      title="Dar días adicionales de gracia si el cliente promete regularizar"
+                    >
+                      <Clock size={13} /> Extender
+                    </button>
+                    <button
+                      onClick={() => openDeleteModal(comp)}
+                      style={{
+                        ...btnSecondary,
+                        padding: '0.35rem 0.75rem',
+                        fontSize: '0.75rem',
+                        background: '#ef4444',
+                        color: '#fff',
+                        borderColor: '#ef4444',
+                        fontWeight: 600,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.3rem'
+                      }}
+                      title="Baja manual y purga total ARCO"
+                    >
+                      <Trash2 size={13} /> Baja Manual
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* KPI Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: '1.25rem', marginBottom: '2rem' }}>
@@ -782,35 +1037,61 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
                       </div>
                     </td>
 
-                    {/* 4. Estado */}
+                    {/* 4. Estado y Timer de Gracia */}
                     <td style={tdCompact}>
-                      <span style={{
-                        padding: '0.2rem 0.55rem',
-                        borderRadius: '99px',
-                        fontSize: '0.72rem',
-                        fontWeight: 600,
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.3rem',
-                        color: comp.isActive ? '#10b981' : '#ef4444',
-                        background: comp.isActive ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-                        border: `1px solid ${comp.isActive ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)'}`
-                      }}>
-                        <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: comp.isActive ? '#10b981' : '#ef4444' }} />
-                        {comp.isActive ? 'Activa' : 'Suspendida'}
-                      </span>
-                      {!comp.isActive && comp.suspendedAt && (
-                        <div 
-                          style={{ fontSize: '0.7rem', color: '#f87171', marginTop: '0.3rem', lineHeight: '1.25' }}
-                          title={`Suspendida el ${formatSuspensionDetails(comp.suspendedAt)?.fullFormatted} por ${comp.suspendedByName || 'Super Admin'}`}
-                        >
-                          <div style={{ fontWeight: 600 }}>{formatSuspensionDetails(comp.suspendedAt)?.capitalizedDay} {formatSuspensionDetails(comp.suspendedAt)?.shortDate}</div>
-                          <div style={{ color: '#d4d4d8' }}>{formatSuspensionDetails(comp.suspendedAt)?.shortTime}</div>
-                          <div style={{ color: '#a1a1aa', maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            Por: {comp.suspendedByName ? comp.suspendedByName.split(' ')[0] : 'Admin'}
+                      {(() => {
+                        const timer = formatGraceTimer(comp);
+                        return (
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                              <span style={{
+                                padding: '0.2rem 0.55rem',
+                                borderRadius: '99px',
+                                fontSize: '0.72rem',
+                                fontWeight: 600,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.3rem',
+                                color: comp.isActive ? '#10b981' : '#ef4444',
+                                background: comp.isActive ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                                border: `1px solid ${comp.isActive ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)'}`
+                              }}>
+                                <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: comp.isActive ? '#10b981' : '#ef4444' }} />
+                                {comp.isActive ? 'Activa' : 'Baja Temporal'}
+                              </span>
+
+                              {timer && (
+                                <span style={{
+                                  padding: '0.15rem 0.45rem',
+                                  borderRadius: '4px',
+                                  fontSize: '0.67rem',
+                                  fontWeight: 700,
+                                  background: timer.isExpired ? 'rgba(239, 68, 68, 0.25)' : (timer.urgency === 'warning' ? 'rgba(234, 179, 8, 0.2)' : 'rgba(59, 130, 246, 0.15)'),
+                                  color: timer.isExpired ? '#fca5a5' : (timer.urgency === 'warning' ? '#fde047' : '#93c5fd'),
+                                  border: `1px solid ${timer.isExpired ? 'rgba(239, 68, 68, 0.4)' : (timer.urgency === 'warning' ? 'rgba(234, 179, 8, 0.35)' : 'rgba(59, 130, 246, 0.3)')}`,
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.25rem'
+                                }}>
+                                  <Clock size={10} /> {timer.badgeText}
+                                </span>
+                              )}
+                            </div>
+
+                            {!comp.isActive && comp.suspendedAt && (
+                              <div 
+                                style={{ fontSize: '0.68rem', color: '#a1a1aa', marginTop: '0.3rem', lineHeight: '1.25' }}
+                                title={`Suspendida el ${formatSuspensionDetails(comp.suspendedAt)?.fullFormatted} por ${comp.suspendedByName || 'Super Admin'}. Límite: ${timer?.formattedExpires}`}
+                              >
+                                <div>{formatSuspensionDetails(comp.suspendedAt)?.capitalizedDay} {formatSuspensionDetails(comp.suspendedAt)?.shortDate} · {formatSuspensionDetails(comp.suspendedAt)?.shortTime}</div>
+                                <div style={{ color: timer?.isExpired ? '#f87171' : '#71717a' }}>
+                                  {timer?.label || `Por: ${comp.suspendedByName ? comp.suspendedByName.split(' ')[0] : 'Admin'}`}
+                                </div>
+                              </div>
+                            )}
                           </div>
-                        </div>
-                      )}
+                        );
+                      })()}
                     </td>
 
                     {/* 5. Acciones */}
@@ -846,7 +1127,7 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
                         {/* Suspender / Activar */}
                         <button
                           onClick={() => openSuspendModal(comp)}
-                          title={comp.isActive ? "Suspender Servicio" : "Reactivar Servicio"}
+                          title={comp.isActive ? "Baja Temporal / Suspender Servicio" : "Reactivar Servicio"}
                           style={{
                             background: comp.isActive ? 'rgba(239, 68, 68, 0.1)' : 'rgba(16, 185, 129, 0.1)',
                             border: `1px solid ${comp.isActive ? 'rgba(239, 68, 68, 0.25)' : 'rgba(16, 185, 129, 0.25)'}`,
@@ -861,24 +1142,58 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
                           <Power size={14} />
                         </button>
 
+                        {/* Extender Plazo de Gracia (si está en baja temporal) */}
+                        {!comp.isActive && (
+                          <button
+                            onClick={() => openExtendModal(comp)}
+                            title="Extender Plazo de Gracia Temporal (Prórroga)"
+                            style={{
+                              background: 'rgba(234, 179, 8, 0.12)',
+                              border: '1px solid rgba(234, 179, 8, 0.3)',
+                              color: '#fbbf24',
+                              padding: '0.35rem',
+                              borderRadius: '6px',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center'
+                            }}
+                          >
+                            <CalendarPlus size={14} />
+                          </button>
+                        )}
+
                         {/* Baja Definitiva (ARCO) */}
-                        <button
-                          onClick={() => !isProtected && openDeleteModal(comp)}
-                          disabled={isProtected}
-                          title={isProtected ? "Empresa principal protegida" : "Dar de baja por completo (ARCO)"}
-                          style={{
-                            background: isProtected ? 'rgba(255, 255, 255, 0.02)' : 'rgba(239, 68, 68, 0.1)',
-                            border: `1px solid ${isProtected ? 'rgba(255, 255, 255, 0.05)' : 'rgba(239, 68, 68, 0.25)'}`,
-                            color: isProtected ? '#52525b' : '#f87171',
-                            padding: '0.35rem',
-                            borderRadius: '6px',
-                            cursor: isProtected ? 'not-allowed' : 'pointer',
-                            display: 'flex',
-                            alignItems: 'center'
-                          }}
-                        >
-                          <Trash2 size={14} />
-                        </button>
+                        {(() => {
+                          const timer = formatGraceTimer(comp);
+                          return (
+                            <button
+                              onClick={() => !isProtected && openDeleteModal(comp)}
+                              disabled={isProtected}
+                              title={isProtected 
+                                ? "Empresa principal protegida" 
+                                : (timer?.isExpired ? "¡Alerta de Prioridad Alta! Plazo de gracia vencido: Proceder a baja manual definitiva" : "Dar de baja por completo (ARCO)")}
+                              style={{
+                                background: isProtected 
+                                  ? 'rgba(255, 255, 255, 0.02)' 
+                                  : (timer?.isExpired ? '#ef4444' : 'rgba(239, 68, 68, 0.1)'),
+                                border: `1px solid ${isProtected 
+                                  ? 'rgba(255, 255, 255, 0.05)' 
+                                  : (timer?.isExpired ? '#f87171' : 'rgba(239, 68, 68, 0.25)')}`,
+                                color: isProtected 
+                                  ? '#52525b' 
+                                  : (timer?.isExpired ? '#fff' : '#f87171'),
+                                boxShadow: timer?.isExpired ? '0 0 10px rgba(239, 68, 68, 0.4)' : 'none',
+                                padding: '0.35rem',
+                                borderRadius: '6px',
+                                cursor: isProtected ? 'not-allowed' : 'pointer',
+                                display: 'flex',
+                                alignItems: 'center'
+                              }}
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          );
+                        })()}
                       </div>
                     </td>
                   </tr>
@@ -974,30 +1289,101 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
                     )}
                   </div>
 
-                  {/* Auditoría de Suspensión (si no está activa) */}
-                  {!comp.isActive && comp.suspendedAt && (
-                    <div style={{
-                      background: 'rgba(239, 68, 68, 0.08)',
-                      border: '1px solid rgba(239, 68, 68, 0.25)',
-                      borderRadius: '8px',
-                      padding: '0.6rem 0.75rem',
-                      marginBottom: '1rem',
-                      fontSize: '0.76rem',
-                      color: '#fca5a5'
-                    }}>
-                      <div style={{ fontWeight: 600, color: '#ef4444', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                        <Power size={13} /> Suspendida el {formatSuspensionDetails(comp.suspendedAt)?.capitalizedDay}, {formatSuspensionDetails(comp.suspendedAt)?.shortDate}
-                      </div>
-                      <div style={{ marginTop: '0.2rem', color: '#d4d4d8' }}>
-                        Hora: <strong>{formatSuspensionDetails(comp.suspendedAt)?.shortTime}</strong> · Por: <strong>{comp.suspendedByName || 'Super Admin'}</strong>
-                      </div>
-                      {comp.suspensionReason && (
-                        <div style={{ color: '#a1a1aa', fontSize: '0.72rem', marginTop: '0.2rem', fontStyle: 'italic' }}>
-                          "{comp.suspensionReason}"
+                  {/* Auditoría de Suspensión y Timer de Gracia (si no está activa) */}
+                  {!comp.isActive && (() => {
+                    const timer = formatGraceTimer(comp);
+                    return (
+                      <div style={{
+                        background: timer?.isExpired ? 'rgba(239, 68, 68, 0.12)' : 'rgba(239, 68, 68, 0.08)',
+                        border: `1px solid ${timer?.isExpired ? 'rgba(239, 68, 68, 0.55)' : 'rgba(239, 68, 68, 0.25)'}`,
+                        borderRadius: '8px',
+                        padding: '0.65rem 0.8rem',
+                        marginBottom: '1rem',
+                        fontSize: '0.76rem',
+                        color: '#fca5a5'
+                      }}>
+                        <div style={{ fontWeight: 600, color: '#ef4444', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                            <Power size={13} /> {formatSuspensionDetails(comp.suspendedAt)?.capitalizedDay}, {formatSuspensionDetails(comp.suspendedAt)?.shortDate}
+                          </span>
+                          {timer && (
+                            <span style={{
+                              padding: '0.1rem 0.4rem',
+                              borderRadius: '4px',
+                              fontSize: '0.67rem',
+                              fontWeight: 700,
+                              background: timer.isExpired ? 'rgba(239, 68, 68, 0.3)' : 'rgba(234, 179, 8, 0.2)',
+                              color: timer.isExpired ? '#fff' : '#fde047'
+                            }}>
+                              {timer.badgeText}
+                            </span>
+                          )}
                         </div>
-                      )}
-                    </div>
-                  )}
+
+                        <div style={{ marginTop: '0.2rem', color: '#d4d4d8' }}>
+                          Hora: <strong>{formatSuspensionDetails(comp.suspendedAt)?.shortTime}</strong> · Por: <strong>{comp.suspendedByName || 'Super Admin'}</strong>
+                        </div>
+
+                        {timer && (
+                          <div style={{ marginTop: '0.45rem', borderTop: '1px solid rgba(255, 255, 255, 0.08)', paddingTop: '0.35rem' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: timer.isExpired ? '#fca5a5' : '#fde047' }}>
+                              <span>{timer.label}</span>
+                              <span>Límite: {timer.formattedExpires}</span>
+                            </div>
+                            <div style={{ height: '3px', background: 'rgba(255, 255, 255, 0.1)', borderRadius: '99px', marginTop: '0.3rem', overflow: 'hidden' }}>
+                              <div style={{ width: `${timer.progressPercent}%`, height: '100%', background: timer.isExpired ? '#ef4444' : '#eab308' }} />
+                            </div>
+                          </div>
+                        )}
+
+                        {comp.suspensionReason && (
+                          <div style={{ color: '#a1a1aa', fontSize: '0.72rem', marginTop: '0.3rem', fontStyle: 'italic' }}>
+                            "{comp.suspensionReason}"
+                          </div>
+                        )}
+
+                        <div style={{ marginTop: '0.55rem', display: 'flex', gap: '0.4rem', justifyContent: 'flex-end' }}>
+                          <button
+                            onClick={() => openExtendModal(comp)}
+                            style={{
+                              background: 'rgba(234, 179, 8, 0.15)',
+                              border: '1px solid rgba(234, 179, 8, 0.3)',
+                              color: '#fde047',
+                              padding: '0.25rem 0.55rem',
+                              borderRadius: '4px',
+                              fontSize: '0.72rem',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.3rem'
+                            }}
+                          >
+                            <CalendarPlus size={11} /> Extender Plazo
+                          </button>
+                          {timer?.isExpired && (
+                            <button
+                              onClick={() => openDeleteModal(comp)}
+                              style={{
+                                background: '#ef4444',
+                                border: '1px solid #ef4444',
+                                color: '#fff',
+                                padding: '0.25rem 0.55rem',
+                                borderRadius: '4px',
+                                fontSize: '0.72rem',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.3rem'
+                              }}
+                            >
+                              <Trash2 size={11} /> Baja Manual
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {/* Barras de Consumo */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', marginBottom: '1.25rem' }}>
@@ -1438,71 +1824,106 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
               </div>
             </div>
 
-            {/* Banner de Empresa Suspendida con Auditoría (Día, Fecha, Hora y Administrador) */}
-            {!detailCompany.isActive && (
-              <div style={{
-                background: 'rgba(239, 68, 68, 0.08)',
-                border: '1px solid rgba(239, 68, 68, 0.35)',
-                borderRadius: '12px',
-                padding: '1.1rem 1.25rem',
-                marginBottom: '1.5rem',
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: '1rem'
-              }}>
+            {/* Banner de Empresa Suspendida con Auditoría y Timer de Gracia */}
+            {!detailCompany.isActive && (() => {
+              const timer = formatGraceTimer(detailCompany);
+              return (
                 <div style={{
-                  width: '38px',
-                  height: '38px',
-                  borderRadius: '10px',
-                  background: 'rgba(239, 68, 68, 0.15)',
+                  background: timer?.isExpired ? 'rgba(239, 68, 68, 0.12)' : 'rgba(239, 68, 68, 0.08)',
+                  border: `1px solid ${timer?.isExpired ? 'rgba(239, 68, 68, 0.55)' : 'rgba(239, 68, 68, 0.35)'}`,
+                  borderRadius: '12px',
+                  padding: '1.1rem 1.25rem',
+                  marginBottom: '1.5rem',
                   display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#ef4444',
-                  flexShrink: 0
+                  alignItems: 'flex-start',
+                  gap: '1rem'
                 }}>
-                  <AlertTriangle size={20} />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.35rem', flexWrap: 'wrap' }}>
-                    <strong style={{ color: '#ef4444', fontSize: '0.95rem' }}>Empresa Actualmente Suspendida</strong>
-                    <span style={{ fontSize: '0.72rem', color: '#fca5a5', background: 'rgba(239, 68, 68, 0.2)', padding: '0.15rem 0.5rem', borderRadius: '4px', fontWeight: 600 }}>
-                      Acceso bloqueado en portal y kioscos
-                    </span>
+                  <div style={{
+                    width: '38px',
+                    height: '38px',
+                    borderRadius: '10px',
+                    background: timer?.isExpired ? 'rgba(239, 68, 68, 0.25)' : 'rgba(239, 68, 68, 0.15)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#ef4444',
+                    flexShrink: 0
+                  }}>
+                    <AlertTriangle size={20} />
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.5rem', marginTop: '0.65rem', fontSize: '0.83rem', color: '#d4d4d8' }}>
-                    <div>
-                      <span style={{ color: '#a1a1aa' }}>Día y Fecha: </span>
-                      <strong style={{ color: '#fff' }}>
-                        {formatSuspensionDetails(detailCompany.suspendedAt)?.capitalizedDay
-                          ? `${formatSuspensionDetails(detailCompany.suspendedAt).capitalizedDay}, ${formatSuspensionDetails(detailCompany.suspendedAt).fullDate}`
-                          : 'No registrada'}
-                      </strong>
-                    </div>
-                    <div>
-                      <span style={{ color: '#a1a1aa' }}>Hora de Suspensión: </span>
-                      <strong style={{ color: '#fca5a5' }}>
-                        {formatSuspensionDetails(detailCompany.suspendedAt)?.time || 'No registrada'}
-                      </strong>
-                    </div>
-                    <div>
-                      <span style={{ color: '#a1a1aa' }}>Suspendido por: </span>
-                      <strong style={{ color: '#60a5fa' }}>
-                        {detailCompany.suspendedByName || 'Super Administrador'}
-                      </strong>
-                    </div>
-                    {detailCompany.suspensionReason && (
-                      <div style={{ gridColumn: '1 / -1', marginTop: '0.2rem' }}>
-                        <span style={{ color: '#a1a1aa' }}>Motivo / Justificación: </span>
-                        <span style={{ color: '#fed7aa', fontStyle: 'italic' }}>
-                          "{detailCompany.suspensionReason}"
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                        <strong style={{ color: '#ef4444', fontSize: '0.95rem' }}>
+                          {timer?.isExpired ? '🚨 Alerta: Plazo de Baja Temporal Vencido' : 'Empresa en Baja Temporal (Suspendida)'}
+                        </strong>
+                        <span style={{ fontSize: '0.72rem', color: '#fca5a5', background: 'rgba(239, 68, 68, 0.2)', padding: '0.15rem 0.5rem', borderRadius: '4px', fontWeight: 600 }}>
+                          Acceso bloqueado en portal y kioscos
                         </span>
                       </div>
-                    )}
+                      <button
+                        onClick={() => openExtendModal(detailCompany)}
+                        style={{
+                          ...btnSecondary,
+                          padding: '0.3rem 0.65rem',
+                          fontSize: '0.75rem',
+                          color: '#fbbf24',
+                          borderColor: 'rgba(251, 191, 36, 0.3)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.3rem'
+                        }}
+                      >
+                        <CalendarPlus size={12} /> Extender Plazo de Gracia
+                      </button>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.5rem', marginTop: '0.65rem', fontSize: '0.83rem', color: '#d4d4d8' }}>
+                      <div>
+                        <span style={{ color: '#a1a1aa' }}>Día y Fecha: </span>
+                        <strong style={{ color: '#fff' }}>
+                          {formatSuspensionDetails(detailCompany.suspendedAt)?.capitalizedDay
+                            ? `${formatSuspensionDetails(detailCompany.suspendedAt).capitalizedDay}, ${formatSuspensionDetails(detailCompany.suspendedAt).fullDate}`
+                            : 'No registrada'}
+                        </strong>
+                      </div>
+                      <div>
+                        <span style={{ color: '#a1a1aa' }}>Hora de Suspensión: </span>
+                        <strong style={{ color: '#fca5a5' }}>
+                          {formatSuspensionDetails(detailCompany.suspendedAt)?.time || 'No registrada'}
+                        </strong>
+                      </div>
+                      <div>
+                        <span style={{ color: '#a1a1aa' }}>Suspendido por: </span>
+                        <strong style={{ color: '#60a5fa' }}>
+                          {detailCompany.suspendedByName || 'Super Administrador'}
+                        </strong>
+                      </div>
+                      <div>
+                        <span style={{ color: '#a1a1aa' }}>Timer de Gracia: </span>
+                        <strong style={{ color: timer?.isExpired ? '#ef4444' : '#fbbf24' }}>
+                          {timer ? `${timer.graceDays} días (${timer.label})` : `${detailCompany.suspensionGraceDays || 30} días`}
+                        </strong>
+                      </div>
+                      {timer && (
+                        <div>
+                          <span style={{ color: '#a1a1aa' }}>Límite de Regularización: </span>
+                          <span style={{ color: '#fff' }}>{timer.formattedExpires}</span>
+                        </div>
+                      )}
+                      {detailCompany.suspensionReason && (
+                        <div style={{ gridColumn: '1 / -1', marginTop: '0.2rem' }}>
+                          <span style={{ color: '#a1a1aa' }}>Motivo / Justificación: </span>
+                          <span style={{ color: '#fed7aa', fontStyle: 'italic' }}>
+                            "{detailCompany.suspensionReason}"
+                          </span>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* Pestañas de la Ficha */}
             <div style={{ display: 'flex', gap: '0.5rem', borderBottom: '1px solid #27272a', marginBottom: '1.25rem' }}>
@@ -1961,16 +2382,76 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
               </ul>
             </div>
 
-            <div style={{ marginBottom: '1.5rem' }}>
+            <div style={{ marginBottom: '1.25rem' }}>
               <label style={labelStyle}>Motivo / Justificación de la acción:</label>
               <input 
                 type="text" 
                 value={suspendReason}
                 onChange={(e) => setSuspendReason(e.target.value)}
-                placeholder="ej. Retraso en pago de mensualidad o solicitud comercial"
+                placeholder="ej. Retraso en pago de mensualidad o mora comercial"
                 style={inputStyle}
               />
             </div>
+
+            {/* Selector de Timer de Gracia Temporal (solo al suspender) */}
+            {suspendModalCompany.isActive && (
+              <div style={{
+                background: '#18181b',
+                border: '1px solid rgba(249, 115, 22, 0.3)',
+                borderRadius: '10px',
+                padding: '1rem',
+                marginBottom: '1.5rem'
+              }}>
+                <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#f97316' }}>
+                  <Timer size={16} /> Timer de Gracia Temporal (Plazo antes de Alerta de Purga):
+                </label>
+                <div style={{ display: 'flex', gap: '0.45rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+                  {[7, 15, 30, 60].map(days => (
+                    <button
+                      key={days}
+                      type="button"
+                      onClick={() => setSuspendGraceDays(days)}
+                      style={{
+                        padding: '0.35rem 0.65rem',
+                        borderRadius: '6px',
+                        border: '1px solid',
+                        borderColor: suspendGraceDays === days ? '#f97316' : '#27272a',
+                        background: suspendGraceDays === days ? 'rgba(249, 115, 22, 0.2)' : '#141416',
+                        color: suspendGraceDays === days ? '#fff' : '#a1a1aa',
+                        fontSize: '0.78rem',
+                        fontWeight: 600,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {days} días {days === 30 ? '(Recomendado)' : ''}
+                    </button>
+                  ))}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <input
+                    type="number"
+                    min="1"
+                    max="365"
+                    value={suspendGraceDays}
+                    onChange={(e) => setSuspendGraceDays(Math.max(1, parseInt(e.target.value) || 1))}
+                    style={{ ...inputStyle, width: '100px', textAlign: 'center', fontWeight: 700 }}
+                  />
+                  <span style={{ fontSize: '0.82rem', color: '#d4d4d8' }}>días de gracia otorgados</span>
+                </div>
+                <div style={{
+                  fontSize: '0.76rem',
+                  color: '#fbbf24',
+                  background: 'rgba(234, 179, 8, 0.08)',
+                  border: '1px solid rgba(234, 179, 8, 0.2)',
+                  borderRadius: '6px',
+                  padding: '0.5rem 0.75rem',
+                  marginTop: '0.75rem',
+                  lineHeight: '1.4'
+                }}>
+                  📌 <strong>Regla Operativa:</strong> Si la empresa no paga antes del <strong>{new Date(Date.now() + (suspendGraceDays * 24 * 60 * 60 * 1000)).toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' })}</strong>, el sistema generará una <strong>Alerta de Prioridad Alta</strong> para que el Super Administrador ejecute manualmente la baja definitiva y purga total en MariaDB.
+                </div>
+              </div>
+            )}
 
             <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
               <button 
@@ -1993,7 +2474,124 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
                   gap: '0.5rem'
                 }}
               >
-                {isSuspending ? 'Actualizando estado...' : (suspendModalCompany.isActive ? 'Confirmar Suspensión' : 'Confirmar Reactivación')}
+                {isSuspending ? 'Actualizando estado...' : (suspendModalCompany.isActive ? 'Confirmar Baja Temporal' : 'Confirmar Reactivación')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL 4.5: EXTENDER PLAZO DE GRACIA TEMPORAL (PRÓRROGA)    */}
+      {/* ========================================================= */}
+      {extendModalCompany && (
+        <div className="modal-overlay" onClick={() => !isExtending && setExtendModalCompany(null)}>
+          <div 
+            className="modal-content page-glow" 
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: '500px', width: '90%', borderRadius: '16px', background: '#141416', border: '1px solid rgba(234, 179, 8, 0.35)', padding: '2rem' }}
+          >
+            <div style={{ textAlign: 'center', marginBottom: '1.25rem' }}>
+              <div style={{
+                width: '54px',
+                height: '54px',
+                borderRadius: '50%',
+                background: 'rgba(234, 179, 8, 0.15)',
+                color: '#eab308',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 0.75rem',
+                border: '1px solid rgba(234, 179, 8, 0.3)'
+              }}>
+                <CalendarPlus size={26} />
+              </div>
+              <h2 style={{ color: '#fff', margin: '0 0 0.35rem', fontSize: '1.25rem' }}>
+                Extender Plazo de Gracia Temporal
+              </h2>
+              <p style={{ color: '#a1a1aa', fontSize: '0.85rem', margin: 0 }}>
+                Conceder prórroga a la empresa <strong style={{ color: '#fff' }}>"{extendModalCompany.name}"</strong>
+              </p>
+            </div>
+
+            <div style={{ background: '#18181b', border: '1px solid #27272a', borderRadius: '10px', padding: '1rem', marginBottom: '1.25rem', fontSize: '0.85rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+                <span style={{ color: '#a1a1aa' }}>Plazo de gracia configurado:</span>
+                <strong style={{ color: '#fff' }}>{extendModalCompany.suspensionGraceDays || 30} días</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: '#a1a1aa' }}>Fecha de vencimiento previa:</span>
+                <span style={{ color: '#f87171', fontWeight: 600 }}>
+                  {extendModalCompany.suspensionExpiresAt 
+                    ? new Date(extendModalCompany.suspensionExpiresAt).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })
+                    : 'Sin fecha registrada'}
+                </span>
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '1.25rem' }}>
+              <label style={labelStyle}>Días adicionales a conceder:</label>
+              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.6rem' }}>
+                {[7, 15, 30].map(days => (
+                  <button
+                    key={days}
+                    type="button"
+                    onClick={() => setExtendDaysToAdd(days)}
+                    style={{
+                      flex: 1,
+                      padding: '0.45rem',
+                      borderRadius: '6px',
+                      border: '1px solid',
+                      borderColor: extendDaysToAdd === days ? '#eab308' : '#27272a',
+                      background: extendDaysToAdd === days ? 'rgba(234, 179, 8, 0.2)' : '#18181b',
+                      color: extendDaysToAdd === days ? '#fff' : '#a1a1aa',
+                      fontSize: '0.82rem',
+                      fontWeight: 600,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    +{days} días
+                  </button>
+                ))}
+              </div>
+              <input
+                type="number"
+                min="1"
+                max="180"
+                value={extendDaysToAdd}
+                onChange={(e) => setExtendDaysToAdd(Math.max(1, parseInt(e.target.value) || 1))}
+                style={inputStyle}
+                placeholder="Número de días"
+              />
+            </div>
+
+            <div style={{ marginBottom: '1.5rem' }}>
+              <label style={labelStyle}>Motivo / Justificación de la prórroga:</label>
+              <input
+                type="text"
+                value={extendReason}
+                onChange={(e) => setExtendReason(e.target.value)}
+                placeholder="ej. El cliente solicitó prórroga para pagar el viernes"
+                style={inputStyle}
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                onClick={() => setExtendModalCompany(null)}
+                disabled={isExtending}
+                style={btnSecondary}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmExtend}
+                disabled={isExtending}
+                style={{ ...btnPrimary, background: '#eab308', color: '#000', display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 700 }}
+              >
+                {isExtending ? 'Guardando prórroga...' : 'Confirmar Prórroga'}
               </button>
             </div>
           </div>

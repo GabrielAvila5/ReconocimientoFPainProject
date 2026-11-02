@@ -18,6 +18,10 @@ model Company {
   suspensionReason   String?
   suspendedById      String?
   suspendedByName    String?
+  suspensionGraceDays Int?             @default(30)
+  suspensionExpiresAt DateTime?
+  deletionAlertSent  Boolean          @default(false)
+  deletionAlertAt    DateTime?
   maxEmployees       Int              @default(50)
   maxDevices         Int              @default(3)
   timezone           String           @default("America/Mexico_City")
