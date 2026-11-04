@@ -209,13 +209,16 @@ async function syncAllAdminsToEmployees(prismaClient = prisma) {
 
     let syncCount = 0;
     for (const admin of admins) {
-      const existing = await prismaClient.employee.findFirst({
-        where: { email: admin.email, companyId: admin.companyId }
+      if (!admin.companyId) continue;
+      await runWithTenantContext({ companyId: admin.companyId, isSuperAdmin: true }, async () => {
+        const existing = await prismaClient.employee.findFirst({
+          where: { email: admin.email, companyId: admin.companyId }
+        });
+        if (existing) {
+          await syncAdminToEmployee(admin, { syncEmployee: true }, prismaClient);
+          syncCount++;
+        }
       });
-      if (existing) {
-        await syncAdminToEmployee(admin, { syncEmployee: true }, prismaClient);
-        syncCount++;
-      }
     }
 
     if (syncCount > 0) {

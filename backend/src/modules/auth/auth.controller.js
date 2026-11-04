@@ -1,6 +1,7 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const prisma = require('../../utils/prisma');
+const prismaAdmin = require('../../utils/prismaAdmin');
 const { JWT_SECRET } = require('../../config/secrets');
 const { syncAdminToEmployee } = require('../../utils/adminEmployeeSync');
 const { findAdminByEmailForLogin } = require('../../utils/authHelpers');
@@ -96,7 +97,7 @@ const getMe = async (req, res) => {
 
 const getSetupStatus = async (req, res) => {
   try {
-    const adminCount = await prisma.adminUser.count();
+    const adminCount = await prismaAdmin.adminUser.count();
     res.json({ needsSetup: adminCount === 0 });
   } catch (error) {
     console.error('Error checking setup status:', error);

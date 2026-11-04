@@ -1,5 +1,7 @@
 const crypto = require('crypto');
 const prisma = require('../../utils/prisma');
+const prismaAdmin = require('../../utils/prismaAdmin');
+const { runWithTenantContext } = require('../../middlewares/tenantContext');
 const {
   findActivePairingRequestForDevice,
   expirePendingPairingRequests,
@@ -402,8 +404,14 @@ const verifyDeviceToken = async (req, res) => {
       return res.status(401).json({ valid: false, error: 'Token no proporcionado' });
     }
 
-    const device = await prisma.device.findUnique({
-      where: { token }
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    const device = await prismaAdmin.device.findFirst({
+      where: {
+        OR: [
+          { tokenHash },
+          { token }
+        ]
+      }
     });
 
     if (!device) {
@@ -440,13 +448,15 @@ const verifyDeviceToken = async (req, res) => {
     const ipAddress = getClientIp(req);
 
     // Actualizar telemetría (lastSeenAt, IP y status ONLINE)
-    await prisma.device.update({
-      where: { id: device.id },
-      data: {
-        lastSeenAt: new Date(),
-        status: 'ONLINE',
-        ipAddress
-      }
+    await runWithTenantContext({ companyId: device.companyId }, async () => {
+      await prisma.device.update({
+        where: { id: device.id },
+        data: {
+          lastSeenAt: new Date(),
+          status: 'ONLINE',
+          ipAddress
+        }
+      });
     });
 
     return res.json({

@@ -216,7 +216,11 @@ const CompaniesPage = () => {
       });
 
       if (!res.ok) {
-        throw new Error('Error al consultar lista de empresas');
+        if (res.status === 401) {
+          window.dispatchEvent(new Event('auth:unauthorized'));
+        }
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.message || errorData.error || 'Error al consultar lista de empresas');
       }
 
       const data = await res.json();

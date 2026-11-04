@@ -63,10 +63,20 @@ async function tenantContextMiddleware(req, res, next) {
 
     const headerTenantId = req.headers['x-tenant-id'] || req.headers['x-company-id'];
 
+    // Rutas públicas y de superadmin
+    const isSuperAdminRoute = req.originalUrl?.startsWith('/api/v1/superadmin') || 
+                             req.originalUrl?.startsWith('/api/v1/companies');
+    const isPublicAuthRoute = req.originalUrl?.startsWith('/api/v1/auth') || 
+                             req.originalUrl?.startsWith('/api/v1/devices/auth-request');
+
     if (req.user) {
       if (req.user.role === 'SUPER_ADMIN') {
         isSuperAdmin = true;
-        if (headerTenantId) {
+        if (isSuperAdminRoute) {
+          // En rutas de superadmin (gestión global de empresas y plataforma), operar sin filtro de inquilino
+          companyId = null;
+          isImpersonating = false;
+        } else if (headerTenantId) {
           companyId = Array.isArray(headerTenantId) ? headerTenantId[0] : headerTenantId;
           isImpersonating = true;
         } else if (req.user.companyId) {
@@ -109,12 +119,6 @@ async function tenantContextMiddleware(req, res, next) {
         updateDeviceLastSeen(dev.id);
       }
     }
-
-    // Rutas públicas y de superadmin
-    const isSuperAdminRoute = req.originalUrl?.startsWith('/api/v1/superadmin') || 
-                             req.originalUrl?.startsWith('/api/v1/companies');
-    const isPublicAuthRoute = req.originalUrl?.startsWith('/api/v1/auth') || 
-                             req.originalUrl?.startsWith('/api/v1/devices/auth-request');
 
     // Regla de Super Admin: Obligatorio x-tenant-id en rutas operativas de inquilino
     if (isSuperAdmin && !companyId && !isSuperAdminRoute && !isPublicAuthRoute) {
