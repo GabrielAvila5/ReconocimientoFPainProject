@@ -370,8 +370,8 @@ const CompaniesPage = () => {
   };
 
   // Copiar plantilla completa de credenciales
-  const copyFullCredentials = (comp, customPassword = '') => {
-    const adminEmail = comp.adminUsers?.[0]?.email || 'admin@empresa.com';
+  const copyFullCredentials = (comp, customPassword = '', explicitAdminEmail = '') => {
+    const adminEmail = explicitAdminEmail || comp?.admin?.email || comp?.adminUsers?.[0]?.email || comp?.adminEmail || 'admin@empresa.com';
     const pwdText = customPassword ? `Contraseña Temporal: ${customPassword}` : '(Contraseña configurada por el cliente)';
     const text = `======================================
 ACCESO AL SISTEMA DE ASISTENCIA FACIAL
@@ -1529,7 +1529,7 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
 
                 <div style={{ display: 'flex', gap: '0.75rem' }}>
                   <button 
-                    onClick={() => copyFullCredentials(createdSummary.company, createdSummary.initialPassword)}
+                    onClick={() => copyFullCredentials(createdSummary.company, createdSummary.initialPassword, createdSummary.admin?.email)}
                     style={{ ...btnPrimary, flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
                   >
                     {copiedSuccess ? <Check size={18} /> : <Copy size={18} />}
