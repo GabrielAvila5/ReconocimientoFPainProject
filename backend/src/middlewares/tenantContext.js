@@ -120,12 +120,11 @@ async function tenantContextMiddleware(req, res, next) {
       }
     }
 
-    // Regla de Super Admin: Obligatorio x-tenant-id en rutas operativas de inquilino
+    // Regla de Super Admin: Si no especificó x-tenant-id ni tiene companyId y navega en rutas operativas,
+    // usar por defecto la empresa piloto ('default-company-pain') para garantizar disponibilidad continua
     if (isSuperAdmin && !companyId && !isSuperAdminRoute && !isPublicAuthRoute) {
-      return res.status(400).json({
-        error: 'TENANT_HEADER_REQUIRED',
-        message: 'Super Administrador debe especificar la cabecera x-tenant-id para operar en rutas de empresa.'
-      });
+      companyId = process.env.DEFAULT_COMPANY_ID || 'default-company-pain';
+      isImpersonating = true;
     }
 
     // Regla de Empresa Suspendida: 403 Forbidden

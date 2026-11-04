@@ -76,9 +76,9 @@ const AdminManager = () => {
       setLoading(true);
       const token = localStorage.getItem('token');
       const [adminsRes, logsRes, deptRes] = await Promise.all([
-        fetch(`${import.meta.env.VITE_API_URL}/api/v1/admins`, { credentials: 'include' }),
-        fetch(`${import.meta.env.VITE_API_URL}/api/v1/admins/audit-log`, { credentials: 'include' }),
-        fetch(`${import.meta.env.VITE_API_URL}/api/v1/departments`, {
+        fetch(`${import.meta.env.VITE_API_URL || ""}/api/v1/admins`, { credentials: 'include' }),
+        fetch(`${import.meta.env.VITE_API_URL || ""}/api/v1/admins/audit-log`, { credentials: 'include' }),
+        fetch(`${import.meta.env.VITE_API_URL || ""}/api/v1/departments`, {
           headers: token ? { 'Authorization': `Bearer ${token}` } : {}
         })
       ]);
@@ -97,7 +97,7 @@ const AdminManager = () => {
   const handleSyncUsers = async () => {
     try {
       setSyncLoading(true);
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/v1/admins/sync-users`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/v1/admins/sync-users`, {
         method: 'POST',
         credentials: 'include'
       });
@@ -122,7 +122,7 @@ const AdminManager = () => {
     setFormLoading(true);
     try {
       const { confirmPassword, ...apiData } = formData;
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/v1/admins`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/v1/admins`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -159,7 +159,7 @@ const AdminManager = () => {
     if (!showDeleteConfirm) return;
     
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/v1/admins/${showDeleteConfirm.id}`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/v1/admins/${showDeleteConfirm.id}`, {
         method: 'DELETE',
         credentials: 'include'
       });

@@ -48,7 +48,7 @@ const KioskFlowPage = () => {
     // Inmediatamente pedimos su contexto para tenerlo listo
     try {
       const deviceToken = localStorage.getItem('kiosk_device_token') || '';
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/v1/attendance/context/${empData.id}`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/v1/attendance/context/${empData.id}`, {
         headers: { 'x-device-token': deviceToken }
       });
       if (res.status === 401) {
@@ -107,7 +107,7 @@ const KioskFlowPage = () => {
 
     try {
       const deviceToken = localStorage.getItem('kiosk_device_token') || '';
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/v1/attendance/register`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/v1/attendance/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -51,7 +51,7 @@ const FaceRecognitionPage = () => {
   const fetchDescriptors = async () => {
     try {
       const deviceToken = localStorage.getItem('kiosk_device_token') || '';
-      const descRes = await fetch(`${import.meta.env.VITE_API_URL}/api/v1/employees/descriptors`, {
+      const descRes = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/v1/employees/descriptors`, {
         headers: {
           'x-device-token': deviceToken
         }
@@ -88,7 +88,7 @@ const FaceRecognitionPage = () => {
         await loadFaceApiModels();
         
         setStatusText('Descargando perfiles biométricos...');
-        const settingsRes = await fetch(`${import.meta.env.VITE_API_URL}/api/v1/settings/public`).catch(() => null);
+        const settingsRes = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/v1/settings/public`).catch(() => null);
         if (settingsRes && settingsRes.ok) {
           const settings = await settingsRes.json();
           if (settings.faceConfidenceThreshold) {
@@ -224,7 +224,7 @@ const FaceRecognitionPage = () => {
   const fetchContext = async (empId) => {
     try {
       const deviceToken = localStorage.getItem('kiosk_device_token') || '';
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/v1/attendance/context/${empId}`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/v1/attendance/context/${empId}`, {
         headers: { 'x-device-token': deviceToken }
       });
       if (res.status === 401) {
@@ -314,7 +314,7 @@ const FaceRecognitionPage = () => {
       };
 
       const deviceToken = localStorage.getItem('kiosk_device_token') || '';
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/v1/attendance/register`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/v1/attendance/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

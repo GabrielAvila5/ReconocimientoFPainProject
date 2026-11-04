@@ -30,9 +30,9 @@ const AttendancePage = () => {
       };
 
       const [attRes, empRes, setRes] = await Promise.all([
-        fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:4000'}/api/v1/attendance?date=${selectedDate}`, { headers }),
-        fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:4000'}/api/v1/employees`, { headers }),
-        fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:4000'}/api/v1/settings/public`, { headers }).catch(() => null)
+        fetch(`${import.meta.env.VITE_API_URL || ''}/api/v1/attendance?date=${selectedDate}`, { headers }),
+        fetch(`${import.meta.env.VITE_API_URL || ''}/api/v1/employees`, { headers }),
+        fetch(`${import.meta.env.VITE_API_URL || ''}/api/v1/settings/public`, { headers }).catch(() => null)
       ]);
       
       if (!attRes.ok || !empRes.ok) {

@@ -1,13 +1,20 @@
 import axios from 'axios';
 
-const getBaseUrl = () => {
+export const getBaseUrl = () => {
   const envUrl = import.meta.env.VITE_API_URL;
-  if (!envUrl) return 'http://localhost:4000/api/v1';
-  return envUrl.endsWith('/api/v1') ? envUrl : `${envUrl}/api/v1`;
+  if (envUrl && envUrl.trim() !== '') {
+    return envUrl.endsWith('/') ? envUrl.slice(0, -1) : envUrl;
+  }
+  return '';
+};
+
+export const getApiUrl = () => {
+  const base = getBaseUrl();
+  return `${base}/api/v1`;
 };
 
 const api = axios.create({
-  baseURL: getBaseUrl(),
+  baseURL: getApiUrl(),
   withCredentials: true // Important for sending/receiving httpOnly cookies
 });
 

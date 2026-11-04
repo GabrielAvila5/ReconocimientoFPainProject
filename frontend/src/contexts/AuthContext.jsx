@@ -11,12 +11,23 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const checkAuth = async () => {
       try {
+        const token = localStorage.getItem('token');
+        if (!token) {
+          setUser(null);
+          return;
+        }
         const response = await api.get('/auth/me');
         setUser(response.data.user);
         if (response.data?.user?.companyId) {
           localStorage.setItem('tenantId', response.data.user.companyId);
+        } else if (response.data?.user?.role === 'SUPER_ADMIN') {
+          if (!localStorage.getItem('tenantId')) {
+            localStorage.setItem('tenantId', 'default-company-pain');
+          }
         }
       } catch (error) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('tenantId');
         setUser(null);
       } finally {
         setLoading(false);
@@ -45,6 +56,10 @@ export const AuthProvider = ({ children }) => {
     }
     if (response.data?.user?.companyId) {
       localStorage.setItem('tenantId', response.data.user.companyId);
+    } else if (response.data?.user?.role === 'SUPER_ADMIN') {
+      if (!localStorage.getItem('tenantId')) {
+        localStorage.setItem('tenantId', 'default-company-pain');
+      }
     }
     setUser(response.data.user);
     return response.data.user;

@@ -29,7 +29,7 @@ const KioskGuard = ({ children }) => {
     }
 
     try {
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+      const baseUrl = import.meta.env.VITE_API_URL || '';
       const response = await fetch(`${baseUrl}/api/v1/devices/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -100,7 +100,7 @@ const KioskGuard = ({ children }) => {
     }
 
     // Inicializar conexión Socket.io para escuchar bloqueos y desbloqueos en tiempo real
-    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+    const baseUrl = import.meta.env.VITE_API_URL || '';
     const socket = io(baseUrl, {
       transports: ['websocket', 'polling'],
       withCredentials: true

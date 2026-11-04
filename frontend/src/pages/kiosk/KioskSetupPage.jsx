@@ -69,7 +69,7 @@ const KioskSetupPage = () => {
 
       // 2. Pedir solicitud al backend enviando el deviceId para deduplicación estricta
       const deviceId = getOrCreateDeviceId();
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+      const baseUrl = import.meta.env.VITE_API_URL || '';
       const res = await fetch(`${baseUrl}/api/v1/devices/auth-request`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -100,7 +100,7 @@ const KioskSetupPage = () => {
   useEffect(() => {
     if (!authData?.requestId) return;
 
-    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+    const baseUrl = import.meta.env.VITE_API_URL || '';
     const socket = io(baseUrl, {
       reconnection: true,
       reconnectionAttempts: 10,

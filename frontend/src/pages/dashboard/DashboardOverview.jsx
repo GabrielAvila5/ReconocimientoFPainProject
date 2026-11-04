@@ -75,7 +75,7 @@ const DashboardOverview = () => {
       try {
         const token = localStorage.getItem('token');
         const tenantId = localStorage.getItem('tenantId');
-        const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+        const baseUrl = import.meta.env.VITE_API_URL || '';
         const headers = {
           'Authorization': `Bearer ${token}`,
           ...(tenantId ? { 'x-tenant-id': tenantId } : {})

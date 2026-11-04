@@ -11,7 +11,7 @@ const FaceRegistration = ({ onComplete }) => {
   useEffect(() => {
     const fetchDeps = async () => {
       try {
-        const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+        const baseUrl = import.meta.env.VITE_API_URL || '';
         const token = localStorage.getItem('token');
         const res = await fetch(`${baseUrl}/api/v1/departments`, {
           headers: { ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
@@ -36,7 +36,7 @@ const FaceRegistration = ({ onComplete }) => {
     setLoading(true);
     
     try {
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+      const baseUrl = import.meta.env.VITE_API_URL || '';
       const token = localStorage.getItem('token') || '';
       const response = await fetch(`${baseUrl}/api/v1/employees`, {
         method: 'POST',

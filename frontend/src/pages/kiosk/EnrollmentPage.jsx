@@ -58,7 +58,7 @@ const EnrollmentPage = () => {
       try {
         setLoading(true);
         // Load employee
-        const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+        const baseUrl = import.meta.env.VITE_API_URL || '';
         const token = localStorage.getItem('token') || '';
         const res = await fetch(`${baseUrl}/api/v1/employees/${employeeId}`, {
           headers: { 
@@ -163,7 +163,7 @@ const EnrollmentPage = () => {
       const avgDescriptor = averageDescriptors(descriptors);
       const serialized = serializeDescriptor(avgDescriptor);
 
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+      const baseUrl = import.meta.env.VITE_API_URL || '';
       const token = localStorage.getItem('token') || '';
       const res = await fetch(`${baseUrl}/api/v1/employees/${employeeId}/descriptor`, {
         method: 'POST',

@@ -127,7 +127,7 @@ const ReportsPage = () => {
         }
       }
 
-      let url = `${import.meta.env.VITE_API_URL || 'http://localhost:4000'}/api/v1/reports/kpis`;
+      let url = `${import.meta.env.VITE_API_URL || ''}/api/v1/reports/kpis`;
       if (startStr && endStr) {
         url += `?startDate=${startStr}&endDate=${endStr}`;
       }
@@ -149,7 +149,7 @@ const ReportsPage = () => {
 
       // 2. Fetch Table Data
       try {
-        let tableUrl = `${import.meta.env.VITE_API_URL || 'http://localhost:4000'}/api/v1/reports/attendance-consolidated?limit=200`;
+        let tableUrl = `${import.meta.env.VITE_API_URL || ''}/api/v1/reports/attendance-consolidated?limit=200`;
         if (startStr && endStr) {
           tableUrl += `&startDate=${startStr}&endDate=${endStr}`;
         }
@@ -164,7 +164,7 @@ const ReportsPage = () => {
 
       // 3. Fetch Breaks Table Data
       try {
-        let breakTableUrl = `${import.meta.env.VITE_API_URL || 'http://localhost:4000'}/api/v1/reports/breaks-consolidated?limit=200`;
+        let breakTableUrl = `${import.meta.env.VITE_API_URL || ''}/api/v1/reports/breaks-consolidated?limit=200`;
         if (startStr && endStr) {
           breakTableUrl += `&startDate=${startStr}&endDate=${endStr}`;
         }
@@ -179,7 +179,7 @@ const ReportsPage = () => {
 
       // 4. Fetch Devices Consolidated Data
       try {
-        let devUrl = `${import.meta.env.VITE_API_URL || 'http://localhost:4000'}/api/v1/reports/devices-consolidated`;
+        let devUrl = `${import.meta.env.VITE_API_URL || ''}/api/v1/reports/devices-consolidated`;
         if (startStr && endStr) {
           devUrl += `?startDate=${startStr}&endDate=${endStr}`;
         }
@@ -197,7 +197,7 @@ const ReportsPage = () => {
       }
 
       // Fetch Departments for filter
-      const depRes = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:4000'}/api/v1/departments`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const depRes = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/v1/departments`, { headers: { 'Authorization': `Bearer ${token}` } });
       if (depRes.ok) {
         const depData = await depRes.json();
         setDepartments(depData.map(d => d.name));

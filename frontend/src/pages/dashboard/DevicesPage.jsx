@@ -66,7 +66,7 @@ const DevicesPage = () => {
       else setLoading(true);
       setError(null);
 
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+      const baseUrl = import.meta.env.VITE_API_URL || '';
       const res = await fetch(`${baseUrl}/api/v1/devices`, {
         headers: getAuthHeaders(),
         credentials: 'include'
@@ -90,7 +90,7 @@ const DevicesPage = () => {
   // Obtener solicitudes pendientes de kioskos
   const fetchPendingRequests = async () => {
     try {
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+      const baseUrl = import.meta.env.VITE_API_URL || '';
       const res = await fetch(`${baseUrl}/api/v1/devices/auth-requests/pending`, {
         headers: getAuthHeaders(),
         credentials: 'include'
@@ -115,7 +115,7 @@ const DevicesPage = () => {
 
     setPairingLookupLoading(true);
     try {
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+      const baseUrl = import.meta.env.VITE_API_URL || '';
       const res = await fetch(`${baseUrl}/api/v1/devices/auth-requests/lookup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
@@ -147,7 +147,7 @@ const DevicesPage = () => {
 
     setPairingApproveLoading(true);
     try {
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+      const baseUrl = import.meta.env.VITE_API_URL || '';
       const res = await fetch(`${baseUrl}/api/v1/devices/auth-requests/${pairingLookupData.id}/approve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
@@ -239,7 +239,7 @@ const DevicesPage = () => {
   const handleToggleBlock = async (device, customReason = null) => {
     const willBlock = !device.isBlocked;
     try {
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+      const baseUrl = import.meta.env.VITE_API_URL || '';
       const res = await fetch(`${baseUrl}/api/v1/devices/${device.id}/block`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
@@ -277,7 +277,7 @@ const DevicesPage = () => {
   const handleToggleStatus = async (device, customReason = null) => {
     const willBeActive = !device.isActive;
     try {
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+      const baseUrl = import.meta.env.VITE_API_URL || '';
       const res = await fetch(`${baseUrl}/api/v1/devices/${device.id}/status-toggle`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
@@ -315,7 +315,7 @@ const DevicesPage = () => {
   const handleApprove = async (request) => {
     try {
       setIsSubmitting(true);
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+      const baseUrl = import.meta.env.VITE_API_URL || '';
       const nameToSend = kioskCustomName.trim() || `Kiosko ${request.pairingCode}`;
 
       const res = await fetch(`${baseUrl}/api/v1/devices/auth-requests/${request.id}/approve`, {
@@ -347,7 +347,7 @@ const DevicesPage = () => {
   // 7. Rechazar solicitud de Kiosko
   const handleReject = async (requestId) => {
     try {
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+      const baseUrl = import.meta.env.VITE_API_URL || '';
       const res = await fetch(`${baseUrl}/api/v1/devices/auth-requests/${requestId}/reject`, {
         method: 'POST',
         headers: getAuthHeaders(),
@@ -370,7 +370,7 @@ const DevicesPage = () => {
     }
 
     try {
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+      const baseUrl = import.meta.env.VITE_API_URL || '';
       const res = await fetch(`${baseUrl}/api/v1/devices/${deviceId}`, {
         method: 'DELETE',
         headers: getAuthHeaders(),
@@ -396,7 +396,7 @@ const DevicesPage = () => {
 
     try {
       setIsSubmitting(true);
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+      const baseUrl = import.meta.env.VITE_API_URL || '';
       const res = await fetch(`${baseUrl}/api/v1/devices`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },

@@ -33,7 +33,7 @@ const NotificationsPage = () => {
     setError(null);
     try {
       const token = localStorage.getItem('token');
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+      const baseUrl = import.meta.env.VITE_API_URL || '';
       let url = `${baseUrl}/api/v1/notifications?page=${page}&limit=20`;
       if (typeFilter) url += `&type=${typeFilter}`;
       if (statusFilter === 'read') url += '&isRead=true';

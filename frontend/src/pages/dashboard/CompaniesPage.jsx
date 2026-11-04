@@ -209,7 +209,7 @@ const CompaniesPage = () => {
       else setLoading(true);
       setError(null);
 
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+      const baseUrl = import.meta.env.VITE_API_URL || '';
       const res = await fetch(`${baseUrl}/api/v1/superadmin/companies`, {
         headers: getAuthHeaders(),
         credentials: 'include'
@@ -279,7 +279,7 @@ const CompaniesPage = () => {
     e.preventDefault();
     try {
       setIsSubmitting(true);
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+      const baseUrl = import.meta.env.VITE_API_URL || '';
       const res = await fetch(`${baseUrl}/api/v1/superadmin/companies`, {
         method: 'POST',
         headers: {
@@ -316,7 +316,7 @@ const CompaniesPage = () => {
     setDetailLoading(true);
     setDetailTab('overview');
     try {
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+      const baseUrl = import.meta.env.VITE_API_URL || '';
       const res = await fetch(`${baseUrl}/api/v1/superadmin/companies/${company.id}`, {
         headers: getAuthHeaders(),
         credentials: 'include'
@@ -348,7 +348,7 @@ const CompaniesPage = () => {
     if (!credentialCompany) return;
     try {
       setCredResetLoading(true);
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+      const baseUrl = import.meta.env.VITE_API_URL || '';
       const res = await fetch(`${baseUrl}/api/v1/superadmin/companies/${credentialCompany.id}/reset-admin-password`, {
         method: 'POST',
         headers: {
@@ -407,7 +407,7 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
     const willBeActive = !suspendModalCompany.isActive;
     try {
       setIsSuspending(true);
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+      const baseUrl = import.meta.env.VITE_API_URL || '';
       const res = await fetch(`${baseUrl}/api/v1/superadmin/companies/${suspendModalCompany.id}/status`, {
         method: 'PATCH',
         headers: {
@@ -457,7 +457,7 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
     if (!extendModalCompany) return;
     try {
       setIsExtending(true);
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+      const baseUrl = import.meta.env.VITE_API_URL || '';
       const res = await fetch(`${baseUrl}/api/v1/superadmin/companies/${extendModalCompany.id}/grace-period`, {
         method: 'PATCH',
         headers: {
@@ -508,7 +508,7 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
 
     try {
       setIsDeleting(true);
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+      const baseUrl = import.meta.env.VITE_API_URL || '';
       const res = await fetch(`${baseUrl}/api/v1/superadmin/companies/${deleteModalCompany.id}`, {
         method: 'DELETE',
         headers: getAuthHeaders(),
@@ -551,7 +551,7 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
     if (!editingCompany) return;
     try {
       setIsSubmitting(true);
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+      const baseUrl = import.meta.env.VITE_API_URL || '';
       const res = await fetch(`${baseUrl}/api/v1/superadmin/companies/${editingCompany.id}`, {
         method: 'PATCH',
         headers: {

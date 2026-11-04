@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { io } from 'socket.io-client';
 import { toast } from 'sonner';
+import { getBaseUrl } from '../utils/api';
 
 const NotificationContext = createContext();
 
@@ -19,7 +20,7 @@ export const NotificationProvider = ({ children }) => {
   const fetchUnreadCount = async () => {
     try {
       const token = localStorage.getItem('token');
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+      const baseUrl = getBaseUrl();
       const response = await fetch(`${baseUrl}/api/v1/notifications/unread-count`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -37,12 +38,18 @@ export const NotificationProvider = ({ children }) => {
     fetchUnreadCount();
 
     // Inicializar Socket.io
-    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
-    const newSocket = io(baseUrl, {
-      reconnection: true,
-      reconnectionAttempts: Infinity,
-      reconnectionDelay: 1000,
-    });
+    const baseUrl = getBaseUrl();
+    const newSocket = baseUrl
+      ? io(baseUrl, {
+          reconnection: true,
+          reconnectionAttempts: Infinity,
+          reconnectionDelay: 1000,
+        })
+      : io({
+          reconnection: true,
+          reconnectionAttempts: Infinity,
+          reconnectionDelay: 1000,
+        });
 
     setSocket(newSocket);
 
@@ -59,10 +66,12 @@ export const NotificationProvider = ({ children }) => {
       if (toast[type]) {
         toast[type](notification.title, {
           description: notification.message,
+          duration: 5000,
         });
       } else {
         toast(notification.title, {
           description: notification.message,
+          duration: 5000,
         });
       }
     });
@@ -75,7 +84,7 @@ export const NotificationProvider = ({ children }) => {
   const markAsRead = async (id) => {
     try {
       const token = localStorage.getItem('token');
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+      const baseUrl = getBaseUrl();
       await fetch(`${baseUrl}/api/v1/notifications/${id}/read`, {
         method: 'PUT',
         headers: { 'Authorization': `Bearer ${token}` }
@@ -90,7 +99,7 @@ export const NotificationProvider = ({ children }) => {
   const markAllAsRead = async () => {
     try {
       const token = localStorage.getItem('token');
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+      const baseUrl = getBaseUrl();
       await fetch(`${baseUrl}/api/v1/notifications/read-all`, {
         method: 'PUT',
         headers: { 'Authorization': `Bearer ${token}` }
@@ -104,7 +113,7 @@ export const NotificationProvider = ({ children }) => {
   const deleteNotification = async (id) => {
     try {
       const token = localStorage.getItem('token');
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+      const baseUrl = getBaseUrl();
       await fetch(`${baseUrl}/api/v1/notifications/${id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
@@ -119,7 +128,7 @@ export const NotificationProvider = ({ children }) => {
   const deleteReadNotifications = async () => {
     try {
       const token = localStorage.getItem('token');
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+      const baseUrl = getBaseUrl();
       await fetch(`${baseUrl}/api/v1/notifications/read`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }

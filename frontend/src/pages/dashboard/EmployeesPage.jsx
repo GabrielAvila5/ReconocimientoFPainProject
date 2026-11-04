@@ -42,7 +42,7 @@ const EmployeesPage = () => {
       setIsDeleting(true);
       const token = localStorage.getItem('token');
       const tenantId = localStorage.getItem('tenantId');
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+      const baseUrl = import.meta.env.VITE_API_URL || '';
       const res = await fetch(`${baseUrl}/api/v1/employees/${employeeToDelete.id}`, {
         method: 'DELETE',
         headers: {
@@ -78,15 +78,18 @@ const EmployeesPage = () => {
       };
       
       const [resEmp, resDep] = await Promise.all([
-        fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:4000'}/api/v1/employees`, {
+        fetch(`${import.meta.env.VITE_API_URL || ''}/api/v1/employees`, {
           headers
         }),
-        fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:4000'}/api/v1/departments`, {
+        fetch(`${import.meta.env.VITE_API_URL || ''}/api/v1/departments`, {
           headers
         })
       ]);
 
-      if (!resEmp.ok) throw new Error('Error de conexión con el backend');
+      if (!resEmp.ok) {
+        const errData = await resEmp.json().catch(() => ({}));
+        throw new Error(errData.message || errData.error || 'Error al obtener empleados del servidor');
+      }
       
       const data = await resEmp.json();
       setEmployees(data);
@@ -147,7 +150,7 @@ const EmployeesPage = () => {
     
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:4000'}/api/v1/employees/${empId}`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/v1/employees/${empId}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (!res.ok) throw new Error('Error al obtener detalles del empleado');
@@ -165,7 +168,7 @@ const EmployeesPage = () => {
     if (!window.confirm('¿Estás seguro de cancelar este evento?')) return;
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:4000'}/api/v1/events/${eventId}`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/v1/events/${eventId}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -1051,7 +1054,7 @@ const EditEmployeeModal = ({ employee, departmentsList, onClose, onSaved }) => {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:4000'}/api/v1/employees/${employee.id}`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/v1/employees/${employee.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
