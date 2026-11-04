@@ -21,3 +21,4 @@ backend/scripts/diagnostics/
 dist/
 build/
 coverage/
+*.sql
