@@ -5,8 +5,9 @@ import './index.css'; // Importando los estilos globales
 
 // Interceptor global de fetch:
 // 1. Inyecta x-csrf-token para peticiones mutativas (POST, PUT, PATCH, DELETE).
-// 2. Inyecta x-tenant-id si no viene en los encabezados.
-// 3. Captura respuestas 401 y despacha 'auth:unauthorized' para cerrar sesión limpia en el frontend.
+// 2. Inyecta Authorization (Bearer) desde localStorage si no viene en los encabezados.
+// 3. Inyecta x-tenant-id desde localStorage si no viene en los encabezados.
+// 4. Captura respuestas 401 y despacha 'auth:unauthorized' para cerrar sesión limpia en el frontend.
 if (typeof window !== 'undefined' && window.fetch) {
   const originalFetch = window.fetch;
   window.fetch = async (input, init = {}) => {
@@ -27,20 +28,40 @@ if (typeof window !== 'undefined' && window.fetch) {
       }
     }
 
-    // 2. Inyección de x-tenant-id
+    // 2. Inyección de Authorization y x-tenant-id para la API
     if (isApiCall) {
-      const tenantId = localStorage.getItem('tenantId') || 'default-company-pain';
-      const existingHeaders = init.headers || {};
-      const hasTenantHeader = (existingHeaders instanceof Headers)
-        ? (existingHeaders.has('x-tenant-id') || existingHeaders.has('x-company-id'))
-        : (existingHeaders['x-tenant-id'] || existingHeaders['x-company-id']);
+      const token = localStorage.getItem('token');
+      const tenantId = localStorage.getItem('tenantId');
+      const currentHeaders = init.headers || {};
 
-      if (!hasTenantHeader && tenantId) {
-        if (existingHeaders instanceof Headers) {
-          existingHeaders.set('x-tenant-id', tenantId);
+      // 2.1 Inyectar Authorization Bearer si no está presente
+      const hasAuth = (currentHeaders instanceof Headers)
+        ? currentHeaders.has('authorization')
+        : (currentHeaders['Authorization'] || currentHeaders['authorization']);
+
+      if (!hasAuth && token) {
+        if (currentHeaders instanceof Headers) {
+          currentHeaders.set('authorization', `Bearer ${token}`);
         } else {
           init.headers = {
-            ...existingHeaders,
+            ...currentHeaders,
+            'Authorization': `Bearer ${token}`
+          };
+        }
+      }
+
+      // 2.2 Inyectar x-tenant-id si existe en localStorage y no fue pasado explícitamente
+      const updatedHeaders = init.headers || currentHeaders;
+      const hasTenantHeader = (updatedHeaders instanceof Headers)
+        ? (updatedHeaders.has('x-tenant-id') || updatedHeaders.has('x-company-id'))
+        : (updatedHeaders['x-tenant-id'] || updatedHeaders['x-company-id']);
+
+      if (!hasTenantHeader && tenantId) {
+        if (updatedHeaders instanceof Headers) {
+          updatedHeaders.set('x-tenant-id', tenantId);
+        } else {
+          init.headers = {
+            ...updatedHeaders,
             'x-tenant-id': tenantId
           };
         }

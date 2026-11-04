@@ -20,9 +20,13 @@ export const NotificationProvider = ({ children }) => {
   const fetchUnreadCount = async () => {
     try {
       const token = localStorage.getItem('token');
+      const tenantId = localStorage.getItem('tenantId');
       const baseUrl = getBaseUrl();
       const response = await fetch(`${baseUrl}/api/v1/notifications/unread-count`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: {
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          ...(tenantId ? { 'x-tenant-id': tenantId } : {})
+        }
       });
       if (response.ok) {
         const data = await response.json();
@@ -37,15 +41,18 @@ export const NotificationProvider = ({ children }) => {
     // Inicializar conteo
     fetchUnreadCount();
 
-    // Inicializar Socket.io
+    // Inicializar Socket.io con autenticación de tenant
     const baseUrl = getBaseUrl();
+    const token = localStorage.getItem('token');
     const newSocket = baseUrl
       ? io(baseUrl, {
+          auth: { token },
           reconnection: true,
           reconnectionAttempts: Infinity,
           reconnectionDelay: 1000,
         })
       : io({
+          auth: { token },
           reconnection: true,
           reconnectionAttempts: Infinity,
           reconnectionDelay: 1000,

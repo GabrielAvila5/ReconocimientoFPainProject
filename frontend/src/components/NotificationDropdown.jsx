@@ -17,8 +17,14 @@ const NotificationDropdown = ({ onClose }) => {
   const fetchNotifications = async () => {
     setLoading(true);
     try {
+      const token = localStorage.getItem('token');
+      const tenantId = localStorage.getItem('tenantId');
+      const headers = {
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        ...(tenantId ? { 'x-tenant-id': tenantId } : {})
+      };
       const url = `/api/v1/notifications?limit=15${activeTab === 'unread' ? '&isRead=false' : ''}`;
-      const response = await fetch(url);
+      const response = await fetch(url, { headers });
       if (response.ok) {
         const data = await response.json();
         setNotifications(data.data);

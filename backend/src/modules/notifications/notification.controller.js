@@ -1,6 +1,36 @@
 const prisma = require('../../utils/prisma');
+const { getTenantContext } = require('../../middlewares/tenantContext');
 
-// GET / - Listar notificaciones paginadas
+/**
+ * Resuelve el companyId activo para notificaciones con aislamiento estricto:
+ * - Para administradores de empresa regulares (role !== 'SUPER_ADMIN'):
+ *   Su companyId proviene inmutablemente de req.user.companyId (del token JWT).
+ * - Para Super Admin:
+ *   Respeta x-tenant-id si se envió explícitamente, o el contexto de inquilino activo.
+ */
+function resolveCompanyId(req) {
+  if (req.user && req.user.role !== 'SUPER_ADMIN') {
+    return req.user.companyId || null;
+  }
+
+  const headerTenant = req.headers['x-tenant-id'] || req.headers['x-company-id'];
+  if (headerTenant) {
+    return Array.isArray(headerTenant) ? headerTenant[0] : headerTenant;
+  }
+
+  const ctx = getTenantContext();
+  if (ctx && ctx.companyId) {
+    return ctx.companyId;
+  }
+
+  if (req.user && req.user.companyId) {
+    return req.user.companyId;
+  }
+
+  return 'default-company-pain';
+}
+
+// GET / - Listar notificaciones paginadas estrictamente aisladas por empresa
 const getNotifications = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
@@ -8,8 +38,12 @@ const getNotifications = async (req, res) => {
     const { isRead, type } = req.query;
 
     const skip = (page - 1) * limit;
+    const companyId = resolveCompanyId(req);
     
     let where = {};
+    if (companyId) {
+      where.companyId = companyId;
+    }
     if (isRead !== undefined) {
       where.isRead = isRead === 'true';
     }
@@ -41,11 +75,17 @@ const getNotifications = async (req, res) => {
   }
 };
 
-// GET /unread-count - Obtener cantidad de no leídas
+// GET /unread-count - Obtener cantidad de no leídas de la empresa
 const getUnreadCount = async (req, res) => {
   try {
+    const companyId = resolveCompanyId(req);
+    let where = { isRead: false };
+    if (companyId) {
+      where.companyId = companyId;
+    }
+
     const count = await prisma.notification.count({
-      where: { isRead: false }
+      where
     });
     res.json({ count });
   } catch (error) {
@@ -54,14 +94,16 @@ const getUnreadCount = async (req, res) => {
   }
 };
 
-// PUT /:id/read - Marcar como leída
+// PUT /:id/read - Marcar como leída (validando propiedad de empresa)
 const markAsRead = async (req, res) => {
   try {
     const { id } = req.params;
+    const companyId = resolveCompanyId(req);
+
     const existing = await prisma.notification.findUnique({
       where: { id }
     });
-    if (!existing) {
+    if (!existing || (companyId && existing.companyId !== companyId && req.user?.role !== 'SUPER_ADMIN')) {
       return res.status(404).json({ error: 'Notificación no encontrada' });
     }
 
@@ -76,11 +118,17 @@ const markAsRead = async (req, res) => {
   }
 };
 
-// PUT /read-all - Marcar todas como leídas
+// PUT /read-all - Marcar todas como leídas en la empresa
 const markAllAsRead = async (req, res) => {
   try {
+    const companyId = resolveCompanyId(req);
+    let where = { isRead: false };
+    if (companyId) {
+      where.companyId = companyId;
+    }
+
     await prisma.notification.updateMany({
-      where: { isRead: false },
+      where,
       data: { isRead: true }
     });
     res.json({ success: true, message: 'All notifications marked as read' });
@@ -90,14 +138,16 @@ const markAllAsRead = async (req, res) => {
   }
 };
 
-// DELETE /:id - Eliminar una
+// DELETE /:id - Eliminar una notificación (validando propiedad de empresa)
 const deleteNotification = async (req, res) => {
   try {
     const { id } = req.params;
+    const companyId = resolveCompanyId(req);
+
     const existing = await prisma.notification.findUnique({
       where: { id }
     });
-    if (!existing) {
+    if (!existing || (companyId && existing.companyId !== companyId && req.user?.role !== 'SUPER_ADMIN')) {
       return res.status(404).json({ error: 'Notificación no encontrada' });
     }
 
@@ -111,11 +161,17 @@ const deleteNotification = async (req, res) => {
   }
 };
 
-// DELETE /read - Eliminar todas las leídas
+// DELETE /read - Eliminar todas las leídas en la empresa
 const deleteReadNotifications = async (req, res) => {
   try {
+    const companyId = resolveCompanyId(req);
+    let where = { isRead: true };
+    if (companyId) {
+      where.companyId = companyId;
+    }
+
     await prisma.notification.deleteMany({
-      where: { isRead: true }
+      where
     });
     res.json({ success: true, message: 'Read notifications deleted' });
   } catch (error) {
@@ -127,6 +183,7 @@ const deleteReadNotifications = async (req, res) => {
 // POST /seed - Solo desarrollo
 const seedNotifications = async (req, res) => {
   try {
+    const companyId = resolveCompanyId(req);
     const sampleNotifications = [
       { title: 'Sistema Iniciado', message: 'Todos los servicios están corriendo correctamente.', type: 'SUCCESS', category: 'system' },
       { title: 'Dispositivo Offline', message: 'El Kiosko Principal ha perdido conexión.', type: 'ERROR', category: 'device', entityId: 'kiosk-01' },
@@ -138,7 +195,7 @@ const seedNotifications = async (req, res) => {
       { title: 'Acceso Denegado', message: 'Intento de acceso fuera de horario permitido.', type: 'ERROR', category: 'security' },
       { title: 'Sincronización Completa', message: 'Base de datos de rostros sincronizada con éxito.', type: 'INFO', category: 'device' },
       { title: 'Ausencia', message: 'María García no ha registrado su entrada el día de hoy.', type: 'WARNING', category: 'attendance', entityId: 'emp-456' }
-    ];
+    ].map(n => ({ ...n, companyId: companyId || 'default-company-pain' }));
 
     await prisma.notification.createMany({
       data: sampleNotifications

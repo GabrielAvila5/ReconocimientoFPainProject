@@ -33,6 +33,7 @@ const NotificationsPage = () => {
     setError(null);
     try {
       const token = localStorage.getItem('token');
+      const tenantId = localStorage.getItem('tenantId');
       const baseUrl = import.meta.env.VITE_API_URL || '';
       let url = `${baseUrl}/api/v1/notifications?page=${page}&limit=20`;
       if (typeFilter) url += `&type=${typeFilter}`;
@@ -40,7 +41,10 @@ const NotificationsPage = () => {
       if (statusFilter === 'unread') url += '&isRead=false';
 
       const response = await fetch(url, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: {
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          ...(tenantId ? { 'x-tenant-id': tenantId } : {})
+        }
       });
       if (!response.ok) throw new Error('Error al cargar notificaciones');
       
