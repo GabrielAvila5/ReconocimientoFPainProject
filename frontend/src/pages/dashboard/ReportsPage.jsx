@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Download, RefreshCw, AlertCircle, Clock, CheckCircle, 
-  UserX, Camera, Server, Activity, Users
+  UserX, Camera, Server, Activity, Users, Search, ChevronRight,
+  Filter, Zap, ArrowUpRight, TrendingUp
 } from 'lucide-react';
 import { 
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, 
@@ -44,12 +45,518 @@ const CustomTooltip = ({ active, payload, label }) => {
   return null;
 };
 
+// Subcomponents & Styles placed early to avoid TDZ
+const Skeleton = ({ width, height }) => (
+  <div style={{ width, height, borderRadius: '8px', background: 'linear-gradient(90deg, #27272a 25%, #3f3f46 50%, #27272a 75%)', backgroundSize: '200% 100%', animation: 'skeleton-loading 1.5s infinite' }} className="skeleton" />
+);
+
+const cardStyle = {
+  background: COLORS.dark,
+  borderRadius: '12px',
+  padding: '1.5rem',
+  border: `1px solid ${COLORS.border}`,
+  position: 'relative',
+  overflow: 'hidden'
+};
+
 // Helper for Initials
 const getInitials = (name) => {
   if (!name) return '';
   const parts = name.trim().split(/\s+/);
   if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
   return (name[0] || '').toUpperCase();
+};
+
+const formatDateShort = (str) => {
+  if (!str) return '';
+  try {
+    const parts = str.split('-');
+    if (parts.length < 3) return str;
+    const y = parseInt(parts[0], 10);
+    const m = parseInt(parts[1], 10) - 1;
+    const d = parseInt(parts[2], 10);
+    const date = new Date(y, m, d);
+    return date.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
+  } catch {
+    return str;
+  }
+};
+
+// --- Recuadro con Listado de Personal Directo ---
+const ReportListCard = ({
+  title,
+  subtitle,
+  count,
+  badgeText,
+  icon: Icon,
+  colorRgb,
+  colorHex,
+  items = [],
+  type,
+  loading,
+  onFilterTable
+}) => {
+  const [search, setSearch] = useState('');
+  const [viewMode, setViewMode] = useState('registros'); // 'registros' | 'personas'
+
+  // Agrupar por colaborador
+  const grouped = useMemo(() => {
+    const map = {};
+    items.forEach(it => {
+      const id = it.employeeId || it.empleado;
+      if (!map[id]) {
+        map[id] = {
+          employeeId: it.employeeId,
+          empleado: it.empleado,
+          departamento: it.departamento,
+          count: 0,
+          totalMinutes: 0,
+          totalHours: 0,
+          lastDate: it.fecha,
+          items: []
+        };
+      }
+      map[id].count++;
+      if (it.minutosTarde) map[id].totalMinutes += it.minutosTarde;
+      if (it.minutos) map[id].totalMinutes += it.minutos;
+      if (it.horas) map[id].totalHours += it.horas;
+      if (it.fecha && it.fecha > map[id].lastDate) map[id].lastDate = it.fecha;
+      map[id].items.push(it);
+    });
+    return Object.values(map).sort((a, b) => b.count - a.count);
+  }, [items]);
+
+  // Filtrar según búsqueda
+  const filteredList = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (viewMode === 'personas') {
+      if (!query) return grouped;
+      return grouped.filter(g => 
+        (g.empleado && g.empleado.toLowerCase().includes(query)) || 
+        (g.departamento && g.departamento.toLowerCase().includes(query))
+      );
+    } else {
+      if (!query) return items;
+      return items.filter(it => 
+        (it.empleado && it.empleado.toLowerCase().includes(query)) || 
+        (it.departamento && it.departamento.toLowerCase().includes(query))
+      );
+    }
+  }, [items, grouped, viewMode, search]);
+
+  return (
+    <div 
+      className="card-glow" 
+      style={{ 
+        ...cardStyle, 
+        background: `rgba(${colorRgb}, 0.03)`, 
+        border: `1px solid rgba(${colorRgb}, 0.25)`, 
+        boxShadow: `0 8px 24px rgba(${colorRgb}, 0.05)`,
+        display: 'flex',
+        flexDirection: 'column',
+        height: '420px',
+        padding: '1.25rem'
+      }}
+    >
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
+        <div>
+          <span style={{ 
+            color: colorHex, 
+            fontSize: '0.75rem', 
+            fontWeight: 700, 
+            letterSpacing: '0.8px', 
+            textTransform: 'uppercase' 
+          }}>
+            {title}
+          </span>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.75rem', marginTop: '0.25rem' }}>
+            <h2 style={{ fontSize: '2.25rem', color: colorHex, margin: 0, fontWeight: 700, lineHeight: 1 }}>
+              {loading ? <Skeleton width="50px" height="34px" /> : count}
+            </h2>
+            {badgeText && (
+              <span style={{ 
+                background: `rgba(${colorRgb}, 0.15)`, 
+                color: colorHex, 
+                fontSize: '0.75rem', 
+                fontWeight: 600, 
+                padding: '2px 8px', 
+                borderRadius: '12px',
+                border: `1px solid rgba(${colorRgb}, 0.3)`
+              }}>
+                {badgeText}
+              </span>
+            )}
+          </div>
+          <p style={{ color: COLORS.textMuted, fontSize: '0.75rem', margin: '0.35rem 0 0 0' }}>{subtitle}</p>
+        </div>
+        <div style={{ 
+          width: '38px', 
+          height: '38px', 
+          borderRadius: '10px', 
+          background: `rgba(${colorRgb}, 0.12)`, 
+          border: `1px solid rgba(${colorRgb}, 0.3)`, 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center',
+          color: colorHex 
+        }}>
+          <Icon size={20} />
+        </div>
+      </div>
+
+      {/* Control bar: search + viewMode toggle */}
+      <div className="no-print" style={{ 
+        display: 'flex', 
+        alignItems: 'center', 
+        gap: '0.5rem', 
+        marginBottom: '0.75rem',
+        marginTop: '0.25rem',
+        paddingBottom: '0.75rem',
+        borderBottom: `1px solid ${COLORS.border}`
+      }}>
+        <div style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'center' }}>
+          <Search size={14} style={{ position: 'absolute', left: '8px', color: COLORS.textMuted }} />
+          <input 
+            type="text" 
+            placeholder="Buscar..." 
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            style={{ 
+              width: '100%',
+              background: 'rgba(0, 0, 0, 0.25)',
+              border: `1px solid ${COLORS.border}`,
+              borderRadius: '6px',
+              padding: '4px 8px 4px 28px',
+              color: '#fff',
+              fontSize: '0.78rem',
+              outline: 'none'
+            }}
+          />
+        </div>
+
+        <div style={{ 
+          display: 'flex', 
+          background: 'rgba(0,0,0,0.3)', 
+          borderRadius: '6px', 
+          padding: '2px',
+          border: `1px solid ${COLORS.border}`
+        }}>
+          <button
+            onClick={() => setViewMode('registros')}
+            title="Ver cada registro con fecha y detalle"
+            style={{
+              background: viewMode === 'registros' ? `rgba(${colorRgb}, 0.2)` : 'transparent',
+              color: viewMode === 'registros' ? colorHex : COLORS.textMuted,
+              border: 'none',
+              borderRadius: '4px',
+              padding: '3px 7px',
+              fontSize: '0.72rem',
+              fontWeight: 600,
+              cursor: 'pointer'
+            }}
+          >
+            Registros ({items.length})
+          </button>
+          <button
+            onClick={() => setViewMode('personas')}
+            title="Ver acumulado por colaborador"
+            style={{
+              background: viewMode === 'personas' ? `rgba(${colorRgb}, 0.2)` : 'transparent',
+              color: viewMode === 'personas' ? colorHex : COLORS.textMuted,
+              border: 'none',
+              borderRadius: '4px',
+              padding: '3px 7px',
+              fontSize: '0.72rem',
+              fontWeight: 600,
+              cursor: 'pointer'
+            }}
+          >
+            Personas ({grouped.length})
+          </button>
+        </div>
+      </div>
+
+      {/* List content */}
+      <div 
+        className="custom-scroll" 
+        style={{ 
+          flex: 1, 
+          overflowY: 'auto', 
+          paddingRight: '4px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '0.4rem'
+        }}
+      >
+        {loading ? (
+          <>
+            <Skeleton width="100%" height="42px" />
+            <Skeleton width="100%" height="42px" />
+            <Skeleton width="100%" height="42px" />
+          </>
+        ) : filteredList.length === 0 ? (
+          <div style={{ 
+            height: '100%', 
+            display: 'flex', 
+            flexDirection: 'column', 
+            alignItems: 'center', 
+            justifyContent: 'center',
+            textAlign: 'center',
+            padding: '1rem',
+            color: COLORS.textMuted 
+          }}>
+            <div style={{ 
+              width: '40px', 
+              height: '40px', 
+              borderRadius: '50%', 
+              background: 'rgba(255,255,255,0.03)', 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center',
+              marginBottom: '0.5rem',
+              color: COLORS.textMuted
+            }}>
+              <CheckCircle size={20} style={{ color: colorHex }} />
+            </div>
+            <p style={{ margin: 0, fontSize: '0.8rem', color: COLORS.text }}>
+              {search ? 'Sin coincidencias' : `Sin ${title.toLowerCase()}`}
+            </p>
+            <span style={{ fontSize: '0.72rem', color: COLORS.textMuted, marginTop: '2px' }}>
+              {search ? 'Prueba con otro término' : 'Excelente registro en este período'}
+            </span>
+          </div>
+        ) : (
+          filteredList.map((item, idx) => {
+            const isGrouped = viewMode === 'personas';
+            const initials = getInitials(item.empleado);
+
+            return (
+              <div
+                key={item.id || `${item.employeeId || item.empleado}_${idx}`}
+                onClick={() => onFilterTable && onFilterTable(type, item.empleado)}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.025)',
+                  border: '1px solid rgba(255, 255, 255, 0.05)',
+                  borderRadius: '8px',
+                  padding: '0.5rem 0.65rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '0.6rem',
+                  cursor: 'pointer',
+                  transition: 'background 0.15s, border-color 0.15s'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.06)';
+                  e.currentTarget.style.borderColor = `rgba(${colorRgb}, 0.3)`;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.025)';
+                  e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.05)';
+                }}
+                title={`Click para ver a ${item.empleado} en la tabla`}
+              >
+                {/* Avatar + Info */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', minWidth: 0, flex: 1 }}>
+                  <div style={{
+                    width: '30px',
+                    height: '30px',
+                    minWidth: '30px',
+                    borderRadius: '50%',
+                    background: `rgba(${colorRgb}, 0.15)`,
+                    color: colorHex,
+                    fontSize: '0.72rem',
+                    fontWeight: 700,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    border: `1px solid rgba(${colorRgb}, 0.3)`
+                  }}>
+                    {initials}
+                  </div>
+                  <div style={{ minWidth: 0, overflow: 'hidden' }}>
+                    <div style={{ 
+                      color: COLORS.text, 
+                      fontWeight: 600, 
+                      fontSize: '0.82rem', 
+                      whiteSpace: 'nowrap', 
+                      overflow: 'hidden', 
+                      textOverflow: 'ellipsis' 
+                    }}>
+                      {item.empleado}
+                    </div>
+                    <div style={{ 
+                      color: COLORS.textMuted, 
+                      fontSize: '0.7rem', 
+                      whiteSpace: 'nowrap', 
+                      overflow: 'hidden', 
+                      textOverflow: 'ellipsis' 
+                    }}>
+                      {item.departamento} {!isGrouped && item.fecha && `• ${formatDateShort(item.fecha)}`}
+                      {isGrouped && item.lastDate && `• Última: ${formatDateShort(item.lastDate)}`}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right Badges */}
+                <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                  {type === 'tardanzas' && (
+                    <>
+                      {isGrouped ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
+                          <span style={{ 
+                            background: 'rgba(234, 179, 8, 0.15)', 
+                            color: COLORS.yellow, 
+                            padding: '2px 6px', 
+                            borderRadius: '4px', 
+                            fontSize: '0.72rem', 
+                            fontWeight: 600 
+                          }}>
+                            {item.count} {item.count === 1 ? 'tardanza' : 'tardanzas'}
+                          </span>
+                          {item.totalMinutes > 0 && (
+                            <span style={{ fontSize: '0.68rem', color: COLORS.textMuted }}>
+                              +{item.totalMinutes} min acum.
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
+                          <span style={{ 
+                            background: item.tipo === 'Tardanza Justificada' ? 'rgba(59, 130, 246, 0.15)' : 'rgba(234, 179, 8, 0.15)', 
+                            color: item.tipo === 'Tardanza Justificada' ? COLORS.blue : COLORS.yellow, 
+                            padding: '2px 6px', 
+                            borderRadius: '4px', 
+                            fontSize: '0.72rem', 
+                            fontWeight: 600 
+                          }}>
+                            {item.tipo === 'Tardanza Justificada' ? 'Justificada' : `+${item.minutosTarde} min`}
+                          </span>
+                          {item.entrada && item.entrada !== 'N/A' && (
+                            <span style={{ fontSize: '0.68rem', color: COLORS.textMuted }}>
+                              {item.entrada}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {type === 'ausencias' && (
+                    <>
+                      {isGrouped ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
+                          <span style={{ 
+                            background: 'rgba(239, 68, 68, 0.15)', 
+                            color: COLORS.red, 
+                            padding: '2px 6px', 
+                            borderRadius: '4px', 
+                            fontSize: '0.72rem', 
+                            fontWeight: 600 
+                          }}>
+                            {item.count} {item.count === 1 ? 'ausencia' : 'ausencias'}
+                          </span>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
+                          <span style={{ 
+                            background: item.tipo === 'Vacaciones' 
+                              ? 'rgba(59, 130, 246, 0.15)' 
+                              : item.tipo === 'Falta Justificada' 
+                                ? 'rgba(16, 185, 129, 0.15)' 
+                                : 'rgba(239, 68, 68, 0.15)', 
+                            color: item.tipo === 'Vacaciones' 
+                              ? COLORS.blue 
+                              : item.tipo === 'Falta Justificada' 
+                                ? COLORS.green 
+                                : COLORS.red, 
+                            padding: '2px 6px', 
+                            borderRadius: '4px', 
+                            fontSize: '0.72rem', 
+                            fontWeight: 600 
+                          }}>
+                            {item.tipo === 'Vacaciones' ? 'Vacaciones' : item.tipo === 'Falta Justificada' ? 'Permiso' : 'Injustificada'}
+                          </span>
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {type === 'horasExtra' && (
+                    <>
+                      {isGrouped ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
+                          <span style={{ 
+                            background: 'rgba(168, 85, 247, 0.15)', 
+                            color: '#c084fc', 
+                            padding: '2px 6px', 
+                            borderRadius: '4px', 
+                            fontSize: '0.72rem', 
+                            fontWeight: 600 
+                          }}>
+                            +{item.totalHours.toFixed(1)}h total
+                          </span>
+                          <span style={{ fontSize: '0.68rem', color: COLORS.textMuted }}>
+                            {item.count} {item.count === 1 ? 'turno' : 'turnos'}
+                          </span>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
+                          <span style={{ 
+                            background: 'rgba(168, 85, 247, 0.15)', 
+                            color: '#c084fc', 
+                            padding: '2px 6px', 
+                            borderRadius: '4px', 
+                            fontSize: '0.72rem', 
+                            fontWeight: 600 
+                          }}>
+                            +{item.horas}h ({item.minutos}m)
+                          </span>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* Footer */}
+      <div className="no-print" style={{ 
+        marginTop: '0.75rem', 
+        paddingTop: '0.5rem', 
+        borderTop: `1px solid ${COLORS.border}`,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        fontSize: '0.75rem'
+      }}>
+        <span style={{ color: COLORS.textMuted }}>
+          {items.length} {items.length === 1 ? 'registro' : 'registros'}
+        </span>
+        <button
+          onClick={() => onFilterTable && onFilterTable(type)}
+          style={{
+            background: 'transparent',
+            border: 'none',
+            color: colorHex,
+            cursor: 'pointer',
+            fontWeight: 600,
+            fontSize: '0.75rem',
+            padding: 0,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '3px'
+          }}
+        >
+          Ver en tabla <ChevronRight size={14} />
+        </button>
+      </div>
+    </div>
+  );
 };
 
 // --- Component ---
@@ -73,6 +580,11 @@ const ReportsPage = () => {
     totalAusenciasInjustificadas: 0,
     horasExtraAprobadas: 0,
     horasPromedio: 0
+  });
+  const [attLists, setAttLists] = useState({
+    tardanzas: [],
+    ausencias: [],
+    horasExtra: []
   });
   const [breakKpis, setBreakKpis] = useState({
     totalDescansos: 0,
@@ -127,10 +639,16 @@ const ReportsPage = () => {
         }
       }
 
-      let url = `${import.meta.env.VITE_API_URL || ''}/api/v1/reports/kpis`;
+      const qParams = [];
       if (startStr && endStr) {
-        url += `?startDate=${startStr}&endDate=${endStr}`;
+        qParams.push(`startDate=${encodeURIComponent(startStr)}&endDate=${encodeURIComponent(endStr)}`);
       }
+      if (selectedDept && selectedDept !== 'Todos los departamentos') {
+        qParams.push(`department=${encodeURIComponent(selectedDept)}`);
+      }
+      const qStr = qParams.length > 0 ? `?${qParams.join('&')}` : '';
+
+      let url = `${import.meta.env.VITE_API_URL || ''}/api/v1/reports/kpis${qStr}`;
 
       // 1. Fetch KPIs
       try {
@@ -142,6 +660,7 @@ const ReportsPage = () => {
           if (data.distribution) setAttDistribution(data.distribution);
           if (data.trend) setAttTrendData(data.trend);
           if (data.peakHours) setPeakHoursData(data.peakHours);
+          if (data.lists) setAttLists(data.lists);
         }
       } catch (e) {
         console.error('Error fetching KPIs:', e);
@@ -149,10 +668,7 @@ const ReportsPage = () => {
 
       // 2. Fetch Table Data
       try {
-        let tableUrl = `${import.meta.env.VITE_API_URL || ''}/api/v1/reports/attendance-consolidated?limit=200`;
-        if (startStr && endStr) {
-          tableUrl += `&startDate=${startStr}&endDate=${endStr}`;
-        }
+        let tableUrl = `${import.meta.env.VITE_API_URL || ''}/api/v1/reports/attendance-consolidated?limit=200${qParams.length > 0 ? '&' + qParams.join('&') : ''}`;
         const tableRes = await fetch(tableUrl, { headers: { 'Authorization': `Bearer ${token}` } });
         if (tableRes.ok) {
           const tableData = await tableRes.json();
@@ -164,10 +680,7 @@ const ReportsPage = () => {
 
       // 3. Fetch Breaks Table Data
       try {
-        let breakTableUrl = `${import.meta.env.VITE_API_URL || ''}/api/v1/reports/breaks-consolidated?limit=200`;
-        if (startStr && endStr) {
-          breakTableUrl += `&startDate=${startStr}&endDate=${endStr}`;
-        }
+        let breakTableUrl = `${import.meta.env.VITE_API_URL || ''}/api/v1/reports/breaks-consolidated?limit=200${qParams.length > 0 ? '&' + qParams.join('&') : ''}`;
         const breakTableRes = await fetch(breakTableUrl, { headers: { 'Authorization': `Bearer ${token}` } });
         if (breakTableRes.ok) {
           const breakData = await breakTableRes.json();
@@ -212,11 +725,25 @@ const ReportsPage = () => {
 
   useEffect(() => {
     fetchKpis();
-  }, [dateRange, customStart, customEnd]);
+  }, [dateRange, customStart, customEnd, selectedDept]);
 
   const handleRefresh = () => {
     setRefreshing(true);
     fetchKpis().then(() => setRefreshing(false));
+  };
+
+  const handleFilterFromCard = (type, employeeName = null) => {
+    if (type === 'tardanzas') {
+      setSelectedStatus('Tardanza');
+    } else if (type === 'ausencias') {
+      setSelectedStatus('Ausencia');
+    } else if (type === 'horasExtra') {
+      setSelectedStatus('Horas Extra');
+    }
+    const tableElem = document.getElementById('reports-attendance-table');
+    if (tableElem) {
+      tableElem.scrollIntoView({ behavior: 'smooth' });
+    }
   };
 
   // --- Filtering Logic ---
@@ -523,30 +1050,104 @@ const ReportsPage = () => {
         {/* TAB 1: ASISTENCIA */}
         {activeTab === 'asistencia' && (
           <div className="space-y-6">
-            {/* KPI Cards */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
-              {renderCard('Puntualidad Prom.', `${attKPI.puntualidadPct}%`, 'En el rango seleccionado', CheckCircle, '16, 185, 129')}
-              {renderCard('Total Tardanzas', attKPI.totalTardanzasInjustificadas, 'Llegadas después de hora limite', AlertCircle, '234, 179, 8')}
-              {renderCard('Total Ausencias', attKPI.totalAusenciasInjustificadas, 'Sin registro o justificación', UserX, '239, 68, 68')}
-              {renderCard('Horas Extra', `${attKPI.horasExtraAprobadas}h`, 'Horas extra acumuladas', Clock, '168, 85, 247')}
-              
-              {/* Horas Promedio */}
-              <div className="card-glow" style={{ ...cardStyle, background: `rgba(59, 130, 246, 0.05)`, border: `1px solid rgba(59, 130, 246, 0.3)`, boxShadow: `0 4px 20px rgba(59, 130, 246, 0.05)` }}>
+            {/* Top Executive KPI Row (Puntualidad & Horas Promedio) */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.25rem', marginBottom: '1.5rem' }}>
+              {/* Puntualidad Card */}
+              <div className="card-glow" style={{ ...cardStyle, background: 'rgba(16, 185, 129, 0.04)', border: '1px solid rgba(16, 185, 129, 0.25)', boxShadow: '0 4px 20px rgba(16, 185, 129, 0.05)', padding: '1.25rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ color: COLORS.textMuted, fontSize: '0.75rem', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase' }}>Horas Promedio</span>
+                  <span style={{ color: COLORS.green, fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.8px', textTransform: 'uppercase' }}>Puntualidad General</span>
+                  <CheckCircle size={18} style={{ color: COLORS.green }} />
+                </div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.75rem', marginTop: '0.5rem' }}>
+                  <h2 style={{ fontSize: '2.5rem', color: COLORS.green, lineHeight: '1', margin: 0, fontWeight: 700 }}>
+                    {loading ? <Skeleton width="70px" height="40px" /> : `${attKPI.puntualidadPct}%`}
+                  </h2>
+                  <span style={{ background: 'rgba(16, 185, 129, 0.15)', color: COLORS.green, fontSize: '0.75rem', fontWeight: 600, padding: '2px 8px', borderRadius: '12px' }}>
+                    {attKPI.puntualidadPct >= 90 ? 'Excelente' : attKPI.puntualidadPct >= 75 ? 'Aceptable' : 'Atención requerida'}
+                  </span>
+                </div>
+                <div style={{ marginTop: '0.75rem' }}>
+                  <div style={{ width: '100%', height: '6px', background: 'rgba(255, 255, 255, 0.1)', borderRadius: '3px', overflow: 'hidden' }}>
+                    <div style={{ width: `${Math.min(attKPI.puntualidadPct, 100)}%`, height: '100%', background: COLORS.green, borderRadius: '3px', transition: 'width 0.6s ease' }} />
+                  </div>
+                  <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.75rem', color: COLORS.textMuted }}>
+                    Entradas registradas dentro de la tolerancia horaria establecida.
+                  </p>
+                </div>
+              </div>
+
+              {/* Horas Promedio Card */}
+              <div className="card-glow" style={{ ...cardStyle, background: 'rgba(59, 130, 246, 0.04)', border: '1px solid rgba(59, 130, 246, 0.25)', boxShadow: '0 4px 20px rgba(59, 130, 246, 0.05)', padding: '1.25rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ color: COLORS.blue, fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.8px', textTransform: 'uppercase' }}>Horas Promedio por Jornada</span>
                   <Clock size={18} style={{ color: COLORS.blue }} />
                 </div>
-                <div>
-                  <h2 style={{ fontSize: '2.5rem', color: COLORS.blue, lineHeight: '1', margin: '1rem 0 0.5rem 0' }}>
-                    {loading ? <Skeleton width="60px" height="40px" /> : `${attKPI.horasPromedio}h`}
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.75rem', marginTop: '0.5rem' }}>
+                  <h2 style={{ fontSize: '2.5rem', color: COLORS.blue, lineHeight: '1', margin: 0, fontWeight: 700 }}>
+                    {loading ? <Skeleton width="70px" height="40px" /> : `${attKPI.horasPromedio}h`}
                   </h2>
-                  <p className="text-xs text-muted" style={{ margin: 0 }}>Registros completos (E/S)</p>
+                  <span style={{ background: 'rgba(59, 130, 246, 0.15)', color: COLORS.blue, fontSize: '0.75rem', fontWeight: 600, padding: '2px 8px', borderRadius: '12px' }}>
+                    Jornada estándar (~8h)
+                  </span>
+                </div>
+                <div style={{ marginTop: '0.75rem' }}>
+                  <div style={{ width: '100%', height: '6px', background: 'rgba(255, 255, 255, 0.1)', borderRadius: '3px', overflow: 'hidden' }}>
+                    <div style={{ width: `${Math.min((attKPI.horasPromedio / 8) * 100, 100)}%`, height: '100%', background: COLORS.blue, borderRadius: '3px', transition: 'width 0.6s ease' }} />
+                  </div>
+                  <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.75rem', color: COLORS.textMuted }}>
+                    Tiempo efectivo trabajado en registros con entrada y salida completa.
+                  </p>
                 </div>
               </div>
             </div>
 
+            {/* 3 Main Recuadros with Direct Personnel Lists */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.25rem', marginBottom: '2rem' }}>
+              <ReportListCard
+                title="Tardanzas"
+                subtitle="Colaboradores que llegaron fuera del horario límite"
+                count={attKPI.totalTardanzasInjustificadas}
+                badgeText={`${attLists.tardanzas.length} registros`}
+                icon={AlertCircle}
+                colorRgb="234, 179, 8"
+                colorHex={COLORS.yellow}
+                items={attLists.tardanzas}
+                type="tardanzas"
+                loading={loading}
+                onFilterTable={handleFilterFromCard}
+              />
+
+              <ReportListCard
+                title="Ausencias"
+                subtitle="Colaboradores sin asistencia registrada o justificada"
+                count={attKPI.totalAusenciasInjustificadas}
+                badgeText={`${attLists.ausencias.length} en total`}
+                icon={UserX}
+                colorRgb="239, 68, 68"
+                colorHex={COLORS.red}
+                items={attLists.ausencias}
+                type="ausencias"
+                loading={loading}
+                onFilterTable={handleFilterFromCard}
+              />
+
+              <ReportListCard
+                title="Horas Extra"
+                subtitle="Colaboradores con jornada extraordinaria autorizada"
+                count={`${attKPI.horasExtraAprobadas}h`}
+                badgeText={`${attLists.horasExtra.length} turnos`}
+                icon={Clock}
+                colorRgb="168, 85, 247"
+                colorHex="#c084fc"
+                items={attLists.horasExtra}
+                type="horasExtra"
+                loading={loading}
+                onFilterTable={handleFilterFromCard}
+              />
+            </div>
+
             {/* Table */}
-            <div className="table-responsive-wrapper" style={{ ...cardStyle, padding: 0, overflowX: 'auto', marginBottom: '2rem' }}>
+            <div id="reports-attendance-table" className="table-responsive-wrapper" style={{ ...cardStyle, padding: 0, overflowX: 'auto', marginBottom: '2rem' }}>
               <table style={tableStyle}>
                 <thead>
                   <tr style={{ background: COLORS.darker, borderBottom: `1px solid ${COLORS.border}` }}>
@@ -964,6 +1565,21 @@ const ReportsPage = () => {
       <style dangerouslySetInnerHTML={{__html: `
         .spin-animation { animation: spin 1s linear infinite; }
         @keyframes spin { 100% { transform: rotate(360deg); } }
+
+        .custom-scroll::-webkit-scrollbar {
+          width: 5px;
+        }
+        .custom-scroll::-webkit-scrollbar-track {
+          background: rgba(255, 255, 255, 0.02);
+          border-radius: 4px;
+        }
+        .custom-scroll::-webkit-scrollbar-thumb {
+          background: rgba(255, 255, 255, 0.15);
+          border-radius: 4px;
+        }
+        .custom-scroll::-webkit-scrollbar-thumb:hover {
+          background: rgba(255, 255, 255, 0.28);
+        }
         
         @media print {
           .print-only { display: block !important; }
@@ -982,10 +1598,6 @@ const ReportsPage = () => {
 };
 
 // --- Subcomponents & Styles ---
-const Skeleton = ({ width, height }) => (
-  <div style={{ width, height, borderRadius: '8px', background: 'linear-gradient(90deg, #27272a 25%, #3f3f46 50%, #27272a 75%)', backgroundSize: '200% 100%', animation: 'skeleton-loading 1.5s infinite' }} className="skeleton" />
-);
-
 const btnPrimary = {
   padding: '0.75rem 1.5rem',
   background: 'var(--primary-orange, #f97316)',
@@ -1027,15 +1639,6 @@ const toggleBtn = {
   fontWeight: 600,
   cursor: 'pointer',
   transition: 'all 0.2s'
-};
-
-const cardStyle = {
-  background: COLORS.dark,
-  borderRadius: '12px',
-  padding: '1.5rem',
-  border: `1px solid ${COLORS.border}`,
-  position: 'relative',
-  overflow: 'hidden'
 };
 
 const tableStyle = {

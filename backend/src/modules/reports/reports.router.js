@@ -134,7 +134,7 @@ router.get('/kpis', async (req, res) => {
   try {
     const settings = await prisma.systemSettings.findFirst();
     const tz = settings?.timezone || DEFAULT_TZ;
-    let { startDate, endDate } = req.query;
+    let { startDate, endDate, department } = req.query;
     
     if (!startDate || !endDate) {
       const now = new Date();
@@ -151,13 +151,46 @@ router.get('/kpis', async (req, res) => {
       return res.status(400).json({ error: 'El rango de fechas no puede superar los 90 días' });
     }
 
+    const attWhere = { date: { gte: start, lte: end } };
+    if (department && department !== 'Todos los departamentos') {
+      attWhere.employee = { department: { name: department } };
+    }
+
     const attendances = await prisma.attendanceRecord.findMany({
-      where: { date: { gte: start, lte: end } },
-      select: { date: true, isLate: true, entrada: true, salida: true, recesoInicio: true, recesoFin: true, employeeId: true }
+      where: attWhere,
+      select: {
+        id: true,
+        date: true,
+        isLate: true,
+        lateMinutes: true,
+        entrada: true,
+        salida: true,
+        recesoInicio: true,
+        recesoFin: true,
+        overtimeMinutes: true,
+        employeeId: true,
+        shift: {
+          select: { startTime: true, endTime: true, tolerance: true }
+        },
+        employee: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            department: { select: { name: true } }
+          }
+        }
+      }
     });
 
     const attEmpIds = attendances.map(a => a.employeeId);
-    const { eventMap, expandedEvents, shiftMap, globalShift } = await buildEventMapForDateRange(start, end, null, null, attEmpIds);
+    const { eventMap, expandedEvents, shiftMap, globalShift } = await buildEventMapForDateRange(
+      start, 
+      end, 
+      null, 
+      (department && department !== 'Todos los departamentos') ? department : null, 
+      attEmpIds
+    );
 
     // Calcular KPIs
     let aTiempo = 0;
@@ -183,9 +216,24 @@ router.get('/kpis', async (req, res) => {
     const trendMap = {}; 
     const peakHoursMap = {};
 
+    const tardanzasList = [];
+    const ausenciasList = [];
+    const horasExtraList = [];
+
     for (const evt of expandedEvents) {
       if (evt.type === 'OVERTIME' && evt.minutes) {
         horasExtraMinutos += evt.minutes;
+        horasExtraList.push({
+          id: evt.id,
+          employeeId: evt.employeeId,
+          empleado: `${evt.employee?.firstName || ''} ${evt.employee?.lastName || ''}`.trim() || 'Empleado',
+          departamento: evt.employee?.department?.name || 'General',
+          fecha: evt.dateStr,
+          minutos: evt.minutes,
+          horas: +(evt.minutes / 60).toFixed(1),
+          motivo: evt.reason || 'Horas extras autorizadas',
+          aprobadoPor: evt.registeredBy?.name || 'Admin'
+        });
       }
     }
 
@@ -210,17 +258,67 @@ router.get('/kpis', async (req, res) => {
         faltasJustificadas++;
         trendMap[dateStr].justificados++;
       } else if (att.isLate) {
+        let minsLate = att.lateMinutes;
+        const shift = att.shift || shiftMap[att.employeeId] || globalShift;
+        if (!minsLate && att.entrada && shift && shift.startTime) {
+          const [sh, sm] = shift.startTime.split(':').map(Number);
+          const entParts = getTzParts(new Date(att.entrada), tz);
+          const diff = (entParts.hour * 60 + entParts.minute) - (sh * 60 + sm);
+          if (diff > 0) minsLate = diff;
+        }
+
         if (hasLateArrival) {
           tardanzasJustificadas++;
           trendMap[dateStr].justificados++;
           aTiempo++; 
+          tardanzasList.push({
+            id: att.id,
+            employeeId: att.employeeId,
+            empleado: `${att.employee?.firstName || ''} ${att.employee?.lastName || ''}`.trim() || 'Empleado',
+            departamento: att.employee?.department?.name || 'General',
+            fecha: dateStr,
+            entrada: att.entrada ? new Date(att.entrada).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: tz }) : 'N/A',
+            minutosTarde: minsLate || 0,
+            tipo: 'Tardanza Justificada',
+            motivo: dayEvents.find(e => e.type === 'LATE_ARRIVAL')?.reason || 'Permiso aprobado'
+          });
         } else {
           tardanzasInjustificadas++;
           trendMap[dateStr].tardanzas++;
+          tardanzasList.push({
+            id: att.id,
+            employeeId: att.employeeId,
+            empleado: `${att.employee?.firstName || ''} ${att.employee?.lastName || ''}`.trim() || 'Empleado',
+            departamento: att.employee?.department?.name || 'General',
+            fecha: dateStr,
+            entrada: att.entrada ? new Date(att.entrada).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: tz }) : 'N/A',
+            minutosTarde: minsLate || 0,
+            tipo: 'Tardanza Injustificada',
+            motivo: 'Llegada fuera de horario'
+          });
         }
       } else {
         aTiempo++;
         trendMap[dateStr].aTiempo++;
+      }
+
+      // Horas extra registradas directamente en la asistencia
+      if (att.overtimeMinutes && att.overtimeMinutes > 0) {
+        const alreadyInList = horasExtraList.some(h => h.employeeId === att.employeeId && h.fecha === dateStr);
+        if (!alreadyInList) {
+          horasExtraMinutos += att.overtimeMinutes;
+          horasExtraList.push({
+            id: `att-ot-${att.id}`,
+            employeeId: att.employeeId,
+            empleado: `${att.employee?.firstName || ''} ${att.employee?.lastName || ''}`.trim() || 'Empleado',
+            departamento: att.employee?.department?.name || 'General',
+            fecha: dateStr,
+            minutos: att.overtimeMinutes,
+            horas: +(att.overtimeMinutes / 60).toFixed(1),
+            motivo: 'Horas extra en jornada',
+            aprobadoPor: 'Sistema'
+          });
+        }
       }
 
       if (att.entrada) {
@@ -300,7 +398,19 @@ router.get('/kpis', async (req, res) => {
     }
 
     // Detectar Ausencias (Días hábiles sin asistencia ni justificación)
-    const activeEmployees = await prisma.employee.findMany({ where: { isActive: true }, select: { id: true } });
+    const empWhere = { isActive: true };
+    if (department && department !== 'Todos los departamentos') {
+      empWhere.department = { name: department };
+    }
+    const activeEmployees = await prisma.employee.findMany({ 
+      where: empWhere, 
+      select: { 
+        id: true,
+        firstName: true,
+        lastName: true,
+        department: { select: { name: true } }
+      } 
+    });
     const empIds = activeEmployees.map(e => e.id);
     const { map: empShiftMap } = await getShiftCascadeForEmployees(empIds);
 
@@ -312,20 +422,50 @@ router.get('/kpis', async (req, res) => {
       if (!trendMap[dateStr]) trendMap[dateStr] = { aTiempo: 0, tardanzas: 0, ausencias: 0, justificados: 0 };
 
       if (isWorkingDay(currentDate)) {
-        for (const empId of empIds) {
-          if (empShiftMap[empId]) {
-            const key = `${empId}_${dateStr}`;
+        for (const emp of activeEmployees) {
+          if (empShiftMap[emp.id]) {
+            const key = `${emp.id}_${dateStr}`;
             if (!attendanceMap[key]) {
               const dayEvents = eventMap[key] || [];
-              const isJustified = dayEvents.some(e => e.type === 'VACATION' || e.type === 'JUSTIFIED_ABSENCE');
+              const isVacation = dayEvents.some(e => e.type === 'VACATION');
+              const isJustified = dayEvents.some(e => e.type === 'JUSTIFIED_ABSENCE');
               
-              if (isJustified) {
-                if (dayEvents.some(e => e.type === 'VACATION')) vacaciones++;
-                else faltasJustificadas++;
+              if (isVacation) {
+                vacaciones++;
                 trendMap[dateStr].justificados++;
+                ausenciasList.push({
+                  id: `abs-${emp.id}-${dateStr}`,
+                  employeeId: emp.id,
+                  empleado: `${emp.firstName} ${emp.lastName}`,
+                  departamento: emp.department?.name || 'General',
+                  fecha: dateStr,
+                  tipo: 'Vacaciones',
+                  motivo: dayEvents.find(e => e.type === 'VACATION')?.reason || 'Vacaciones'
+                });
+              } else if (isJustified) {
+                faltasJustificadas++;
+                trendMap[dateStr].justificados++;
+                ausenciasList.push({
+                  id: `abs-${emp.id}-${dateStr}`,
+                  employeeId: emp.id,
+                  empleado: `${emp.firstName} ${emp.lastName}`,
+                  departamento: emp.department?.name || 'General',
+                  fecha: dateStr,
+                  tipo: 'Falta Justificada',
+                  motivo: dayEvents.find(e => e.type === 'JUSTIFIED_ABSENCE')?.reason || 'Permiso aprobado'
+                });
               } else {
                 ausenciasInjustificadas++;
                 trendMap[dateStr].ausencias++;
+                ausenciasList.push({
+                  id: `abs-${emp.id}-${dateStr}`,
+                  employeeId: emp.id,
+                  empleado: `${emp.firstName} ${emp.lastName}`,
+                  departamento: emp.department?.name || 'General',
+                  fecha: dateStr,
+                  tipo: 'Ausencia Injustificada',
+                  motivo: 'Sin registro ni justificación'
+                });
               }
             }
           }
@@ -333,6 +473,10 @@ router.get('/kpis', async (req, res) => {
       }
       currentDate.setUTCDate(currentDate.getUTCDate() + 1);
     }
+
+    tardanzasList.sort((a, b) => b.fecha.localeCompare(a.fecha));
+    ausenciasList.sort((a, b) => b.fecha.localeCompare(a.fecha));
+    horasExtraList.sort((a, b) => b.fecha.localeCompare(a.fecha));
 
     const totalAttendance = aTiempo + tardanzasInjustificadas + tardanzasJustificadas;
     const puntualidadPct = totalAttendance > 0 ? Math.round(((aTiempo + tardanzasJustificadas) / totalAttendance) * 100) : 0;
@@ -378,7 +522,12 @@ router.get('/kpis', async (req, res) => {
         { name: "Tardanzas Justificadas", value: tardanzasJustificadas, color: "#f97316" }
       ],
       trend,
-      peakHours
+      peakHours,
+      lists: {
+        tardanzas: tardanzasList,
+        ausencias: ausenciasList,
+        horasExtra: horasExtraList
+      }
     });
 
   } catch (error) {
@@ -587,6 +736,50 @@ router.get('/attendance-consolidated', async (req, res) => {
           _timestamp: new Date(evt.dateStr).getTime()
         });
       }
+    }
+
+    // Incluir ausencias injustificadas para colaboradores activos en días hábiles
+    const activeEmps = await prisma.employee.findMany({
+      where: employeeId 
+        ? { id: employeeId, isActive: true } 
+        : { isActive: true, ...(department ? { department: { name: department } } : {}) },
+      select: { id: true, firstName: true, lastName: true, department: { select: { name: true } } }
+    });
+    const { map: activeShiftMap } = await getShiftCascadeForEmployees(activeEmps.map(e => e.id));
+
+    let curDate = new Date(start);
+    const endAbsence = new Date(end) > new Date() ? new Date() : new Date(end);
+
+    while (curDate <= endAbsence) {
+      const dStr = curDate.toISOString().split('T')[0];
+      if (isWorkingDay(curDate)) {
+        for (const emp of activeEmps) {
+          if (activeShiftMap[emp.id]) {
+            const k = `${emp.id}_${dStr}`;
+            if (!attendanceMap[k]) {
+              attendanceMap[k] = true;
+              unifiedList.push({
+                id: `unjustified-abs-${emp.id}-${dStr}`,
+                employeeId: emp.id,
+                empleado: `${emp.firstName} ${emp.lastName}`,
+                departamento: emp.department?.name || 'General',
+                fecha: dStr,
+                entrada: 'N/A',
+                salida: 'N/A',
+                horaEsperadaSalida: formatExpectedTime(activeShiftMap[emp.id]?.endTime || 'N/A'),
+                horasTrabajadas: '0',
+                estadoAsistencia: 'Ausencia',
+                horasExtra: false,
+                overtimeMinutes: 0,
+                lateDepartureWithoutOvertime: false,
+                eventos: [],
+                _timestamp: new Date(dStr).getTime()
+              });
+            }
+          }
+        }
+      }
+      curDate.setUTCDate(curDate.getUTCDate() + 1);
     }
 
     let finalData = unifiedList;
