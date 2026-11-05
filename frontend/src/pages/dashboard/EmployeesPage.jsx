@@ -21,6 +21,12 @@ const EmployeesPage = () => {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [departmentsList, setDepartmentsList] = useState([]);
 
+  // States for Real-Time Presence & Attendance
+  const [attendances, setAttendances] = useState([]);
+  const [refreshing, setRefreshing] = useState(false);
+  const [presenceFilter, setPresenceFilter] = useState('all'); // 'all' | 'inside' | 'exited' | 'absent'
+  const [biometricFilter, setBiometricFilter] = useState('all'); // 'all' | 'pending' | 'enrolled'
+
   // States for modal
   const [selectedEmployeeId, setSelectedEmployeeId] = useState(null);
   const [employeeDetails, setEmployeeDetails] = useState(null);
@@ -66,24 +72,23 @@ const EmployeesPage = () => {
     }
   };
 
-  const fetchEmployees = async () => {
+  const fetchEmployees = async (showLoading = true) => {
     try {
-      setLoading(true);
+      if (showLoading) setLoading(true);
+      else setRefreshing(true);
       setError(null);
       const token = localStorage.getItem('token');
       const tenantId = localStorage.getItem('tenantId');
+      const baseUrl = import.meta.env.VITE_API_URL || '';
       const headers = {
         'Authorization': `Bearer ${token}`,
         ...(tenantId ? { 'x-tenant-id': tenantId } : {})
       };
       
-      const [resEmp, resDep] = await Promise.all([
-        fetch(`${import.meta.env.VITE_API_URL || ''}/api/v1/employees`, {
-          headers
-        }),
-        fetch(`${import.meta.env.VITE_API_URL || ''}/api/v1/departments`, {
-          headers
-        })
+      const [resEmp, resDep, resAtt] = await Promise.all([
+        fetch(`${baseUrl}/api/v1/employees`, { headers }),
+        fetch(`${baseUrl}/api/v1/departments`, { headers }),
+        fetch(`${baseUrl}/api/v1/attendance`, { headers })
       ]);
 
       if (!resEmp.ok) {
@@ -98,19 +103,93 @@ const EmployeesPage = () => {
         const depData = await resDep.json();
         setDepartmentsList(depData);
       }
+
+      if (resAtt.ok) {
+        const attData = await resAtt.json();
+        const records = attData.records || (Array.isArray(attData) ? attData : []);
+        setAttendances(records);
+      }
     } catch (err) {
       console.error(err);
       setError(err.message);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
   useEffect(() => {
     if (!showRegistration) {
-      fetchEmployees();
+      fetchEmployees(true);
+      // Auto-refresco en vivo de presencia cada 30 segundos
+      const timer = setInterval(() => {
+        fetchEmployees(false);
+      }, 30000);
+      return () => clearInterval(timer);
     }
   }, [showRegistration]);
+
+  // Helpers de presencia en tiempo real
+  const getLocalDateStr = (date = new Date()) => {
+    const d = date instanceof Date ? date : new Date(date);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const todayStr = useMemo(() => getLocalDateStr(new Date()), []);
+
+  const matchesDate = (recordDate, targetDateStr) => {
+    if (!recordDate) return false;
+    if (typeof recordDate === 'string') {
+      return recordDate.startsWith(targetDateStr);
+    }
+    return getLocalDateStr(recordDate) === targetDateStr;
+  };
+
+  const formatHour = (isoStr) => {
+    if (!isoStr) return '';
+    try {
+      const d = new Date(isoStr);
+      return d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', hour12: false }) + ' hrs';
+    } catch {
+      return '';
+    }
+  };
+
+  // Mapeo indexado de asistencia de hoy por empleado
+  const todayAttendanceByEmpId = useMemo(() => {
+    const map = new Map();
+    (attendances || []).forEach(r => {
+      const isToday = matchesDate(r.date, todayStr) || (r.entrada && matchesDate(r.entrada, todayStr));
+      if (isToday && r.employeeId) {
+        const existing = map.get(r.employeeId);
+        // Priorizar registro abierto (salida == null)
+        if (!existing) {
+          map.set(r.employeeId, r);
+        } else if (!r.salida && existing.salida) {
+          map.set(r.employeeId, r);
+        } else if (new Date(r.createdAt || r.entrada || 0) > new Date(existing.createdAt || existing.entrada || 0)) {
+          if (!(!existing.salida && r.salida)) {
+            map.set(r.employeeId, r);
+          }
+        }
+      }
+    });
+    return map;
+  }, [attendances, todayStr]);
+
+  const getEmployeePresence = (empId) => {
+    const att = todayAttendanceByEmpId.get(empId);
+    if (!att || !att.entrada) {
+      return { status: 'absent', label: 'Sin registro hoy', sublabel: 'No ha ingresado', record: null };
+    }
+    if (!att.salida) {
+      return { status: 'inside', label: 'En instalaciones', sublabel: `Entrada: ${formatHour(att.entrada)}`, record: att };
+    }
+    return { status: 'exited', label: 'Turno concluido', sublabel: `Salida: ${formatHour(att.salida)}`, record: att };
+  };
 
   // Derive data
   const departments = useMemo(() => {
@@ -119,6 +198,23 @@ const EmployeesPage = () => {
       .filter(Boolean);
     return [...new Set(deps)];
   }, [employees]);
+
+  // Computed stats
+  const totalEmployees = employees.length;
+  const enrolledProfiles = employees.filter(emp => emp.faceDescriptor && emp.faceDescriptor !== '[]' && emp.faceDescriptor.length > 10).length;
+  const coverage = totalEmployees > 0 ? Math.round((enrolledProfiles / totalEmployees) * 100) : 0;
+
+  const staffInside = useMemo(() => {
+    return employees.filter(emp => getEmployeePresence(emp.id).status === 'inside').length;
+  }, [employees, todayAttendanceByEmpId]);
+
+  const staffExited = useMemo(() => {
+    return employees.filter(emp => getEmployeePresence(emp.id).status === 'exited').length;
+  }, [employees, todayAttendanceByEmpId]);
+
+  const staffAbsent = useMemo(() => {
+    return employees.filter(emp => getEmployeePresence(emp.id).status === 'absent').length;
+  }, [employees, todayAttendanceByEmpId]);
 
   const filteredEmployees = useMemo(() => {
     const filtered = employees.filter(emp => {
@@ -131,7 +227,25 @@ const EmployeesPage = () => {
       
       const matchDepartment = selectedDepartment ? emp.department?.name === selectedDepartment : true;
       
-      return matchSearch && matchDepartment;
+      const presence = getEmployeePresence(emp.id);
+      let matchPresence = true;
+      if (presenceFilter === 'inside') {
+        matchPresence = presence.status === 'inside';
+      } else if (presenceFilter === 'exited') {
+        matchPresence = presence.status === 'exited';
+      } else if (presenceFilter === 'absent') {
+        matchPresence = presence.status === 'absent';
+      }
+
+      let matchBiometric = true;
+      const hasBio = emp.faceDescriptor && emp.faceDescriptor !== '[]' && emp.faceDescriptor.length > 10;
+      if (biometricFilter === 'pending') {
+        matchBiometric = !hasBio;
+      } else if (biometricFilter === 'enrolled') {
+        matchBiometric = hasBio;
+      }
+
+      return matchSearch && matchDepartment && matchPresence && matchBiometric;
     });
 
     return filtered.sort((a, b) => {
@@ -139,7 +253,7 @@ const EmployeesPage = () => {
       const nameB = `${b.firstName} ${b.lastName}`.toLowerCase();
       return nameA.localeCompare(nameB);
     });
-  }, [employees, searchTerm, selectedDepartment]);
+  }, [employees, searchTerm, selectedDepartment, presenceFilter, biometricFilter, todayAttendanceByEmpId]);
 
   const handleRowClick = async (empId) => {
     setSelectedEmployeeId(empId);
@@ -184,14 +298,6 @@ const EmployeesPage = () => {
     }
   };
 
-  // Computed stats
-  const totalEmployees = employees.length;
-  const enrolledProfiles = employees.filter(emp => emp.faceDescriptor && emp.faceDescriptor !== '[]').length; // Basic logic
-  const coverage = totalEmployees > 0 ? Math.round((enrolledProfiles / totalEmployees) * 100) : 0;
-  
-  // Temporal for "Personal en Turno" until attendance is linked
-  const staffOnShift = employees.filter(emp => emp.isActive).length;
-
   if (showRegistration) {
     return (
       <div className="fade-in">
@@ -202,12 +308,33 @@ const EmployeesPage = () => {
 
   return (
     <div className="fade-in" style={{ paddingBottom: '2rem' }}>
-      {/* Header */}
       {/* Header & Tabs */}
       <div className="flex-mobile-col" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', gap: '1rem' }}>
         <div>
           <h2 style={{ color: '#fff', margin: 0, fontSize: '1.8rem' }}>Gestión de Personal</h2>
-          <p style={{ color: '#a1a1aa', margin: '0.5rem 0 0 0', fontSize: '0.95rem' }}>Administra empleados, departamentos y enrolamiento biométrico.</p>
+          <p style={{ color: '#a1a1aa', margin: '0.5rem 0 0 0', fontSize: '0.95rem' }}>Administra empleados, departamentos, enrolamiento biométrico y presencia en vivo.</p>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <button
+            onClick={() => fetchEmployees(false)}
+            title="Sincronizar datos de empleados y presencia en vivo"
+            style={{
+              background: '#27272a',
+              border: '1px solid #3f3f46',
+              color: '#e4e4e7',
+              borderRadius: '8px',
+              padding: '0.55rem 0.85rem',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              fontSize: '0.85rem',
+              transition: 'background 0.2s'
+            }}
+          >
+            <RefreshCw size={15} className={refreshing ? 'spin' : ''} />
+            <span>{refreshing ? 'Sincronizando...' : 'Actualizar'}</span>
+          </button>
         </div>
       </div>
 
@@ -227,7 +354,7 @@ const EmployeesPage = () => {
       </div>
 
       {activeTab === 'departamentos' ? (
-        <DepartmentsTab onDepartmentChange={fetchEmployees} />
+        <DepartmentsTab onDepartmentChange={() => fetchEmployees(false)} />
       ) : (
         <>
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1.5rem' }}>
@@ -239,10 +366,25 @@ const EmployeesPage = () => {
             </button>
           </div>
 
-      {/* Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
-        {/* Card 1 */}
-        <div className="card card-glow-blue" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', height: '170px', padding: '1.75rem' }}>
+      {/* Cards KPI Interactivos con Monitoreo en Vivo */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
+        {/* Card 1: Total Empleados */}
+        <div 
+          className="card card-glow-blue" 
+          onClick={() => { setPresenceFilter('all'); setBiometricFilter('all'); }}
+          style={{ 
+            display: 'flex', 
+            flexDirection: 'column', 
+            justifyContent: 'space-between', 
+            minHeight: '170px', 
+            padding: '1.75rem',
+            cursor: 'pointer',
+            border: presenceFilter === 'all' && biometricFilter === 'all' ? '2px solid rgba(59, 130, 246, 0.7)' : '1px solid #27272a',
+            transition: 'all 0.2s ease',
+            position: 'relative'
+          }}
+          title="Clic para ver todos los empleados"
+        >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span className="text-muted text-sm font-semibold">Total Empleados</span>
             <div className="icon-box" style={{ backgroundColor: 'rgba(59, 130, 246, 0.1)' }}>
@@ -250,13 +392,47 @@ const EmployeesPage = () => {
             </div>
           </div>
           <div>
-            {loading ? <Skeleton height="2.5rem" width="60px" /> : <h2 style={{ fontSize: '2.5rem', color: '#3b82f6', lineHeight: '1', margin: '0' }}>{totalEmployees || '—'}</h2>}
-            {loading ? <Skeleton height="1rem" width="110px" style={{ marginTop: '0.75rem' }} /> : <p className="text-xs text-muted mt-2" style={{ margin: '0.75rem 0 0 0' }}>Registrados en el sistema</p>}
+            {loading ? (
+              <Skeleton height="2.5rem" width="60px" />
+            ) : (
+              <h2 style={{ fontSize: '2.5rem', color: '#3b82f6', lineHeight: '1', margin: '0', fontWeight: 700 }}>
+                {totalEmployees || '—'}
+              </h2>
+            )}
+            {loading ? (
+              <Skeleton height="1rem" width="110px" style={{ marginTop: '0.75rem' }} />
+            ) : (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.75rem' }}>
+                <p className="text-xs text-muted" style={{ margin: 0 }}>Registrados en el sistema</p>
+                {presenceFilter === 'all' && biometricFilter === 'all' && (
+                  <span style={{ fontSize: '0.7rem', color: '#60a5fa', fontWeight: 600 }}>Todos</span>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Card 2 */}
-        <div className="card card-glow-yellow" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', height: '170px', padding: '1.75rem' }}>
+        {/* Card 2: Perfiles Biométricos Enrolados */}
+        <div 
+          className="card card-glow-yellow" 
+          onClick={() => {
+            setBiometricFilter(prev => prev === 'pending' ? 'all' : 'pending');
+            setPresenceFilter('all');
+          }}
+          style={{ 
+            display: 'flex', 
+            flexDirection: 'column', 
+            justifyContent: 'space-between', 
+            minHeight: '170px', 
+            padding: '1.75rem',
+            cursor: 'pointer',
+            border: biometricFilter === 'pending' ? '2px solid #eab308' : '1px solid #27272a',
+            boxShadow: biometricFilter === 'pending' ? '0 0 18px rgba(234, 179, 8, 0.25)' : 'none',
+            transition: 'all 0.2s ease',
+            position: 'relative'
+          }}
+          title="Clic para ver empleados pendientes de enrolamiento"
+        >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span className="text-muted text-sm font-semibold">Perfiles Biométricos Enrolados</span>
             <div className="icon-box" style={{ backgroundColor: 'rgba(234, 179, 8, 0.1)' }}>
@@ -264,28 +440,121 @@ const EmployeesPage = () => {
             </div>
           </div>
           <div>
-            {loading ? <Skeleton height="2.5rem" width="60px" /> : <h2 style={{ fontSize: '2.5rem', color: '#eab308', lineHeight: '1', margin: '0' }}>{enrolledProfiles || '—'}</h2>}
-            {loading ? <Skeleton height="1rem" width="100px" style={{ marginTop: '0.75rem' }} /> : <p className="text-xs text-muted mt-2" style={{ margin: '0.75rem 0 0 0' }}>{coverage}% de cobertura</p>}
+            {loading ? (
+              <Skeleton height="2.5rem" width="60px" />
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem' }}>
+                <h2 style={{ fontSize: '2.5rem', color: '#eab308', lineHeight: '1', margin: '0', fontWeight: 700 }}>
+                  {enrolledProfiles || '—'}
+                </h2>
+                {biometricFilter === 'pending' && (
+                  <span style={{ 
+                    marginLeft: 'auto', 
+                    fontSize: '0.68rem', 
+                    padding: '0.2rem 0.5rem', 
+                    background: 'rgba(234, 179, 8, 0.2)', 
+                    color: '#facc15', 
+                    borderRadius: '4px',
+                    fontWeight: 700
+                  }}>
+                    FILTRO: PENDIENTES
+                  </span>
+                )}
+              </div>
+            )}
+            {loading ? (
+              <Skeleton height="1rem" width="100px" style={{ marginTop: '0.75rem' }} />
+            ) : (
+              <p className="text-xs text-muted mt-2" style={{ margin: '0.75rem 0 0 0' }}>
+                {coverage}% de cobertura • <span style={{ color: totalEmployees - enrolledProfiles > 0 ? '#facc15' : '#a1a1aa' }}>{totalEmployees - enrolledProfiles} sin enrolar</span>
+              </p>
+            )}
           </div>
         </div>
 
-        {/* Card 3 */}
-        <div className="card card-glow-green" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', height: '170px', padding: '1.75rem' }}>
+        {/* Card 3: En Instalaciones Ahora (Tiempo Real Funcional) */}
+        <div 
+          className="card card-glow-green" 
+          onClick={() => {
+            setPresenceFilter(prev => prev === 'inside' ? 'all' : 'inside');
+            setBiometricFilter('all');
+          }}
+          style={{ 
+            display: 'flex', 
+            flexDirection: 'column', 
+            justifyContent: 'space-between', 
+            minHeight: '170px', 
+            padding: '1.75rem',
+            cursor: 'pointer',
+            border: presenceFilter === 'inside' ? '2px solid #10b981' : '1px solid #27272a',
+            boxShadow: presenceFilter === 'inside' ? '0 0 20px rgba(16, 185, 129, 0.25)' : 'none',
+            transition: 'all 0.2s ease',
+            position: 'relative'
+          }}
+          title="Clic para ver solo las personas que están en instalaciones ahora"
+        >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span className="text-muted text-sm font-semibold">Personal en Turno</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span className="text-muted text-sm font-semibold">En Instalaciones Ahora</span>
+              <span 
+                style={{ 
+                  display: 'inline-block', 
+                  width: '8px', 
+                  height: '8px', 
+                  borderRadius: '50%', 
+                  backgroundColor: '#10b981', 
+                  boxShadow: '0 0 8px #10b981'
+                }} 
+                title="Monitoreo en vivo"
+              />
+            </div>
             <div className="icon-box" style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)' }}>
               <Clock size={18} style={{ color: '#10b981' }} />
             </div>
           </div>
           <div>
-            {loading ? <Skeleton height="2.5rem" width="60px" /> : <h2 style={{ fontSize: '2.5rem', color: '#10b981', lineHeight: '1', margin: '0' }}>{staffOnShift || '—'}</h2>}
-            {loading ? <Skeleton height="1rem" width="120px" style={{ marginTop: '0.75rem' }} /> : <p className="text-xs text-muted mt-2" style={{ margin: '0.75rem 0 0 0' }}>En instalaciones ahora</p>}
+            {loading ? (
+              <Skeleton height="2.5rem" width="60px" />
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem' }}>
+                <h2 style={{ fontSize: '2.5rem', color: '#10b981', lineHeight: '1', margin: '0', fontWeight: 700 }}>
+                  {staffInside}
+                </h2>
+                <span style={{ color: '#a1a1aa', fontSize: '1rem', fontWeight: 500 }}>
+                  de {totalEmployees}
+                </span>
+                {presenceFilter === 'inside' && (
+                  <span style={{ 
+                    marginLeft: 'auto', 
+                    fontSize: '0.68rem', 
+                    padding: '0.2rem 0.5rem', 
+                    background: 'rgba(16, 185, 129, 0.2)', 
+                    color: '#34d399', 
+                    borderRadius: '4px',
+                    fontWeight: 700
+                  }}>
+                    FILTRO ACTIVO
+                  </span>
+                )}
+              </div>
+            )}
+            {loading ? (
+              <Skeleton height="1rem" width="120px" style={{ marginTop: '0.75rem' }} />
+            ) : (
+              <div style={{ marginTop: '0.65rem', fontSize: '0.75rem', color: '#a1a1aa', display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                <span style={{ color: '#34d399', fontWeight: 600 }}>● {staffInside} en planta</span>
+                <span>•</span>
+                <span style={{ color: '#f59e0b' }}>{staffExited} salieron</span>
+                <span>•</span>
+                <span style={{ color: '#71717a' }}>{staffAbsent} sin registro</span>
+              </div>
+            )}
           </div>
         </div>
       </div>
 
       {/* Search & Filters */}
-      <div className="flex-mobile-col" style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem' }}>
+      <div className="flex-mobile-col" style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
         <div className="mobile-w-full" style={{ position: 'relative', flex: 1, maxWidth: '400px' }}>
           <Search size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: '#a1a1aa' }} />
           <input 
@@ -303,7 +572,7 @@ const EmployeesPage = () => {
             style={{ ...btnSecondary, display: 'flex', alignItems: 'center', gap: '0.5rem' }}
             className="mobile-w-full justify-center"
           >
-            <Filter size={18} /> Filtrar por Departamento
+            <Filter size={18} /> {selectedDepartment ? `Área: ${selectedDepartment}` : 'Filtrar por Departamento'}
           </button>
           
           {isFilterOpen && (
@@ -328,6 +597,145 @@ const EmployeesPage = () => {
         </div>
       </div>
 
+      {/* Quick Filter Pills (Filtros Rápidos Interactivos) */}
+      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center', marginBottom: '1.5rem' }}>
+        <span style={{ fontSize: '0.78rem', color: '#71717a', marginRight: '0.25rem', fontWeight: 500 }}>Filtro rápido:</span>
+        <button
+          onClick={() => { setPresenceFilter('all'); setBiometricFilter('all'); }}
+          style={{
+            padding: '0.3rem 0.75rem',
+            borderRadius: '999px',
+            fontSize: '0.78rem',
+            cursor: 'pointer',
+            border: (presenceFilter === 'all' && biometricFilter === 'all') ? '1px solid #3b82f6' : '1px solid #27272a',
+            background: (presenceFilter === 'all' && biometricFilter === 'all') ? 'rgba(59, 130, 246, 0.15)' : '#18181b',
+            color: (presenceFilter === 'all' && biometricFilter === 'all') ? '#60a5fa' : '#a1a1aa',
+            fontWeight: (presenceFilter === 'all' && biometricFilter === 'all') ? 600 : 400,
+            transition: 'all 0.15s ease'
+          }}
+        >
+          Todos ({totalEmployees})
+        </button>
+        <button
+          onClick={() => {
+            setPresenceFilter(prev => prev === 'inside' ? 'all' : 'inside');
+            setBiometricFilter('all');
+          }}
+          style={{
+            padding: '0.3rem 0.75rem',
+            borderRadius: '999px',
+            fontSize: '0.78rem',
+            cursor: 'pointer',
+            border: presenceFilter === 'inside' ? '1px solid #10b981' : '1px solid #27272a',
+            background: presenceFilter === 'inside' ? 'rgba(16, 185, 129, 0.15)' : '#18181b',
+            color: presenceFilter === 'inside' ? '#34d399' : '#a1a1aa',
+            fontWeight: presenceFilter === 'inside' ? 600 : 400,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.4rem',
+            transition: 'all 0.15s ease'
+          }}
+        >
+          <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981' }} />
+          En instalaciones ({staffInside})
+        </button>
+        <button
+          onClick={() => {
+            setPresenceFilter(prev => prev === 'exited' ? 'all' : 'exited');
+            setBiometricFilter('all');
+          }}
+          style={{
+            padding: '0.3rem 0.75rem',
+            borderRadius: '999px',
+            fontSize: '0.78rem',
+            cursor: 'pointer',
+            border: presenceFilter === 'exited' ? '1px solid #f59e0b' : '1px solid #27272a',
+            background: presenceFilter === 'exited' ? 'rgba(245, 158, 11, 0.15)' : '#18181b',
+            color: presenceFilter === 'exited' ? '#fbbf24' : '#a1a1aa',
+            fontWeight: presenceFilter === 'exited' ? 600 : 400,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.4rem',
+            transition: 'all 0.15s ease'
+          }}
+        >
+          <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#f59e0b' }} />
+          Turno concluido ({staffExited})
+        </button>
+        <button
+          onClick={() => {
+            setPresenceFilter(prev => prev === 'absent' ? 'all' : 'absent');
+            setBiometricFilter('all');
+          }}
+          style={{
+            padding: '0.3rem 0.75rem',
+            borderRadius: '999px',
+            fontSize: '0.78rem',
+            cursor: 'pointer',
+            border: presenceFilter === 'absent' ? '1px solid #ef4444' : '1px solid #27272a',
+            background: presenceFilter === 'absent' ? 'rgba(239, 68, 68, 0.15)' : '#18181b',
+            color: presenceFilter === 'absent' ? '#f87171' : '#a1a1aa',
+            fontWeight: presenceFilter === 'absent' ? 600 : 400,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.4rem',
+            transition: 'all 0.15s ease'
+          }}
+        >
+          <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#71717a' }} />
+          Sin registro hoy ({staffAbsent})
+        </button>
+        <button
+          onClick={() => {
+            setBiometricFilter(prev => prev === 'pending' ? 'all' : 'pending');
+            setPresenceFilter('all');
+          }}
+          style={{
+            padding: '0.3rem 0.75rem',
+            borderRadius: '999px',
+            fontSize: '0.78rem',
+            cursor: 'pointer',
+            border: biometricFilter === 'pending' ? '1px solid #eab308' : '1px solid #27272a',
+            background: biometricFilter === 'pending' ? 'rgba(234, 179, 8, 0.15)' : '#18181b',
+            color: biometricFilter === 'pending' ? '#facc15' : '#a1a1aa',
+            fontWeight: biometricFilter === 'pending' ? 600 : 400,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.4rem',
+            transition: 'all 0.15s ease'
+          }}
+        >
+          <Fingerprint size={12} />
+          Sin biometría ({totalEmployees - enrolledProfiles})
+        </button>
+
+        {(presenceFilter !== 'all' || biometricFilter !== 'all' || selectedDepartment || searchTerm) && (
+          <button
+            onClick={() => {
+              setPresenceFilter('all');
+              setBiometricFilter('all');
+              setSelectedDepartment('');
+              setSearchTerm('');
+            }}
+            style={{
+              padding: '0.3rem 0.65rem',
+              borderRadius: '999px',
+              fontSize: '0.75rem',
+              cursor: 'pointer',
+              border: 'none',
+              background: 'rgba(239, 68, 68, 0.12)',
+              color: '#ef4444',
+              marginLeft: 'auto',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.3rem'
+            }}
+          >
+            Limpiar filtros ✕
+          </button>
+        )}
+      </div>
+
       {/* State Handlers & Table */}
       {error ? (
         <div style={{ padding: '2rem', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', borderRadius: '12px', border: '1px solid rgba(239, 68, 68, 0.2)', textAlign: 'center' }}>
@@ -347,8 +755,9 @@ const EmployeesPage = () => {
                   <th style={thStyle}>Empleado</th>
                   <th style={thStyle}>Departamento / Cargo</th>
                   <th style={thStyle}>Estado Biométrico</th>
+                  <th style={thStyle}>Presencia Hoy</th>
                   <th style={thStyle}>Estado Laboral</th>
-                  <th style={thStyle}>Acciones</th>
+                  <th style={{ ...thStyle, textAlign: 'center' }}>Acciones</th>
                 </tr>
               </thead>
               <tbody>
@@ -357,6 +766,7 @@ const EmployeesPage = () => {
                     <td style={tdStyle}><Skeleton height="40px" width="150px" /></td>
                     <td style={tdStyle}><Skeleton height="40px" width="120px" /></td>
                     <td style={tdStyle}><Skeleton height="24px" width="80px" borderRadius="12px" /></td>
+                    <td style={tdStyle}><Skeleton height="24px" width="105px" borderRadius="12px" /></td>
                     <td style={tdStyle}><Skeleton height="24px" width="60px" borderRadius="12px" /></td>
                     <td style={tdStyle}><Skeleton height="24px" width="24px" /></td>
                   </tr>
@@ -383,6 +793,7 @@ const EmployeesPage = () => {
                 <th style={thStyle}>Empleado</th>
                 <th style={thStyle}>Departamento / Cargo</th>
                 <th style={thStyle}>Estado Biométrico</th>
+                <th style={thStyle}>Presencia Hoy</th>
                 <th style={thStyle}>Estado Laboral</th>
                 <th style={{ ...thStyle, textAlign: 'center' }}>Acciones</th>
               </tr>
@@ -390,7 +801,7 @@ const EmployeesPage = () => {
             <tbody>
               {filteredEmployees.length === 0 ? (
                 <tr>
-                  <td colSpan="5" style={{ padding: '3rem', textAlign: 'center', color: '#a1a1aa' }}>
+                  <td colSpan="6" style={{ padding: '3rem', textAlign: 'center', color: '#a1a1aa' }}>
                     No se encontraron empleados que coincidan con la búsqueda.
                   </td>
                 </tr>
@@ -483,6 +894,80 @@ const EmployeesPage = () => {
                             Pendiente
                           </span>
                         )}
+                      </td>
+                      {/* Presencia Hoy */}
+                      <td style={tdStyle}>
+                        {(() => {
+                          const presence = getEmployeePresence(emp.id);
+                          if (presence.status === 'inside') {
+                            return (
+                              <div style={{ display: 'inline-flex', flexDirection: 'column', gap: '3px' }}>
+                                <span style={{ 
+                                  display: 'inline-flex', 
+                                  alignItems: 'center', 
+                                  gap: '0.4rem', 
+                                  padding: '0.2rem 0.65rem', 
+                                  background: 'rgba(16, 185, 129, 0.12)', 
+                                  color: '#10b981', 
+                                  borderRadius: '999px', 
+                                  fontSize: '0.75rem', 
+                                  fontWeight: 600, 
+                                  border: '1px solid rgba(16, 185, 129, 0.3)',
+                                  width: 'fit-content'
+                                }}>
+                                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981', boxShadow: '0 0 6px #10b981' }} />
+                                  En planta
+                                </span>
+                                <span style={{ fontSize: '0.7rem', color: '#a1a1aa', paddingLeft: '0.25rem' }}>
+                                  {presence.sublabel}
+                                </span>
+                              </div>
+                            );
+                          }
+                          if (presence.status === 'exited') {
+                            return (
+                              <div style={{ display: 'inline-flex', flexDirection: 'column', gap: '3px' }}>
+                                <span style={{ 
+                                  display: 'inline-flex', 
+                                  alignItems: 'center', 
+                                  gap: '0.4rem', 
+                                  padding: '0.2rem 0.65rem', 
+                                  background: 'rgba(234, 179, 8, 0.12)', 
+                                  color: '#facc15', 
+                                  borderRadius: '999px', 
+                                  fontSize: '0.75rem', 
+                                  fontWeight: 500, 
+                                  border: '1px solid rgba(234, 179, 8, 0.3)',
+                                  width: 'fit-content'
+                                }}>
+                                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#eab308' }} />
+                                  Turno concluido
+                                </span>
+                                <span style={{ fontSize: '0.7rem', color: '#a1a1aa', paddingLeft: '0.25rem' }}>
+                                  {presence.sublabel}
+                                </span>
+                              </div>
+                            );
+                          }
+                          return (
+                            <span style={{ 
+                              display: 'inline-flex', 
+                              alignItems: 'center', 
+                              gap: '0.4rem', 
+                              padding: '0.2rem 0.65rem', 
+                              background: 'rgba(255, 255, 255, 0.04)', 
+                              color: '#71717a', 
+                              borderRadius: '999px', 
+                              fontSize: '0.75rem', 
+                              fontWeight: 500, 
+                              border: '1px solid rgba(255, 255, 255, 0.08)',
+                              width: 'fit-content'
+                            }}>
+                              <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#52525b' }} />
+                              Sin registro hoy
+                            </span>
+                          );
+                        })()}
                       </td>
                       <td style={tdStyle}>
                         <span style={{ padding: '0.25rem 0.75rem', background: emp.isActive ? 'rgba(59, 130, 246, 0.1)' : 'rgba(239, 68, 68, 0.1)', color: emp.isActive ? '#3b82f6' : '#ef4444', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 500, border: `1px solid ${emp.isActive ? 'rgba(59, 130, 246, 0.2)' : 'rgba(239, 68, 68, 0.2)'}` }}>
@@ -577,6 +1062,37 @@ const EmployeesPage = () => {
                     </div>
                   </div>
                   
+                  <div style={{ marginBottom: '1.5rem' }}>
+                    <h5 style={{ margin: '0 0 0.5rem 0', color: '#a1a1aa', fontSize: '0.9rem' }}>Presencia Hoy ({todayStr})</h5>
+                    {(() => {
+                      const presence = getEmployeePresence(employeeDetails.id);
+                      if (presence.status === 'inside') {
+                        return (
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', padding: '0.4rem 0.85rem', background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', borderRadius: '8px', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+                            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981', boxShadow: '0 0 8px #10b981' }} />
+                            <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>En instalaciones ahora</span>
+                            <span style={{ color: '#e4e4e7', fontSize: '0.8rem' }}>({presence.sublabel})</span>
+                          </div>
+                        );
+                      }
+                      if (presence.status === 'exited') {
+                        return (
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', padding: '0.4rem 0.85rem', background: 'rgba(234, 179, 8, 0.15)', color: '#facc15', borderRadius: '8px', border: '1px solid rgba(234, 179, 8, 0.3)' }}>
+                            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#eab308' }} />
+                            <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>Turno concluido</span>
+                            <span style={{ color: '#e4e4e7', fontSize: '0.8rem' }}>({presence.sublabel})</span>
+                          </div>
+                        );
+                      }
+                      return (
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', padding: '0.4rem 0.85rem', background: 'rgba(255, 255, 255, 0.05)', color: '#a1a1aa', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
+                          <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#71717a' }} />
+                          <span style={{ fontSize: '0.85rem' }}>Sin registro el día de hoy</span>
+                        </div>
+                      );
+                    })()}
+                  </div>
+
                   <div style={{ marginBottom: '1.5rem' }}>
                     <h5 style={{ margin: '0 0 0.5rem 0', color: '#a1a1aa', fontSize: '0.9rem' }}>Estado Biométrico</h5>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
