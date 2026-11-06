@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   Download, RefreshCw, AlertCircle, Clock, CheckCircle, 
-  UserX, Camera, Server, Activity, Users, Search, ChevronRight,
+  UserX, Camera, Server, Activity, Users, Search, ChevronRight, ChevronDown,
   Filter, Zap, ArrowUpRight, TrendingUp, Calendar, CalendarDays, FileText, CheckCircle2, X
 } from 'lucide-react';
 import { 
@@ -19,7 +19,8 @@ const COLORS = {
   dark: '#1e1e1e',
   darker: '#121212',
   border: '#3f3f46',
-  text: '#fff',
+  text: '#ffffff',
+  textPrimary: '#ffffff',
   textMuted: '#a1a1aa'
 };
 
@@ -880,6 +881,31 @@ const ReportsPage = () => {
     }).sort((a, b) => (a.firstName || '').localeCompare(b.firstName || ''));
   }, [employees, selectedDept]);
 
+  const [employeeSearchTerm, setEmployeeSearchTerm] = useState('');
+  const [isEmpDropdownOpen, setIsEmpDropdownOpen] = useState(false);
+  const empDropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (empDropdownRef.current && !empDropdownRef.current.contains(event.target)) {
+        setIsEmpDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const searchedEmployees = useMemo(() => {
+    if (!employeeSearchTerm.trim()) return availableEmployees;
+    const term = employeeSearchTerm.toLowerCase().trim();
+    return availableEmployees.filter(emp => {
+      const fullName = `${emp.firstName || ''} ${emp.lastName || ''}`.toLowerCase();
+      const identifier = (emp.identifier || '').toLowerCase();
+      const dept = (emp.department?.name || '').toLowerCase();
+      return fullName.includes(term) || identifier.includes(term) || dept.includes(term);
+    });
+  }, [availableEmployees, employeeSearchTerm]);
+
   const hasActiveFilters = 
     selectedDept !== 'Todos los departamentos' || 
     selectedEmployee !== 'Todos los colaboradores' || 
@@ -894,6 +920,7 @@ const ReportsPage = () => {
     setCustomEnd('');
     setSelectedDept('Todos los departamentos');
     setSelectedEmployee('Todos los colaboradores');
+    setEmployeeSearchTerm('');
     setSelectedStatus('Todos los estados');
     setSelectedEventType('Todos los tipos');
     setSelectedEventStatus('Todos los estados');
@@ -1092,22 +1119,22 @@ const ReportsPage = () => {
       <div className="no-print" style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', background: COLORS.darker, padding: '1rem', borderRadius: '12px', border: `1px solid ${COLORS.border}`, alignItems: 'center', flexWrap: 'wrap' }}>
         
         <select 
-          style={selectStyle} 
+          style={{ ...selectStyle, background: '#18181b', color: '#ffffff' }} 
           value={dateRange}
           onChange={(e) => setDateRange(e.target.value)}
         >
-          <option>Hoy</option>
-          <option>Últimos 7 días</option>
-          <option>Este Mes</option>
-          <option>Este Año</option>
-          <option>Personalizado</option>
+          <option style={{ background: '#18181b', color: '#fff' }}>Hoy</option>
+          <option style={{ background: '#18181b', color: '#fff' }}>Últimos 7 días</option>
+          <option style={{ background: '#18181b', color: '#fff' }}>Este Mes</option>
+          <option style={{ background: '#18181b', color: '#fff' }}>Este Año</option>
+          <option style={{ background: '#18181b', color: '#fff' }}>Personalizado</option>
         </select>
 
         {dateRange === 'Personalizado' && (
           <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
             <input 
               type="date" 
-              style={selectStyle} 
+              style={{ ...selectStyle, background: '#18181b', color: '#ffffff' }} 
               value={customStart}
               max={customEnd || undefined}
               onChange={(e) => setCustomStart(e.target.value)}
@@ -1115,7 +1142,7 @@ const ReportsPage = () => {
             <span style={{ color: COLORS.textMuted }}>-</span>
             <input 
               type="date" 
-              style={selectStyle} 
+              style={{ ...selectStyle, background: '#18181b', color: '#ffffff' }} 
               value={customEnd}
               min={customStart || undefined}
               onChange={(e) => setCustomEnd(e.target.value)}
@@ -1127,8 +1154,9 @@ const ReportsPage = () => {
           <select 
             style={{
               ...selectStyle,
+              background: '#18181b',
               borderColor: selectedDept !== 'Todos los departamentos' ? COLORS.orange : COLORS.border,
-              color: selectedDept !== 'Todos los departamentos' ? COLORS.orange : COLORS.textPrimary
+              color: selectedDept !== 'Todos los departamentos' ? COLORS.orange : '#ffffff'
             }} 
             value={selectedDept}
             onChange={(e) => {
@@ -1138,107 +1166,338 @@ const ReportsPage = () => {
                 const emp = employees.find(x => x.id === selectedEmployee);
                 if (emp && emp.department?.name !== newDept) {
                   setSelectedEmployee('Todos los colaboradores');
+                  setEmployeeSearchTerm('');
                 }
               }
             }}
             title="Filtrar por Departamento"
           >
-            <option>Todos los departamentos</option>
-            {departments.map(d => <option key={d}>{d}</option>)}
+            <option value="Todos los departamentos" style={{ background: '#18181b', color: '#fff' }}>Todos los departamentos</option>
+            {departments.map(d => <option key={d} value={d} style={{ background: '#18181b', color: '#fff' }}>{d}</option>)}
           </select>
         )}
 
+        {/* Selector Interactivo de Colaborador con Buscador en Tiempo Real */}
         {activeTab !== 'dispositivos' && (
-          <select 
-            style={{
-              ...selectStyle,
-              borderColor: selectedEmployee !== 'Todos los colaboradores' ? COLORS.orange : COLORS.border,
-              color: selectedEmployee !== 'Todos los colaboradores' ? COLORS.orange : COLORS.textPrimary,
-              fontWeight: selectedEmployee !== 'Todos los colaboradores' ? 600 : 400,
-              maxWidth: '240px'
-            }} 
-            value={selectedEmployee}
-            onChange={(e) => setSelectedEmployee(e.target.value)}
-            title="Seleccionar un colaborador para generar reporte individual"
-          >
-            <option value="Todos los colaboradores">Todos los colaboradores</option>
-            {availableEmployees.map(emp => (
-              <option key={emp.id} value={emp.id} style={{ background: '#18181b', color: '#fff' }}>
-                {emp.firstName} {emp.lastName} {selectedDept === 'Todos los departamentos' && emp.department?.name ? `(${emp.department.name})` : ''}
-              </option>
-            ))}
-          </select>
+          <div ref={empDropdownRef} style={{ position: 'relative' }}>
+            {selectedEmployee !== 'Todos los colaboradores' && (() => {
+              const selectedEmpObj = employees.find(e => e.id === selectedEmployee);
+              if (!selectedEmpObj) return null;
+              return (
+                <div 
+                  onClick={() => setIsEmpDropdownOpen(prev => !prev)}
+                  style={{
+                    ...selectStyle,
+                    borderColor: COLORS.orange,
+                    background: 'rgba(249, 115, 22, 0.12)',
+                    color: COLORS.orange,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '0.45rem 0.85rem',
+                    fontWeight: 600,
+                    fontSize: '0.88rem',
+                    cursor: 'pointer',
+                    userSelect: 'none'
+                  }}
+                  title="Clic para cambiar o buscar otro colaborador"
+                >
+                  <div style={{
+                    width: '24px', height: '24px', borderRadius: '50%',
+                    background: 'rgba(249, 115, 22, 0.25)', color: COLORS.orange,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: '0.75rem', fontWeight: 700
+                  }}>
+                    {selectedEmpObj.firstName?.[0] || 'C'}
+                  </div>
+                  <span style={{ maxWidth: '170px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {selectedEmpObj.firstName} {selectedEmpObj.lastName}
+                  </span>
+                  {selectedEmpObj.department?.name && (
+                    <span style={{ fontSize: '0.72rem', color: '#fed7aa', background: 'rgba(249, 115, 22, 0.25)', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>
+                      {selectedEmpObj.department.name}
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedEmployee('Todos los colaboradores');
+                      setEmployeeSearchTerm('');
+                    }}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: COLORS.orange,
+                      cursor: 'pointer',
+                      padding: '2px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      marginLeft: '4px'
+                    }}
+                    title="Restablecer a todos los colaboradores"
+                  >
+                    <X size={15} />
+                  </button>
+                </div>
+              );
+            })()}
+
+            {selectedEmployee === 'Todos los colaboradores' && (
+              <div 
+                onClick={() => setIsEmpDropdownOpen(prev => !prev)}
+                style={{
+                  ...selectStyle,
+                  borderColor: COLORS.border,
+                  background: '#18181b',
+                  color: '#ffffff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '0.55rem 0.95rem',
+                  fontSize: '0.88rem',
+                  cursor: 'pointer',
+                  userSelect: 'none',
+                  minWidth: '220px'
+                }}
+                title="Buscar y seleccionar un colaborador individual"
+              >
+                <Users size={16} style={{ color: COLORS.textMuted }} />
+                <span style={{ flex: 1, color: '#ffffff' }}>Todos los colaboradores</span>
+                <Search size={14} style={{ color: COLORS.textMuted }} />
+                <ChevronDown size={14} style={{ color: COLORS.textMuted }} />
+              </div>
+            )}
+
+            {isEmpDropdownOpen && (
+              <div style={{
+                position: 'absolute',
+                top: 'calc(100% + 6px)',
+                left: 0,
+                width: '320px',
+                background: '#1c1c21',
+                border: `1px solid ${COLORS.border}`,
+                borderRadius: '10px',
+                boxShadow: '0 16px 36px rgba(0,0,0,0.85)',
+                zIndex: 1000,
+                padding: '0.65rem',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.5rem'
+              }}>
+                {/* Campo de búsqueda integrado */}
+                <div style={{ position: 'relative' }}>
+                  <Search size={15} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: COLORS.textMuted }} />
+                  <input
+                    autoFocus
+                    type="text"
+                    placeholder="Buscar por nombre, ID o depto..."
+                    value={employeeSearchTerm}
+                    onChange={(e) => setEmployeeSearchTerm(e.target.value)}
+                    style={{
+                      width: '100%',
+                      background: '#121212',
+                      border: `1px solid ${COLORS.border}`,
+                      color: '#ffffff',
+                      borderRadius: '6px',
+                      padding: '0.55rem 0.75rem 0.55rem 2.25rem',
+                      fontSize: '0.85rem',
+                      outline: 'none',
+                      boxSizing: 'border-box'
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                  {employeeSearchTerm && (
+                    <button
+                      onClick={() => setEmployeeSearchTerm('')}
+                      style={{
+                        position: 'absolute',
+                        right: '0.5rem',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        background: 'transparent',
+                        border: 'none',
+                        color: COLORS.textMuted,
+                        cursor: 'pointer',
+                        padding: '2px'
+                      }}
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+
+                {/* Opción 'Todos los colaboradores' */}
+                <div
+                  onClick={() => {
+                    setSelectedEmployee('Todos los colaboradores');
+                    setIsEmpDropdownOpen(false);
+                    setEmployeeSearchTerm('');
+                  }}
+                  style={{
+                    padding: '0.55rem 0.75rem',
+                    borderRadius: '6px',
+                    background: selectedEmployee === 'Todos los colaboradores' ? 'rgba(249, 115, 22, 0.15)' : 'transparent',
+                    color: selectedEmployee === 'Todos los colaboradores' ? COLORS.orange : '#e4e4e7',
+                    fontWeight: selectedEmployee === 'Todos los colaboradores' ? 600 : 400,
+                    fontSize: '0.85rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    transition: 'background 0.15s'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = selectedEmployee === 'Todos los colaboradores' ? 'rgba(249, 115, 22, 0.15)' : 'transparent'}
+                >
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Users size={15} /> Todos los colaboradores
+                  </span>
+                  {selectedEmployee === 'Todos los colaboradores' && <CheckCircle2 size={15} style={{ color: COLORS.orange }} />}
+                </div>
+
+                <div style={{ height: '1px', background: 'rgba(255,255,255,0.08)', margin: '0.1rem 0' }} />
+
+                {/* Lista scrollable de colaboradores */}
+                <div style={{ maxHeight: '240px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                  {searchedEmployees.length === 0 ? (
+                    <div style={{ padding: '1rem', textAlign: 'center', color: COLORS.textMuted, fontSize: '0.82rem' }}>
+                      No se encontraron colaboradores coincidentes
+                    </div>
+                  ) : (
+                    searchedEmployees.map(emp => {
+                      const isSelected = selectedEmployee === emp.id;
+                      return (
+                        <div
+                          key={emp.id}
+                          onClick={() => {
+                            setSelectedEmployee(emp.id);
+                            setIsEmpDropdownOpen(false);
+                            setEmployeeSearchTerm('');
+                          }}
+                          style={{
+                            padding: '0.5rem 0.75rem',
+                            borderRadius: '6px',
+                            background: isSelected ? 'rgba(249, 115, 22, 0.15)' : 'transparent',
+                            color: isSelected ? COLORS.orange : '#ffffff',
+                            fontSize: '0.85rem',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: '8px',
+                            transition: 'background 0.15s'
+                          }}
+                          onMouseEnter={(e) => {
+                            if (!isSelected) e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
+                          }}
+                          onMouseLeave={(e) => {
+                            if (!isSelected) e.currentTarget.style.background = 'transparent';
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                            <div style={{
+                              width: '26px', height: '26px', borderRadius: '50%',
+                              background: isSelected ? 'rgba(249, 115, 22, 0.3)' : 'rgba(255,255,255,0.1)',
+                              color: isSelected ? COLORS.orange : '#e4e4e7',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              fontSize: '0.75rem', fontWeight: 700, flexShrink: 0
+                            }}>
+                              {emp.firstName?.[0] || 'C'}{emp.lastName?.[0] || ''}
+                            </div>
+                            <div style={{ minWidth: 0 }}>
+                              <div style={{ fontWeight: isSelected ? 600 : 500, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {emp.firstName} {emp.lastName}
+                              </div>
+                              <div style={{ fontSize: '0.72rem', color: COLORS.textMuted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {emp.department?.name ? `${emp.department.name} • ` : ''}{emp.identifier || emp.email || 'N/A'}
+                              </div>
+                            </div>
+                          </div>
+                          {isSelected && <CheckCircle2 size={15} style={{ color: COLORS.orange, flexShrink: 0 }} />}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '0.4rem', paddingLeft: '0.4rem', color: COLORS.textMuted, fontSize: '0.72rem' }}>
+                  Mostrando {searchedEmployees.length} de {availableEmployees.length} colaboradores
+                </div>
+              </div>
+            )}
+          </div>
         )}
 
         {activeTab === 'asistencia' && (
           <select 
-            style={selectStyle} 
+            style={{ ...selectStyle, background: '#18181b', color: '#ffffff' }} 
             value={selectedStatus}
             onChange={(e) => setSelectedStatus(e.target.value)}
           >
-            <option>Todos los estados</option>
-            <option>A tiempo</option>
-            <option>Tardanza</option>
-            <option>Ausencia</option>
-            <option>Falta Justificada</option>
-            <option>Vacaciones</option>
-            <option>Salida Tardía Sin Justificar</option>
-            <option>Horas Extra</option>
+            <option style={{ background: '#18181b', color: '#fff' }}>Todos los estados</option>
+            <option style={{ background: '#18181b', color: '#fff' }}>A tiempo</option>
+            <option style={{ background: '#18181b', color: '#fff' }}>Tardanza</option>
+            <option style={{ background: '#18181b', color: '#fff' }}>Ausencia</option>
+            <option style={{ background: '#18181b', color: '#fff' }}>Falta Justificada</option>
+            <option style={{ background: '#18181b', color: '#fff' }}>Vacaciones</option>
+            <option style={{ background: '#18181b', color: '#fff' }}>Salida Tardía Sin Justificar</option>
+            <option style={{ background: '#18181b', color: '#fff' }}>Horas Extra</option>
           </select>
         )}
         {activeTab === 'descansos' && (
           <select 
-            style={selectStyle} 
+            style={{ ...selectStyle, background: '#18181b', color: '#ffffff' }} 
             value={selectedStatus}
             onChange={(e) => setSelectedStatus(e.target.value)}
           >
-            <option>Todos los estados</option>
-            <option>A tiempo</option>
-            <option>Regreso Tardío</option>
-            <option>Sin Retorno</option>
-            <option>No tomado</option>
-            <option>Vacaciones</option>
-            <option>Falta Justificada</option>
-            <option>No aplica</option>
-            <option>Pendiente</option>
+            <option style={{ background: '#18181b', color: '#fff' }}>Todos los estados</option>
+            <option style={{ background: '#18181b', color: '#fff' }}>A tiempo</option>
+            <option style={{ background: '#18181b', color: '#fff' }}>Regreso Tardío</option>
+            <option style={{ background: '#18181b', color: '#fff' }}>Sin Retorno</option>
+            <option style={{ background: '#18181b', color: '#fff' }}>No tomado</option>
+            <option style={{ background: '#18181b', color: '#fff' }}>Vacaciones</option>
+            <option style={{ background: '#18181b', color: '#fff' }}>Falta Justificada</option>
+            <option style={{ background: '#18181b', color: '#fff' }}>No aplica</option>
+            <option style={{ background: '#18181b', color: '#fff' }}>Pendiente</option>
           </select>
         )}
         {activeTab === 'eventos' && (
           <>
             <select 
-              style={selectStyle} 
+              style={{ ...selectStyle, background: '#18181b', color: '#ffffff' }} 
               value={selectedEventType}
               onChange={(e) => setSelectedEventType(e.target.value)}
             >
-              <option>Todos los tipos</option>
-              <option value="VACATION">Vacaciones</option>
-              <option value="OVERTIME">Horas Extra</option>
-              <option value="JUSTIFIED_ABSENCE">Faltas Justificadas</option>
-              <option value="EARLY_EXIT">Salidas Anticipadas</option>
-              <option value="LATE_ARRIVAL">Llegadas Tardías</option>
+              <option style={{ background: '#18181b', color: '#fff' }}>Todos los tipos</option>
+              <option value="VACATION" style={{ background: '#18181b', color: '#fff' }}>Vacaciones</option>
+              <option value="OVERTIME" style={{ background: '#18181b', color: '#fff' }}>Horas Extra</option>
+              <option value="JUSTIFIED_ABSENCE" style={{ background: '#18181b', color: '#fff' }}>Faltas Justificadas</option>
+              <option value="EARLY_EXIT" style={{ background: '#18181b', color: '#fff' }}>Salidas Anticipadas</option>
+              <option value="LATE_ARRIVAL" style={{ background: '#18181b', color: '#fff' }}>Llegadas Tardías</option>
             </select>
 
             <select 
-              style={selectStyle} 
+              style={{ ...selectStyle, background: '#18181b', color: '#ffffff' }} 
               value={selectedEventStatus}
               onChange={(e) => setSelectedEventStatus(e.target.value)}
             >
-              <option>Todos los estados</option>
-              <option value="ACTIVE">Activos / Válidos</option>
-              <option value="CANCELLED">Cancelados</option>
+              <option style={{ background: '#18181b', color: '#fff' }}>Todos los estados</option>
+              <option value="ACTIVE" style={{ background: '#18181b', color: '#fff' }}>Activos / Válidos</option>
+              <option value="CANCELLED" style={{ background: '#18181b', color: '#fff' }}>Cancelados</option>
             </select>
           </>
         )}
         {activeTab === 'dispositivos' && (
           <select 
-            style={selectStyle} 
+            style={{ ...selectStyle, background: '#18181b', color: '#ffffff' }} 
             value={selectedStatus}
             onChange={(e) => setSelectedStatus(e.target.value)}
           >
-            <option>Todos los estados</option>
-            <option>En Línea</option>
-            <option>Inestable</option>
-            <option>Desconectado</option>
+            <option style={{ background: '#18181b', color: '#fff' }}>Todos los estados</option>
+            <option style={{ background: '#18181b', color: '#fff' }}>En Línea</option>
+            <option style={{ background: '#18181b', color: '#fff' }}>Inestable</option>
+            <option style={{ background: '#18181b', color: '#fff' }}>Desconectado</option>
           </select>
         )}
 
@@ -2140,9 +2399,9 @@ const btnSecondary = {
 };
 
 const selectStyle = {
-  background: 'transparent',
+  background: '#18181b',
   border: '1px solid #3f3f46',
-  color: '#fff',
+  color: '#ffffff',
   padding: '0.6rem 1rem',
   borderRadius: '8px',
   outline: 'none',
