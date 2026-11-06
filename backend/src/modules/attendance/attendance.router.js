@@ -379,12 +379,17 @@ router.post('/refresh-cache', requireApiKey, async (req, res) => {
 
 router.get('/', requireJwt, async (req, res) => {
   try {
-    const { date } = req.query;
+    const { date, startDate, endDate } = req.query;
     
     let whereClause = {};
-    if (date) {
-      const startOfDay = new Date(`${date}T00:00:00.000Z`);
-      const endOfDay = new Date(`${date}T23:59:59.999Z`);
+    let eventWhereClause = { status: 'ACTIVE' };
+
+    let sDate = startDate || date;
+    let eDate = endDate || date;
+
+    if (sDate && eDate) {
+      const startOfDay = new Date(`${sDate}T00:00:00.000Z`);
+      const endOfDay = new Date(`${eDate}T23:59:59.999Z`);
       
       whereClause = {
         date: {
@@ -392,6 +397,26 @@ router.get('/', requireJwt, async (req, res) => {
           lte: endOfDay,
         }
       };
+
+      eventWhereClause.OR = [
+        {
+          date: { lte: endOfDay },
+          dateTo: { gte: startOfDay }
+        },
+        {
+          date: { gte: startOfDay, lte: endOfDay }
+        }
+      ];
+    } else if (sDate) {
+      const startOfDay = new Date(`${sDate}T00:00:00.000Z`);
+      const endOfDay = new Date(`${sDate}T23:59:59.999Z`);
+      whereClause = {
+        date: {
+          gte: startOfDay,
+          lte: endOfDay,
+        }
+      };
+      eventWhereClause.date = startOfDay;
     }
 
     const records = await prisma.attendanceRecord.findMany({
@@ -402,17 +427,19 @@ router.get('/', requireJwt, async (req, res) => {
         },
         shift: true
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: [
+        { date: 'desc' },
+        { createdAt: 'desc' }
+      ]
     });
 
-    let eventWhereClause = { status: 'ACTIVE' };
-    if (date) {
-      const startOfDay = new Date(`${date}T00:00:00.000Z`);
-      eventWhereClause.date = startOfDay;
-    }
-    
     const events = await prisma.eventRequest.findMany({
-      where: eventWhereClause
+      where: eventWhereClause,
+      include: {
+        employee: {
+          include: { department: true }
+        }
+      }
     });
 
     res.json({ records, events });
