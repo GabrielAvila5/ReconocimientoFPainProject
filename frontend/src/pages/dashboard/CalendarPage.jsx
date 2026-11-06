@@ -3,42 +3,62 @@ import { Calendar as CalendarIcon, Download, Filter, ChevronLeft, ChevronRight, 
 import { holidays } from '../../utils/holidays';
 
 // --- Utils: Real Data Processor ---
-const processRealData = (year, month, employees, allRecords, allEvents = []) => {
+const toLocalDateStr = (val) => {
+  if (!val) return '';
+  const d = new Date(val);
+  if (isNaN(d.getTime())) return typeof val === 'string' ? val.split('T')[0] : '';
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
+
+const processDates = (dateList, employees, allRecords, allEvents = []) => {
   const records = [];
-  if (!employees || employees.length === 0 || !allRecords) return records;
+  if (!employees || employees.length === 0 || !allRecords || !dateList) return records;
   
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  
-  for (let i = 1; i <= daysInMonth; i++) {
-    const currentDateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
-    const dateObj = new Date(year, month, i);
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  dateList.forEach(dateObj => {
+    const year = dateObj.getFullYear();
+    const month = dateObj.getMonth();
+    const day = dateObj.getDate();
+    const currentDateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     const dayOfWeek = dateObj.getDay();
     
-    if (dayOfWeek === 0 || dayOfWeek === 6) continue;
+    // Omitir fines de semana
+    if (dayOfWeek === 0 || dayOfWeek === 6) return;
     
-    const isHoliday = holidays.some(h => h.date === currentDateStr);
-    if (isHoliday) continue;
+    // Omitir feriados
+    if (holidays.some(h => h.date === currentDateStr)) return;
     
-    // Check records for this date
-    const dateRecords = allRecords.filter(r => r.date && r.date.startsWith(currentDateStr));
+    // Buscar registros para esta fecha
+    const dateRecords = allRecords.filter(r => {
+      if (!r) return false;
+      const dStr = typeof r.date === 'string' ? r.date.split('T')[0] : toLocalDateStr(r.date);
+      const entLocalStr = toLocalDateStr(r.entrada);
+      const entRawStr = typeof r.entrada === 'string' ? r.entrada.split('T')[0] : '';
+      return dStr === currentDateStr || entLocalStr === currentDateStr || entRawStr === currentDateStr;
+    });
     
     employees.forEach(emp => {
+      if (emp.isActive === false) return; // Solo empleados activos
       const empRecord = dateRecords.find(r => r.employeeId === emp.id);
       
       if (!empRecord) {
-        // Check for active justified absence or vacation
+        // Verificar si tiene permiso justificado o vacaciones activas
         const event = allEvents.find(evt => {
           if (evt.employeeId !== emp.id) return false;
           if (evt.type !== 'VACATION' && evt.type !== 'JUSTIFIED_ABSENCE') return false;
           
           const evtStart = new Date(evt.date);
-          // If vacation has dateTo, check range
           if (evt.type === 'VACATION' && evt.dateTo) {
             const evtEnd = new Date(evt.dateTo);
             return dateObj >= evtStart && dateObj <= evtEnd;
           }
-          // Otherwise check single day
-          return evtStart.toISOString().split('T')[0] === currentDateStr;
+          const evDateStr = typeof evt.date === 'string' ? evt.date.split('T')[0] : toLocalDateStr(evtStart);
+          return evDateStr === currentDateStr;
         });
 
         if (event) {
@@ -51,9 +71,7 @@ const processRealData = (year, month, employees, allRecords, allEvents = []) => 
             status: 'Permiso'
           });
         } else {
-          // Only mark absence if it's past or today
-          const now = new Date();
-          const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          // Solo marcar falta si el día ya pasó o es hoy
           if (dateObj <= startOfToday) {
             records.push({
               id: `abs-${currentDateStr}-${emp.id}`,
@@ -71,14 +89,33 @@ const processRealData = (year, month, employees, allRecords, allEvents = []) => 
           date: currentDateStr,
           employee: emp,
           type: 'tardiness',
-          time: new Date(empRecord.entrada).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+          time: empRecord.entrada ? new Date(empRecord.entrada).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'Retardo',
           status: 'Llegada'
         });
+      } else {
+        // Registro de Asistencia A Tiempo (Puntual)
+        records.push({
+          id: empRecord.id,
+          date: currentDateStr,
+          employee: emp,
+          type: 'on_time',
+          time: empRecord.entrada ? new Date(empRecord.entrada).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'A tiempo',
+          status: 'A tiempo'
+        });
       }
-      // If present and not late, we could add 'present', but the calendar logic mainly looks for absences/tardiness
     });
-  }
+  });
+
   return records;
+};
+
+const processRealData = (year, month, employees, allRecords, allEvents = []) => {
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const dates = [];
+  for (let i = 1; i <= daysInMonth; i++) {
+    dates.push(new Date(year, month, i));
+  }
+  return processDates(dates, employees, allRecords, allEvents);
 };
 
 // --- Componente Principal ---
@@ -227,6 +264,7 @@ const CalendarPage = () => {
         absences: dayData.filter(r => r.type === 'absence').length,
         tardiness: dayData.filter(r => r.type === 'tardiness').length,
         permissions: dayData.filter(r => r.type === 'permission').length,
+        onTime: dayData.filter(r => r.type === 'on_time').length,
         records: dayData
       });
     }
@@ -244,23 +282,17 @@ const CalendarPage = () => {
     return days;
   }, [weekStart]);
 
-  // Filtrar empleados que tuvieron alguna actividad en la semana seleccionada
+  // Datos procesados específicamente para la semana actual
+  const weekData = useMemo(() => {
+    if (viewMode !== 'week' || weekDays.length === 0) return [];
+    return processDates(weekDays, employees, attendanceRecords, events);
+  }, [weekDays, employees, attendanceRecords, events, viewMode]);
+
+  // Empleados activos a mostrar en la tabla semanal
   const activeEmployeesInWeek = useMemo(() => {
     if (viewMode !== 'week') return [];
-    
-    const startStr = weekDays[0].toISOString().split('T')[0];
-    const endStr = weekDays[6].toISOString().split('T')[0];
-    
-    // Extraer todos los employeeIds que aparecen en el rango
-    const activeIds = new Set();
-    currentMonthData.forEach(r => {
-      if (r.date >= startStr && r.date <= endStr) {
-        activeIds.add(r.employee.id);
-      }
-    });
-    
-    return employees.filter(emp => activeIds.has(emp.id));
-  }, [weekDays, currentMonthData, employees, viewMode]);
+    return employees.filter(emp => emp.isActive !== false);
+  }, [employees, viewMode]);
 
   // Navegación
   const prevPeriod = () => {
@@ -340,13 +372,14 @@ const CalendarPage = () => {
       if (r.type === 'absence') estado = 'Ausencia';
       if (r.type === 'tardiness') estado = 'Tardanza';
       if (r.type === 'permission') estado = 'Permiso/Vacaciones';
+      if (r.type === 'on_time') estado = 'A tiempo';
       
       rows.push([
         r.date,
         `${r.employee.firstName} ${r.employee.lastName}`,
         r.employee.department?.name || '—',
         estado,
-        r.type === 'tardiness' ? r.time : '—', // Solo tardanza tiene hora específica en el mock
+        r.type === 'tardiness' || r.type === 'on_time' ? r.time : '—',
         '—' // Salida
       ]);
     });
@@ -557,6 +590,11 @@ const CalendarPage = () => {
                           {day.isHoliday.name}
                         </div>
                       )}
+                      {day.onTime > 0 && (
+                        <div className="calendar-badge" style={{ ...badgeStyle, background: 'rgba(16, 185, 129, 0.15)', color: '#10b981' }}>
+                          A Tiempo <span style={badgeNum('#10b981', 'rgba(16, 185, 129, 0.2)')}>{day.onTime}</span>
+                        </div>
+                      )}
                       {day.absences > 0 && (
                         <div className="calendar-badge" style={{ ...badgeStyle, background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444' }}>
                           Ausencias <span style={badgeNum( '#ef4444', 'rgba(239, 68, 68, 0.2)')}>{day.absences}</span>
@@ -618,20 +656,27 @@ const CalendarPage = () => {
                       </td>
                       {weekDays.map(d => {
                         const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-                        // Buscar el record de este emp este dia
-                        const r = currentMonthData.find(x => x.employee.id === emp.id && x.date === dateStr);
+                        const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+                        const isHoliday = holidays.some(h => h.date === dateStr);
+                        // Buscar el record de este emp este dia en weekData
+                        const r = weekData.find(x => x.employee.id === emp.id && x.date === dateStr);
                         return (
                           <td key={d.toISOString()} style={tdWeek}>
                             {r ? (
                               <span style={{ 
-                                padding: '2px 6px', borderRadius: '4px', fontSize: '0.7rem',
-                                background: r.type === 'absence' ? 'rgba(239, 68, 68, 0.1)' : (r.type === 'tardiness' ? 'rgba(249, 115, 22, 0.1)' : 'rgba(168, 85, 247, 0.1)'),
-                                color: r.type === 'absence' ? '#ef4444' : (r.type === 'tardiness' ? '#f97316' : '#a855f7')
+                                padding: '3px 8px', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 600, display: 'inline-block',
+                                background: r.type === 'absence' ? 'rgba(239, 68, 68, 0.12)' : (r.type === 'tardiness' ? 'rgba(249, 115, 22, 0.12)' : (r.type === 'permission' ? 'rgba(168, 85, 247, 0.12)' : 'rgba(16, 185, 129, 0.12)')),
+                                color: r.type === 'absence' ? '#ef4444' : (r.type === 'tardiness' ? '#f97316' : (r.type === 'permission' ? '#a855f7' : '#10b981')),
+                                border: `1px solid ${r.type === 'absence' ? 'rgba(239, 68, 68, 0.3)' : (r.type === 'tardiness' ? 'rgba(249, 115, 22, 0.3)' : (r.type === 'permission' ? 'rgba(168, 85, 247, 0.3)' : 'rgba(16, 185, 129, 0.3)'))}`
                               }}>
-                                {r.type === 'absence' ? 'Falta' : (r.type === 'tardiness' ? r.time : 'Permiso')}
+                                {r.type === 'absence' ? 'Falta' : (r.type === 'tardiness' ? r.time : (r.type === 'permission' ? 'Permiso' : (r.time && r.time !== 'A tiempo' ? r.time : 'A tiempo')))}
+                              </span>
+                            ) : isHoliday ? (
+                              <span style={{ padding: '2px 6px', borderRadius: '4px', fontSize: '0.7rem', background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6', border: '1px solid rgba(59, 130, 246, 0.3)' }}>
+                                Feriado
                               </span>
                             ) : (
-                              <span style={{ color: '#3f3f46' }}>—</span>
+                              <span style={{ color: isWeekend ? '#52525b' : '#3f3f46', fontSize: '0.85rem' }}>—</span>
                             )}
                           </td>
                         );
@@ -692,7 +737,7 @@ const CalendarPage = () => {
                     <span style={{ color: '#f97316', fontSize: '0.7rem', fontWeight: 'bold', letterSpacing: '1px' }}>TARDANZAS</span>
                   </div>
                   <div style={{ ...modalCard, borderColor: 'rgba(16, 185, 129, 0.3)' }}>
-                    <h2 style={{ fontSize: '2rem', color: '#10b981', margin: '0 0 0.25rem 0', lineHeight: 1 }}>{employees.length - modalData.absences - modalData.tardiness - modalData.permissions}</h2>
+                    <h2 style={{ fontSize: '2rem', color: '#10b981', margin: '0 0 0.25rem 0', lineHeight: 1 }}>{modalData.onTime ?? modalData.records.filter(r => r.type === 'on_time').length}</h2>
                     <span style={{ color: '#10b981', fontSize: '0.7rem', fontWeight: 'bold', letterSpacing: '1px' }}>A TIEMPO</span>
                   </div>
                 </div>
@@ -766,6 +811,32 @@ const CalendarPage = () => {
                               </div>
                             </div>
                             <span style={{ padding: '2px 8px', borderRadius: '99px', background: 'rgba(168, 85, 247, 0.1)', color: '#a855f7', fontSize: '0.75rem', border: '1px solid rgba(168, 85, 247, 0.3)' }}>Aprobado</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Asistencias A Tiempo */}
+                  {modalData.records.filter(r => r.type === 'on_time').length > 0 && (
+                    <div>
+                      <h3 style={{ color: '#10b981', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem', letterSpacing: '1px' }}>
+                        <CheckCircle size={16} /> ASISTENCIAS A TIEMPO
+                      </h3>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        {modalData.records.filter(r => r.type === 'on_time').map(r => (
+                          <div key={r.id} style={listItem}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                              <div style={avatar('#10b981', 'rgba(16, 185, 129, 0.1)')}>{r.employee.firstName ? r.employee.firstName[0] : 'E'}{r.employee.lastName ? r.employee.lastName[0] : ''}</div>
+                              <div>
+                                <div style={{ color: '#fff', fontSize: '0.9rem', fontWeight: 500 }}>{r.employee.firstName} {r.employee.lastName}</div>
+                                <div style={{ color: '#a1a1aa', fontSize: '0.8rem' }}>{r.employee.department?.name || 'Operaciones'}</div>
+                              </div>
+                            </div>
+                            <div style={{ textAlign: 'right' }}>
+                              <div style={{ color: '#10b981', fontWeight: 600, fontSize: '0.9rem' }}>{r.time}</div>
+                              <div style={{ color: '#10b981', fontSize: '0.75rem', opacity: 0.8 }}>Puntual</div>
+                            </div>
                           </div>
                         ))}
                       </div>
