@@ -1,3 +1,12 @@
+/**
+ * AttendancePage Component
+ * Versión: 2.1.0 - Despliegue y Sincronización Hostinger
+ * Características:
+ * - Soporte multi-período completo: Día, Semana, Mes y Año con navegación temporal
+ * - Recuadros KPI interactivos enriquecidos con micro-métricas y filtrado en tiempo real
+ * - Modal de desglose detallado por categoría (Asistencias a Tiempo, Retardos, Ausencias)
+ * - Modal avanzado de exportación a CSV por Día, Semana, Mes, Año o Rango personalizado
+ */
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Search, 

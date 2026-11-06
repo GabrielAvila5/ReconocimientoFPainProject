@@ -375,6 +375,8 @@ router.post('/refresh-cache', requireApiKey, async (req, res) => {
 
 // ============================================
 // RUTAS PARA EL DASHBOARD (JWT)
+// Soporte de consultas por fecha individual ('date') o rangos ('startDate', 'endDate')
+// para consolidación de asistencia por Día, Semana, Mes y Año.
 // ============================================
 
 router.get('/', requireJwt, async (req, res) => {
