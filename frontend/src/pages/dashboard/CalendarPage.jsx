@@ -123,7 +123,13 @@ const CalendarPage = () => {
   const [employees, setEmployees] = useState([]);
   const [attendanceRecords, setAttendanceRecords] = useState([]);
   const [events, setEvents] = useState([]);
+  const [departmentsList, setDepartmentsList] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Filtros activos
+  const [selectedDept, setSelectedDept] = useState('ALL');
+  const [selectedStatus, setSelectedStatus] = useState('ALL');
+  const [selectedEmpId, setSelectedEmpId] = useState('ALL');
   
   // View states
   const [viewMode, setViewMode] = useState('month'); // 'month' | 'week'
@@ -154,9 +160,10 @@ const CalendarPage = () => {
           ...(tenantId ? { 'x-tenant-id': tenantId } : {})
         };
         
-        const [empRes, attRes] = await Promise.all([
+        const [empRes, attRes, deptRes] = await Promise.all([
           fetch(`${baseUrl}/api/v1/employees`, { headers }),
-          fetch(`${baseUrl}/api/v1/attendance`, { headers })
+          fetch(`${baseUrl}/api/v1/attendance`, { headers }),
+          fetch(`${baseUrl}/api/v1/departments`, { headers })
         ]);
         
         if (empRes.ok) {
@@ -172,6 +179,10 @@ const CalendarPage = () => {
             setEvents(data.events || []);
           }
         }
+        if (deptRes && deptRes.ok) {
+          const data = await deptRes.json();
+          setDepartmentsList(Array.isArray(data) ? data : []);
+        }
       } catch (err) {
         console.error('Error fetching data:', err);
       } finally {
@@ -181,15 +192,68 @@ const CalendarPage = () => {
     fetchData();
   }, []);
 
+  const todayDateStr = useMemo(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  }, []);
+
+  // Lista de departamentos disponibles (unión de API y asignados a empleados)
+  const departments = useMemo(() => {
+    const fromApi = departmentsList.map(d => d.name).filter(Boolean);
+    const fromEmps = employees.map(e => e.department?.name).filter(Boolean);
+    return Array.from(new Set([...fromApi, ...fromEmps])).sort((a, b) => a.localeCompare(b));
+  }, [departmentsList, employees]);
+
+  // Colaboradores disponibles (filtrados por depto seleccionado para el dropdown)
+  const availableEmployees = useMemo(() => {
+    return employees.filter(emp => {
+      if (emp.isActive === false) return false;
+      if (selectedDept !== 'ALL') {
+        const empDept = emp.department?.name || '';
+        if (empDept.toLowerCase() !== selectedDept.toLowerCase()) return false;
+      }
+      return true;
+    }).sort((a, b) => (a.firstName || '').localeCompare(b.firstName || ''));
+  }, [employees, selectedDept]);
+
+  // Colaboradores filtrados para los cálculos del calendario
+  const filteredEmployees = useMemo(() => {
+    return employees.filter(emp => {
+      if (emp.isActive === false) return false;
+      if (selectedDept !== 'ALL') {
+        const empDept = emp.department?.name || '';
+        if (empDept.toLowerCase() !== selectedDept.toLowerCase()) return false;
+      }
+      if (selectedEmpId !== 'ALL' && emp.id !== selectedEmpId) {
+        return false;
+      }
+      return true;
+    });
+  }, [employees, selectedDept, selectedEmpId]);
+
+  const hasActiveFilters = selectedDept !== 'ALL' || selectedStatus !== 'ALL' || selectedEmpId !== 'ALL';
+
+  const clearFilters = () => {
+    setSelectedDept('ALL');
+    setSelectedStatus('ALL');
+    setSelectedEmpId('ALL');
+  };
+
   const currentMonthData = useMemo(() => {
-    return processRealData(selectedYear, selectedMonth, employees, attendanceRecords, events);
-  }, [selectedYear, selectedMonth, employees, attendanceRecords, events]);
+    return processRealData(selectedYear, selectedMonth, filteredEmployees, attendanceRecords, events);
+  }, [selectedYear, selectedMonth, filteredEmployees, attendanceRecords, events]);
   
   const prevMonthData = useMemo(() => {
     const prevM = selectedMonth === 0 ? 11 : selectedMonth - 1;
     const prevY = selectedMonth === 0 ? selectedYear - 1 : selectedYear;
-    return processRealData(prevY, prevM, employees, attendanceRecords, events);
-  }, [selectedYear, selectedMonth, employees, attendanceRecords, events]);
+    return processRealData(prevY, prevM, filteredEmployees, attendanceRecords, events);
+  }, [selectedYear, selectedMonth, filteredEmployees, attendanceRecords, events]);
+
+  // Datos filtrados por estado para visualización en el mes
+  const displayMonthData = useMemo(() => {
+    if (selectedStatus === 'ALL') return currentMonthData;
+    return currentMonthData.filter(r => r.type === selectedStatus);
+  }, [currentMonthData, selectedStatus]);
 
   // --- Lógica de Tendencias y Estadísticas (Mes entero) ---
   const stats = useMemo(() => {
@@ -222,8 +286,8 @@ const CalendarPage = () => {
     const prevM = selectedMonth === 0 ? 11 : selectedMonth - 1;
     const prevY = selectedMonth === 0 ? selectedYear - 1 : selectedYear;
 
-    const currTotalDays = getPassedWorkingDays(selectedYear, selectedMonth) * employees.length;
-    const prevTotalDays = getPassedWorkingDays(prevY, prevM) * employees.length;
+    const currTotalDays = getPassedWorkingDays(selectedYear, selectedMonth) * filteredEmployees.length;
+    const prevTotalDays = getPassedWorkingDays(prevY, prevM) * filteredEmployees.length;
 
     const currIncidents = currAbsences + currTardiness;
     const prevIncidents = prevAbsences + prevTardiness;
@@ -237,7 +301,7 @@ const CalendarPage = () => {
       currTardiness, diffTardiness,
       currPerfect, diffPerfect
     };
-  }, [currentMonthData, prevMonthData, employees.length, selectedYear, selectedMonth]);
+  }, [currentMonthData, prevMonthData, filteredEmployees.length, selectedYear, selectedMonth]);
 
   // --- Lógica del Calendario (Vista Mes) ---
   const calendarDays = useMemo(() => {
@@ -254,7 +318,7 @@ const CalendarPage = () => {
     for (let i = 1; i <= daysInMonth; i++) {
       const dateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
       
-      const dayData = currentMonthData.filter(r => r.date === dateStr);
+      const dayData = displayMonthData.filter(r => r.date === dateStr);
       const isHoliday = holidays.find(h => h.date === dateStr);
       
       days.push({
@@ -269,7 +333,7 @@ const CalendarPage = () => {
       });
     }
     return days;
-  }, [selectedYear, selectedMonth, currentMonthData]);
+  }, [selectedYear, selectedMonth, displayMonthData]);
 
   // --- Lógica del Calendario (Vista Semana) ---
   const weekDays = useMemo(() => {
@@ -285,14 +349,16 @@ const CalendarPage = () => {
   // Datos procesados específicamente para la semana actual
   const weekData = useMemo(() => {
     if (viewMode !== 'week' || weekDays.length === 0) return [];
-    return processDates(weekDays, employees, attendanceRecords, events);
-  }, [weekDays, employees, attendanceRecords, events, viewMode]);
+    const allRecords = processDates(weekDays, filteredEmployees, attendanceRecords, events);
+    if (selectedStatus === 'ALL') return allRecords;
+    return allRecords.filter(r => r.type === selectedStatus);
+  }, [weekDays, filteredEmployees, attendanceRecords, events, viewMode, selectedStatus]);
 
   // Empleados activos a mostrar en la tabla semanal
   const activeEmployeesInWeek = useMemo(() => {
     if (viewMode !== 'week') return [];
-    return employees.filter(emp => emp.isActive !== false);
-  }, [employees, viewMode]);
+    return filteredEmployees;
+  }, [filteredEmployees, viewMode]);
 
   // Navegación
   const prevPeriod = () => {
@@ -367,7 +433,7 @@ const CalendarPage = () => {
     const headers = ['Fecha', 'Empleado', 'Departamento', 'Estado', 'Hora Entrada', 'Hora Salida'];
     const rows = [];
     
-    currentMonthData.forEach(r => {
+    displayMonthData.forEach(r => {
       let estado = '';
       if (r.type === 'absence') estado = 'Ausencia';
       if (r.type === 'tardiness') estado = 'Tardanza';
@@ -503,22 +569,110 @@ const CalendarPage = () => {
           )}
 
           <div style={{ display: 'flex', gap: '4px', marginLeft: '0.5rem' }}>
-            <button onClick={prevPeriod} style={iconBtn}><ChevronLeft size={16} /></button>
-            <button onClick={nextPeriod} style={iconBtn}><ChevronRight size={16} /></button>
-            <button onClick={goToday} style={{ ...iconBtn, padding: '0 1rem', fontSize: '0.8rem' }}>Hoy</button>
+            <button onClick={prevPeriod} style={iconBtn} title="Período anterior"><ChevronLeft size={16} /></button>
+            <button onClick={nextPeriod} style={iconBtn} title="Período siguiente"><ChevronRight size={16} /></button>
+            <button 
+              onClick={goToday} 
+              style={{ 
+                ...iconBtn, 
+                padding: '0 0.85rem', 
+                width: 'auto',
+                fontSize: '0.8rem', 
+                fontWeight: 600,
+                color: '#e4e4e7',
+                background: 'rgba(255, 255, 255, 0.05)'
+              }}
+              title="Ir al día de hoy"
+            >
+              Hoy
+            </button>
           </div>
         </div>
 
         {/* Filters & Export */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-          <select style={selectStyle}>
-            <option>Todos los Depts</option>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+          {/* Filtro 1: Departamento */}
+          <select 
+            style={{
+              ...selectStyle,
+              borderColor: selectedDept !== 'ALL' ? '#f97316' : '#3f3f46',
+              color: selectedDept !== 'ALL' ? '#f97316' : '#e4e4e7',
+              maxWidth: '190px'
+            }}
+            value={selectedDept}
+            onChange={e => {
+              setSelectedDept(e.target.value);
+              setSelectedEmpId('ALL');
+            }}
+            title="Filtrar por Departamento"
+          >
+            <option value="ALL">Todos los Departamentos</option>
+            {departments.map(d => (
+              <option key={d} value={d} style={{ background: '#18181b', color: '#fff' }}>{d}</option>
+            ))}
           </select>
-          <select style={selectStyle}>
-            <option>Todos</option>
+
+          {/* Filtro 2: Estatus */}
+          <select 
+            style={{
+              ...selectStyle,
+              borderColor: selectedStatus !== 'ALL' ? '#f97316' : '#3f3f46',
+              color: selectedStatus !== 'ALL' ? '#f97316' : '#e4e4e7',
+              maxWidth: '160px'
+            }}
+            value={selectedStatus}
+            onChange={e => setSelectedStatus(e.target.value)}
+            title="Filtrar por Estado / Incidencia"
+          >
+            <option value="ALL">Todos los Estados</option>
+            <option value="on_time" style={{ background: '#18181b', color: '#10b981' }}>A Tiempo</option>
+            <option value="tardiness" style={{ background: '#18181b', color: '#f97316' }}>Retardos</option>
+            <option value="absence" style={{ background: '#18181b', color: '#ef4444' }}>Ausencias</option>
+            <option value="permission" style={{ background: '#18181b', color: '#a855f7' }}>Permisos / Vacaciones</option>
           </select>
-          <button style={iconBtn}><Filter size={16} /></button>
-          
+
+          {/* Filtro 3: Colaborador */}
+          <select 
+            style={{
+              ...selectStyle,
+              borderColor: selectedEmpId !== 'ALL' ? '#f97316' : '#3f3f46',
+              color: selectedEmpId !== 'ALL' ? '#f97316' : '#e4e4e7',
+              maxWidth: '190px'
+            }}
+            value={selectedEmpId}
+            onChange={e => setSelectedEmpId(e.target.value)}
+            title="Filtrar por Colaborador"
+          >
+            <option value="ALL">Todos los Colaboradores</option>
+            {availableEmployees.map(emp => (
+              <option key={emp.id} value={emp.id} style={{ background: '#18181b', color: '#fff' }}>
+                {emp.firstName} {emp.lastName}
+              </option>
+            ))}
+          </select>
+
+          {/* Botón Limpiar Filtros */}
+          {hasActiveFilters && (
+            <button 
+              onClick={clearFilters} 
+              style={{
+                ...iconBtn,
+                width: 'auto',
+                padding: '0 8px',
+                background: 'rgba(239, 68, 68, 0.15)',
+                color: '#ef4444',
+                borderColor: 'rgba(239, 68, 68, 0.4)',
+                fontSize: '0.78rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px'
+              }}
+              title="Restablecer todos los filtros"
+            >
+              <X size={14} /> Limpiar
+            </button>
+          )}
+
           <div style={{ display: 'flex', gap: '0.5rem' }}>
             <button onClick={exportCSV} style={{ ...btnPrimary, padding: '0.5rem 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }}>
               <Download size={14} /> Excel
@@ -567,6 +721,8 @@ const CalendarPage = () => {
                   else dominantColor = '#10b981'; // a tiempo (aunque aquí no lo marcamos explicito)
                 }
 
+                const isToday = day.dateStr === todayDateStr;
+
                 return (
                   <div 
                     key={day.dayNumber} 
@@ -579,10 +735,27 @@ const CalendarPage = () => {
                       position: 'relative',
                       cursor: hasData ? 'pointer' : 'default',
                       transition: 'all 0.2s',
-                      '--dominant-color': dominantColor
+                      '--dominant-color': isToday ? '#f97316' : dominantColor,
+                      background: isToday ? 'rgba(249, 115, 22, 0.05)' : undefined,
+                      boxShadow: isToday ? 'inset 0 0 0 2px rgba(249, 115, 22, 0.85)' : undefined
                     }}
                   >
-                    <span style={{ fontSize: '0.9rem', fontWeight: 600, color: '#fff' }}>{day.dayNumber}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <span style={{ fontSize: '0.9rem', fontWeight: 600, color: isToday ? '#f97316' : '#fff' }}>{day.dayNumber}</span>
+                      {isToday && (
+                        <span style={{ 
+                          fontSize: '0.62rem', 
+                          fontWeight: 700, 
+                          background: '#f97316', 
+                          color: '#fff', 
+                          padding: '1px 5px', 
+                          borderRadius: '4px',
+                          letterSpacing: '0.5px'
+                        }}>
+                          HOY
+                        </span>
+                      )}
+                    </div>
                     
                     <div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                       {day.isHoliday && (
@@ -634,18 +807,34 @@ const CalendarPage = () => {
             
             {activeEmployeesInWeek.length === 0 ? (
                <div style={{ padding: '3rem', textAlign: 'center', color: '#a1a1aa' }}>
-                 No hay registros en esta semana.
+                 No hay colaboradores ni registros con los filtros seleccionados.
                </div>
             ) : (
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                 <thead>
                   <tr>
                     <th style={{ ...thWeek, width: '200px' }}>Empleado</th>
-                    {weekDays.map(d => (
-                      <th key={d.toISOString()} style={thWeek}>
-                        {['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'][d.getDay()]} {d.getDate()}
-                      </th>
-                    ))}
+                    {weekDays.map(d => {
+                      const dStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                      const isToday = dStr === todayDateStr;
+                      return (
+                        <th key={d.toISOString()} style={{
+                          ...thWeek,
+                          color: isToday ? '#f97316' : (d.getDay() === 0 || d.getDay() === 6 ? '#71717a' : '#a1a1aa'),
+                          borderBottom: isToday ? '2px solid #f97316' : '1px solid #3f3f46',
+                          background: isToday ? 'rgba(249, 115, 22, 0.05)' : 'transparent'
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span>{['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'][d.getDay()]} {d.getDate()}</span>
+                            {isToday && (
+                              <span style={{ fontSize: '0.6rem', fontWeight: 700, background: '#f97316', color: '#fff', padding: '1px 4px', borderRadius: '3px' }}>
+                                HOY
+                              </span>
+                            )}
+                          </div>
+                        </th>
+                      );
+                    })}
                   </tr>
                 </thead>
                 <tbody>
@@ -653,15 +842,17 @@ const CalendarPage = () => {
                     <tr key={emp.id} style={{ borderBottom: '1px solid #27272a' }}>
                       <td style={tdWeek}>
                          <div style={{ color: '#fff', fontWeight: 500 }}>{emp.firstName} {emp.lastName}</div>
+                         <div style={{ color: '#71717a', fontSize: '0.75rem' }}>{emp.department?.name || 'Sin departamento'}</div>
                       </td>
                       {weekDays.map(d => {
                         const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
                         const isWeekend = d.getDay() === 0 || d.getDay() === 6;
                         const isHoliday = holidays.some(h => h.date === dateStr);
+                        const isToday = dateStr === todayDateStr;
                         // Buscar el record de este emp este dia en weekData
                         const r = weekData.find(x => x.employee.id === emp.id && x.date === dateStr);
                         return (
-                          <td key={d.toISOString()} style={tdWeek}>
+                          <td key={d.toISOString()} style={{ ...tdWeek, background: isToday ? 'rgba(249, 115, 22, 0.02)' : 'transparent' }}>
                             {r ? (
                               <span style={{ 
                                 padding: '3px 8px', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 600, display: 'inline-block',
