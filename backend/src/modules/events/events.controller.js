@@ -5,7 +5,12 @@ const getEvents = async (req, res) => {
   try {
     const { status, type, startDate, endDate, employeeId } = req.query;
     
-    let whereClause = { status: status || 'ACTIVE' };
+    let whereClause = {};
+    if (status && status !== 'ALL' && status !== 'all') {
+      whereClause.status = status;
+    } else if (!status && !employeeId) {
+      whereClause.status = 'ACTIVE';
+    }
     
     if (type) whereClause.type = type;
     if (employeeId) whereClause.employeeId = employeeId;
@@ -20,7 +25,13 @@ const getEvents = async (req, res) => {
       where: whereClause,
       include: {
         employee: {
-          select: { id: true, firstName: true, lastName: true, identifier: true }
+          select: { 
+            id: true, 
+            firstName: true, 
+            lastName: true, 
+            identifier: true,
+            department: { select: { id: true, name: true } }
+          }
         },
         registeredBy: {
           select: { id: true, name: true, email: true }
@@ -177,7 +188,7 @@ const createEvent = async (req, res) => {
 const updateEvent = async (req, res) => {
   try {
     const { id } = req.params;
-    const { date, dateTo, startTime, endTime, minutes, reason } = req.body;
+    const { date, dateTo, startTime, endTime, minutes, reason, status } = req.body;
 
     const existingEvent = await prisma.eventRequest.findFirst({ where: { id } });
     if (!existingEvent) {
@@ -192,7 +203,8 @@ const updateEvent = async (req, res) => {
         startTime: startTime ? new Date(startTime) : undefined,
         endTime: endTime ? new Date(endTime) : undefined,
         minutes: minutes !== undefined ? parseInt(minutes) : undefined,
-        reason
+        reason,
+        status: status || undefined
       }
     });
 
@@ -207,6 +219,7 @@ const updateEvent = async (req, res) => {
 const deleteEvent = async (req, res) => {
   try {
     const { id } = req.params;
+    const { hard } = req.query;
 
     const existingEvent = await prisma.eventRequest.findFirst({ 
       where: { id },
@@ -217,7 +230,26 @@ const deleteEvent = async (req, res) => {
       return res.status(404).json({ error: 'Evento no encontrado.' });
     }
 
-    // Soft delete (change status to CANCELLED)
+    // Si ya estaba cancelado o se solicita borrado físico (?hard=true), borrar definitivamente de la BD
+    if (hard === 'true' || existingEvent.status === 'CANCELLED') {
+      await prisma.eventRequest.deleteMany({
+        where: { id }
+      });
+
+      await prisma.adminAuditLog.create({
+        data: {
+          action: 'DELETE_EVENT_REQUEST_PERMANENT',
+          performedById: req.user.id,
+          performedByName: req.user.name || req.user.email || 'Admin',
+          targetName: `${existingEvent.employee?.firstName || ''} ${existingEvent.employee?.lastName || ''}`,
+          targetEmail: existingEvent.type
+        }
+      });
+
+      return res.json({ message: 'Evento eliminado definitivamente de la base de datos.', deleted: true });
+    }
+
+    // Soft delete (marcar como CANCELLED)
     await prisma.eventRequest.updateMany({
       where: { id },
       data: { status: 'CANCELLED' }
@@ -231,7 +263,7 @@ const deleteEvent = async (req, res) => {
         action: 'CANCEL_EVENT_REQUEST',
         performedById: req.user.id,
         performedByName: req.user.name || req.user.email || 'Admin',
-        targetName: `${existingEvent.employee.firstName} ${existingEvent.employee.lastName}`,
+        targetName: `${existingEvent.employee?.firstName || ''} ${existingEvent.employee?.lastName || ''}`,
         targetEmail: existingEvent.type
       }
     });

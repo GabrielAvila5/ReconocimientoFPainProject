@@ -375,9 +375,12 @@ router.get('/:id', async (req, res) => {
           take: 1
         },
         eventRequests: {
-          where: { status: 'ACTIVE' },
           orderBy: { date: 'desc' },
-          take: 5
+          include: {
+            registeredBy: {
+              select: { id: true, name: true, email: true }
+            }
+          }
         }
       }
     });

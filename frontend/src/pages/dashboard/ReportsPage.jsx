@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Download, RefreshCw, AlertCircle, Clock, CheckCircle, 
   UserX, Camera, Server, Activity, Users, Search, ChevronRight,
-  Filter, Zap, ArrowUpRight, TrendingUp
+  Filter, Zap, ArrowUpRight, TrendingUp, Calendar, CalendarDays, FileText, CheckCircle2
 } from 'lucide-react';
 import { 
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, 
@@ -561,7 +561,7 @@ const ReportListCard = ({
 
 // --- Component ---
 const ReportsPage = () => {
-  const [activeTab, setActiveTab] = useState('asistencia'); // 'asistencia' | 'dispositivos'
+  const [activeTab, setActiveTab] = useState('asistencia'); // 'asistencia' | 'descansos' | 'eventos' | 'dispositivos'
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -571,6 +571,9 @@ const ReportsPage = () => {
   const [customEnd, setCustomEnd] = useState('');
   const [selectedDept, setSelectedDept] = useState('Todos los departamentos');
   const [selectedStatus, setSelectedStatus] = useState('Todos los estados');
+  const [selectedEventType, setSelectedEventType] = useState('Todos los tipos');
+  const [selectedEventStatus, setSelectedEventStatus] = useState('Todos los estados');
+  const [eventSearchTerm, setEventSearchTerm] = useState('');
   const [departments, setDepartments] = useState([]);
 
   // Real Data States (Asistencia)
@@ -612,31 +615,62 @@ const ReportsPage = () => {
   const [devDeviceNames, setDevDeviceNames] = useState([]);
   const [devTableData, setDevTableData] = useState([]);
 
+  // Real Data States (Eventos y Permisos)
+  const [eventsKpis, setEventsKpis] = useState({
+    totalEvents: 0,
+    vacationCount: 0,
+    vacationDaysTotal: 0,
+    overtimeCount: 0,
+    overtimeHoursTotal: 0,
+    justifiedCount: 0,
+    earlyExitCount: 0,
+    lateArrivalCount: 0,
+    activeEventsCount: 0,
+    cancelledEventsCount: 0
+  });
+  const [eventsDistribution, setEventsDistribution] = useState([]);
+  const [eventsDeptBreakdown, setEventsDeptBreakdown] = useState([]);
+  const [eventsTableData, setEventsTableData] = useState([]);
+
   const fetchKpis = async () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
       
+      const getLocalDateYMD = (d) => {
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      };
+
       const now = new Date();
       let startStr = '';
-      let endStr = now.toISOString();
+      let endStr = '';
 
       if (dateRange === 'Hoy') {
-        const today = new Date(now.setHours(0,0,0,0));
-        startStr = today.toISOString();
+        const todayStr = getLocalDateYMD(now);
+        startStr = `${todayStr}T00:00:00.000Z`;
+        endStr = `${todayStr}T23:59:59.999Z`;
       } else if (dateRange === 'Últimos 7 días') {
-        const past = new Date(now.setDate(now.getDate() - 7));
-        startStr = past.toISOString();
+        const todayStr = getLocalDateYMD(now);
+        const past = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7);
+        const pastStr = getLocalDateYMD(past);
+        startStr = `${pastStr}T00:00:00.000Z`;
+        endStr = `${todayStr}T23:59:59.999Z`;
       } else if (dateRange === 'Este Mes') {
-        const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
-        startStr = firstDay.toISOString();
+        const todayStr = getLocalDateYMD(now);
+        const firstDayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+        startStr = `${firstDayStr}T00:00:00.000Z`;
+        endStr = `${todayStr}T23:59:59.999Z`;
+      } else if (dateRange === 'Este Año') {
+        const todayStr = getLocalDateYMD(now);
+        const firstDayStr = `${now.getFullYear()}-01-01`;
+        startStr = `${firstDayStr}T00:00:00.000Z`;
+        endStr = `${todayStr}T23:59:59.999Z`;
       } else if (dateRange === 'Personalizado') {
-        if (customStart) startStr = new Date(customStart).toISOString();
-        if (customEnd) {
-          const e = new Date(customEnd);
-          e.setHours(23,59,59,999);
-          endStr = e.toISOString();
-        }
+        if (customStart) startStr = `${customStart}T00:00:00.000Z`;
+        if (customEnd) endStr = `${customEnd}T23:59:59.999Z`;
       }
 
       const qParams = [];
@@ -709,6 +743,37 @@ const ReportsPage = () => {
         console.error('Error fetching devices report:', e);
       }
 
+      // 5. Fetch Events Consolidated Data
+      try {
+        let evUrl = `${import.meta.env.VITE_API_URL || ''}/api/v1/reports/events-consolidated`;
+        const evParams = [];
+        if (startStr && endStr) {
+          evParams.push(`startDate=${encodeURIComponent(startStr)}&endDate=${encodeURIComponent(endStr)}`);
+        }
+        if (selectedDept && selectedDept !== 'Todos los departamentos') {
+          evParams.push(`department=${encodeURIComponent(selectedDept)}`);
+        }
+        if (selectedEventType && selectedEventType !== 'Todos los tipos') {
+          evParams.push(`type=${encodeURIComponent(selectedEventType)}`);
+        }
+        if (selectedEventStatus && selectedEventStatus !== 'Todos los estados') {
+          evParams.push(`status=${encodeURIComponent(selectedEventStatus)}`);
+        }
+        if (evParams.length > 0) {
+          evUrl += `?${evParams.join('&')}`;
+        }
+        const evRes = await fetch(evUrl, { headers: { 'Authorization': `Bearer ${token}` } });
+        if (evRes.ok) {
+          const evData = await evRes.json();
+          if (evData.kpis) setEventsKpis(evData.kpis);
+          if (evData.distribution) setEventsDistribution(evData.distribution || []);
+          if (evData.deptBreakdown) setEventsDeptBreakdown(evData.deptBreakdown || []);
+          if (evData.events) setEventsTableData(evData.events || []);
+        }
+      } catch (e) {
+        console.error('Error fetching events consolidated report:', e);
+      }
+
       // Fetch Departments for filter
       const depRes = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/v1/departments`, { headers: { 'Authorization': `Bearer ${token}` } });
       if (depRes.ok) {
@@ -725,7 +790,7 @@ const ReportsPage = () => {
 
   useEffect(() => {
     fetchKpis();
-  }, [dateRange, customStart, customEnd, selectedDept]);
+  }, [dateRange, customStart, customEnd, selectedDept, selectedEventType, selectedEventStatus]);
 
   const handleRefresh = () => {
     setRefreshing(true);
@@ -748,33 +813,61 @@ const ReportsPage = () => {
 
   // --- Filtering Logic ---
   const filterByDateRange = (dataList) => {
+    const getLocalDateYMD = (d) => {
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+
     const now = new Date();
-    let startTimestamp = 0;
-    let endTimestamp = now.getTime();
+    let minDateStr = '';
+    let maxDateStr = '';
 
     if (dateRange === 'Hoy') {
-      const today = new Date(now.setHours(0,0,0,0));
-      startTimestamp = today.getTime();
+      const todayStr = getLocalDateYMD(now);
+      minDateStr = todayStr;
+      maxDateStr = todayStr;
     } else if (dateRange === 'Últimos 7 días') {
-      const past = new Date(now.setDate(now.getDate() - 7));
-      startTimestamp = past.getTime();
+      const past = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7);
+      minDateStr = getLocalDateYMD(past);
+      maxDateStr = getLocalDateYMD(now);
     } else if (dateRange === 'Este Mes') {
-      const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
-      startTimestamp = firstDay.getTime();
+      minDateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+      maxDateStr = getLocalDateYMD(now);
+    } else if (dateRange === 'Este Año') {
+      minDateStr = `${now.getFullYear()}-01-01`;
+      maxDateStr = getLocalDateYMD(now);
     } else if (dateRange === 'Personalizado') {
-      if (customStart) startTimestamp = new Date(customStart).getTime();
-      if (customEnd) endTimestamp = new Date(customEnd).setHours(23,59,59,999);
+      if (customStart) minDateStr = customStart;
+      if (customEnd) maxDateStr = customEnd;
     }
     
     return dataList.filter(item => {
-      // If item has timestamp (charts) or date string (tables)
-      let itemTime = item.timestamp;
-      if (!itemTime && item.fecha) {
-        itemTime = new Date(item.fecha).getTime();
+      const itemDateStr = item.fecha ? item.fecha : (item.date ? item.date.split('T')[0] : null);
+      if (itemDateStr) {
+        if (minDateStr && itemDateStr < minDateStr) return false;
+        if (maxDateStr && itemDateStr > maxDateStr) return false;
+        return true;
       }
-      return itemTime >= startTimestamp && itemTime <= endTimestamp;
+      return true;
     });
   };
+
+  const filteredEventsTable = useMemo(() => {
+    let list = eventsTableData;
+    if (eventSearchTerm.trim()) {
+      const q = eventSearchTerm.toLowerCase();
+      list = list.filter(e => 
+        e.empleado.toLowerCase().includes(q) ||
+        e.identificador.toLowerCase().includes(q) ||
+        e.departamento.toLowerCase().includes(q) ||
+        e.motivo.toLowerCase().includes(q) ||
+        e.aprobadoPor.toLowerCase().includes(q)
+      );
+    }
+    return list;
+  }, [eventsTableData, eventSearchTerm]);
 
   const filteredAttTrend = attTrendData; // Ya viene filtrado del backend
   const doughnutData = attDistribution; // Ya viene del backend
@@ -822,7 +915,7 @@ const ReportsPage = () => {
   // --- Exports ---
   const exportToCSV = () => {
     let headers, rows;
-    let filename = `Reporte_${activeTab === 'asistencia' ? 'Asistencia' : activeTab === 'descansos' ? 'Descansos' : 'Dispositivos'}.csv`;
+    let filename = `Reporte_${activeTab === 'asistencia' ? 'Asistencia' : activeTab === 'descansos' ? 'Descansos' : activeTab === 'eventos' ? 'Eventos' : 'Dispositivos'}.csv`;
     
     if (activeTab === 'asistencia') {
       headers = ['Empleado', 'Departamento', 'Fecha', 'Entrada Real', 'Salida Real', 'Salida Esperada', 'Horas Trabajadas', 'Horas Extra', 'Estado Asistencia'];
@@ -838,6 +931,19 @@ const ReportsPage = () => {
         r.duracionReal === 'N/A' || r.duracionReal === null || r.duracionReal === undefined ? 'N/A' : `${r.duracionReal} min`,
         r.duracionEsperada === 'N/A' || r.duracionEsperada === null || r.duracionEsperada === undefined ? 'N/A' : `${r.duracionEsperada} min`,
         r.estado
+      ]);
+    } else if (activeTab === 'eventos') {
+      headers = ['Empleado', 'Identificador', 'Departamento', 'Tipo de Evento', 'Fecha / Rango', 'Duración', 'Motivo', 'Aprobado Por', 'Estado'];
+      rows = filteredEventsTable.map(r => [
+        r.empleado,
+        r.identificador,
+        r.departamento,
+        r.tipo,
+        r.rangoTexto || r.fecha,
+        r.duracion,
+        r.motivo,
+        r.aprobadoPor,
+        r.estado === 'ACTIVE' ? 'Activo' : 'Cancelado'
       ]);
     } else {
       headers = ['Dispositivo', 'Ubicación', 'Fecha', 'Lecturas', 'Uptime', 'Estado'];
@@ -933,6 +1039,7 @@ const ReportsPage = () => {
           <option>Hoy</option>
           <option>Últimos 7 días</option>
           <option>Este Mes</option>
+          <option>Este Año</option>
           <option>Personalizado</option>
         </select>
 
@@ -1000,6 +1107,32 @@ const ReportsPage = () => {
             <option>Pendiente</option>
           </select>
         )}
+        {activeTab === 'eventos' && (
+          <>
+            <select 
+              style={selectStyle} 
+              value={selectedEventType}
+              onChange={(e) => setSelectedEventType(e.target.value)}
+            >
+              <option>Todos los tipos</option>
+              <option value="VACATION">Vacaciones</option>
+              <option value="OVERTIME">Horas Extra</option>
+              <option value="JUSTIFIED_ABSENCE">Faltas Justificadas</option>
+              <option value="EARLY_EXIT">Salidas Anticipadas</option>
+              <option value="LATE_ARRIVAL">Llegadas Tardías</option>
+            </select>
+
+            <select 
+              style={selectStyle} 
+              value={selectedEventStatus}
+              onChange={(e) => setSelectedEventStatus(e.target.value)}
+            >
+              <option>Todos los estados</option>
+              <option value="ACTIVE">Activos / Válidos</option>
+              <option value="CANCELLED">Cancelados</option>
+            </select>
+          </>
+        )}
         {activeTab === 'dispositivos' && (
           <select 
             style={selectStyle} 
@@ -1020,13 +1153,28 @@ const ReportsPage = () => {
         
         {/* Print Only Header */}
         <div style={{ display: 'none', marginBottom: '2rem' }} className="print-only">
-          <h1 style={{ color: '#000', fontSize: '24px' }}>Reporte de {activeTab === 'asistencia' ? 'Asistencia' : activeTab === 'descansos' ? 'Descansos' : 'Dispositivos'}</h1>
-          <p style={{ color: '#555' }}>Generado el {new Date().toLocaleDateString()}</p>
-          <hr style={{ border: '1px solid #ddd' }} />
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div>
+              <h1 style={{ color: '#000', fontSize: '24px', margin: 0, fontWeight: 700 }}>
+                {activeTab === 'asistencia' ? 'Reporte Ejecutivo de Asistencia' : 
+                 activeTab === 'descansos' ? 'Reporte de Tiempos y Descansos' : 
+                 activeTab === 'eventos' ? 'Reporte Oficial de Eventos y Permisos' : 
+                 'Reporte Técnico de Dispositivos'}
+              </h1>
+              <p style={{ color: '#555', margin: '6px 0 0 0', fontSize: '13px' }}>
+                Periodo: <strong>{dateRange}</strong> • Departamento: <strong>{selectedDept}</strong>
+              </p>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <p style={{ color: '#000', margin: 0, fontSize: '14px', fontWeight: 600 }}>PAIN Sistema de Gestión</p>
+              <p style={{ color: '#666', margin: '4px 0 0 0', fontSize: '11px' }}>Emitido: {new Date().toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })} {new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}</p>
+            </div>
+          </div>
+          <hr style={{ border: '1px solid #ccc', margin: '1rem 0' }} />
         </div>
 
         {/* Tabs */}
-        <div className="no-print" style={{ display: 'flex', background: COLORS.darker, borderRadius: '8px', padding: '4px', border: `1px solid ${COLORS.border}`, width: 'fit-content', marginBottom: '2rem' }}>
+        <div className="no-print" style={{ display: 'flex', background: COLORS.darker, borderRadius: '8px', padding: '4px', border: `1px solid ${COLORS.border}`, width: 'fit-content', marginBottom: '2rem', flexWrap: 'wrap', gap: '4px' }}>
           <button 
             onClick={() => { setActiveTab('asistencia'); setSelectedStatus('Todos los estados'); }} 
             style={{ ...toggleBtn, background: activeTab === 'asistencia' ? 'rgba(249, 115, 22, 0.1)' : 'transparent', color: activeTab === 'asistencia' ? COLORS.orange : COLORS.textMuted }}
@@ -1038,6 +1186,12 @@ const ReportsPage = () => {
             style={{ ...toggleBtn, background: activeTab === 'descansos' ? 'rgba(249, 115, 22, 0.1)' : 'transparent', color: activeTab === 'descansos' ? COLORS.orange : COLORS.textMuted }}
           >
             Descansos
+          </button>
+          <button 
+            onClick={() => { setActiveTab('eventos'); }} 
+            style={{ ...toggleBtn, background: activeTab === 'eventos' ? 'rgba(249, 115, 22, 0.1)' : 'transparent', color: activeTab === 'eventos' ? COLORS.orange : COLORS.textMuted }}
+          >
+            Eventos
           </button>
           <button 
             onClick={() => { setActiveTab('dispositivos'); setSelectedStatus('Todos los estados'); }} 
@@ -1557,6 +1711,194 @@ const ReportsPage = () => {
               </div>
             </div>
 
+          </div>
+        )}
+
+        {/* TAB 4: EVENTOS */}
+        {activeTab === 'eventos' && (
+          <div className="fade-in space-y-6">
+            {/* KPI Cards */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.25rem', marginBottom: '2rem' }}>
+              {renderCard('Total Eventos', eventsKpis.totalEvents, 'Registrados en el periodo', FileText, '59, 130, 246')}
+              {renderCard('Días Vacaciones', `${eventsKpis.vacationDaysTotal} d`, `${eventsKpis.vacationCount} solicitudes`, Calendar, '139, 92, 246')}
+              {renderCard('Horas Extra', `${eventsKpis.overtimeHoursTotal} hrs`, `${eventsKpis.overtimeCount} turnos aprobados`, Clock, '59, 130, 246')}
+              {renderCard('Faltas Justificadas', eventsKpis.justifiedCount, 'Con justificante médico/oficial', CheckCircle, '16, 185, 129')}
+              {renderCard('Salidas / Retardos', eventsKpis.earlyExitCount + eventsKpis.lateArrivalCount, 'Incidencias autorizadas', AlertCircle, '234, 179, 8')}
+            </div>
+
+            {/* Visual Analytics Row */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
+              {/* Event Distribution Doughnut */}
+              <div className="card-glow" style={{ ...cardStyle, padding: '1.5rem' }}>
+                <h4 style={{ color: COLORS.text, margin: '0 0 1rem 0', fontSize: '1rem', fontWeight: 600 }}>Distribución por Tipo de Evento</h4>
+                {eventsDistribution.length > 0 ? (
+                  <div style={{ height: '250px' }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={eventsDistribution}
+                          innerRadius={55}
+                          outerRadius={85}
+                          paddingAngle={4}
+                          dataKey="value"
+                        >
+                          {eventsDistribution.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip content={<CustomTooltip />} />
+                        <Legend verticalAlign="bottom" height={36} iconType="circle" />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                ) : (
+                  <div style={{ height: '220px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: COLORS.textMuted }}>
+                    No hay eventos registrados en este periodo
+                  </div>
+                )}
+              </div>
+
+              {/* Event by Department Bar Chart */}
+              <div className="card-glow" style={{ ...cardStyle, padding: '1.5rem' }}>
+                <h4 style={{ color: COLORS.text, margin: '0 0 1rem 0', fontSize: '1rem', fontWeight: 600 }}>Eventos por Departamento</h4>
+                {eventsDeptBreakdown.length > 0 ? (
+                  <div style={{ height: '250px' }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={eventsDeptBreakdown} margin={{ top: 10, right: 10, left: -20, bottom: 20 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
+                        <XAxis dataKey="name" stroke={COLORS.textMuted} fontSize={11} angle={-15} textAnchor="end" />
+                        <YAxis stroke={COLORS.textMuted} fontSize={11} allowDecimals={false} />
+                        <Tooltip content={<CustomTooltip />} />
+                        <Bar dataKey="total" name="Eventos" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                ) : (
+                  <div style={{ height: '220px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: COLORS.textMuted }}>
+                    No hay departamentos con eventos en este periodo
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Events Detailed Table */}
+            <div id="reports-events-table" className="table-responsive-wrapper" style={{ ...cardStyle, padding: 0, overflowX: 'auto', marginBottom: '2rem' }}>
+              <div style={{ padding: '1.25rem 1.5rem', borderBottom: `1px solid ${COLORS.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+                <div>
+                  <h4 style={{ color: COLORS.text, margin: 0, fontSize: '1.1rem', fontWeight: 600 }}>
+                    Detalle Consolidado de Eventos
+                  </h4>
+                  <p style={{ color: COLORS.textMuted, margin: '0.25rem 0 0 0', fontSize: '0.82rem' }}>
+                    Mostrando {filteredEventsTable.length} eventos para el periodo seleccionado ({dateRange})
+                  </p>
+                </div>
+                <div style={{ position: 'relative', minWidth: '240px' }} className="no-print">
+                  <Search size={16} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: COLORS.textMuted }} />
+                  <input
+                    type="text"
+                    placeholder="Buscar empleado, motivo..."
+                    value={eventSearchTerm}
+                    onChange={(e) => setEventSearchTerm(e.target.value)}
+                    style={{ ...selectStyle, paddingLeft: '2.2rem', width: '100%', fontSize: '0.85rem' }}
+                  />
+                </div>
+              </div>
+
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                <thead>
+                  <tr style={{ background: 'rgba(255,255,255,0.02)', borderBottom: `1px solid ${COLORS.border}` }}>
+                    <th style={{ padding: '0.75rem 0.65rem', color: COLORS.textMuted, fontSize: '0.73rem', fontWeight: 600, textTransform: 'uppercase' }}>Empleado</th>
+                    <th style={{ padding: '0.75rem 0.65rem', color: COLORS.textMuted, fontSize: '0.73rem', fontWeight: 600, textTransform: 'uppercase' }}>Departamento</th>
+                    <th style={{ padding: '0.75rem 0.65rem', color: COLORS.textMuted, fontSize: '0.73rem', fontWeight: 600, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Tipo de Evento</th>
+                    <th style={{ padding: '0.75rem 0.65rem', color: COLORS.textMuted, fontSize: '0.73rem', fontWeight: 600, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Fecha / Vigencia</th>
+                    <th style={{ padding: '0.75rem 0.65rem', color: COLORS.textMuted, fontSize: '0.73rem', fontWeight: 600, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Duración</th>
+                    <th style={{ padding: '0.75rem 0.65rem', color: COLORS.textMuted, fontSize: '0.73rem', fontWeight: 600, textTransform: 'uppercase' }}>Motivo</th>
+                    <th style={{ padding: '0.75rem 0.65rem', color: COLORS.textMuted, fontSize: '0.73rem', fontWeight: 600, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Aprobador</th>
+                    <th style={{ padding: '0.75rem 0.65rem', color: COLORS.textMuted, fontSize: '0.73rem', fontWeight: 600, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Estado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredEventsTable.length === 0 ? (
+                    <tr>
+                      <td colSpan="8" style={{ padding: '3rem', textAlign: 'center', color: COLORS.textMuted }}>
+                        No se encontraron registros de eventos para el periodo y filtros aplicados.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredEventsTable.map((evt, idx) => {
+                      const typeConfig = {
+                        VACATION: { label: 'Vacaciones', bg: 'rgba(139, 92, 246, 0.12)', color: '#8b5cf6', border: '#8b5cf633' },
+                        OVERTIME: { label: 'Horas Extra', bg: 'rgba(59, 130, 246, 0.12)', color: '#3b82f6', border: '#3b82f633' },
+                        JUSTIFIED_ABSENCE: { label: 'Falta Justificada', bg: 'rgba(16, 185, 129, 0.12)', color: '#10b981', border: '#10b98133' },
+                        EARLY_EXIT: { label: 'Salida Anticipada', bg: 'rgba(234, 179, 8, 0.12)', color: '#eab308', border: '#eab30833' },
+                        LATE_ARRIVAL: { label: 'Llegada Tardía', bg: 'rgba(249, 115, 22, 0.12)', color: '#f97316', border: '#f9731633' }
+                      };
+                      const tc = typeConfig[evt.tipo] || { label: evt.tipo, bg: 'rgba(255,255,255,0.08)', color: '#fff', border: '#555' };
+
+                      return (
+                        <tr key={evt.id || idx} style={{ borderBottom: `1px solid ${COLORS.border}33`, fontSize: '0.82rem' }}>
+                          <td style={{ padding: '0.75rem 0.65rem' }}>
+                            <div style={{ color: COLORS.text, fontWeight: 600 }}>{evt.empleado}</div>
+                            <div style={{ color: COLORS.textMuted, fontSize: '0.72rem' }}>{evt.identificador}</div>
+                          </td>
+                          <td style={{ padding: '0.75rem 0.65rem', color: COLORS.textMuted }}>
+                            {evt.departamento}
+                            {evt.esGrupal && (
+                              <span style={{ marginLeft: '0.4rem', padding: '0.1rem 0.35rem', background: 'rgba(59, 130, 246, 0.12)', color: '#60a5fa', borderRadius: '4px', fontSize: '0.65rem', fontWeight: 600 }}>
+                                Grupal
+                              </span>
+                            )}
+                          </td>
+                          <td style={{ padding: '0.75rem 0.65rem', whiteSpace: 'nowrap' }}>
+                            <span style={{ 
+                              padding: '0.2rem 0.55rem', 
+                              borderRadius: '999px', 
+                              background: tc.bg, 
+                              color: tc.color, 
+                              border: `1px solid ${tc.border}`,
+                              fontSize: '0.72rem',
+                              fontWeight: 600,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              whiteSpace: 'nowrap'
+                            }}>
+                              {tc.label}
+                            </span>
+                          </td>
+                          <td style={{ padding: '0.75rem 0.65rem', color: COLORS.text, whiteSpace: 'nowrap' }}>
+                            {evt.rangoTexto}
+                          </td>
+                          <td style={{ padding: '0.75rem 0.65rem', color: COLORS.textMuted, whiteSpace: 'nowrap' }}>
+                            {evt.duracion}
+                          </td>
+                          <td style={{ padding: '0.75rem 0.65rem', color: COLORS.textMuted, maxWidth: '160px' }}>
+                            <span title={evt.motivo} style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {evt.motivo}
+                            </span>
+                          </td>
+                          <td style={{ padding: '0.75rem 0.65rem', color: COLORS.textMuted, fontSize: '0.78rem', whiteSpace: 'nowrap' }}>
+                            👤 {evt.aprobadoPor}
+                          </td>
+                          <td style={{ padding: '0.75rem 0.65rem', whiteSpace: 'nowrap' }}>
+                            <span style={{ 
+                              padding: '0.18rem 0.5rem', 
+                              borderRadius: '6px', 
+                              background: evt.estado === 'ACTIVE' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)', 
+                              color: evt.estado === 'ACTIVE' ? '#10b981' : '#ef4444', 
+                              border: `1px solid ${evt.estado === 'ACTIVE' ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
+                              fontSize: '0.72rem',
+                              fontWeight: 600
+                            }}>
+                              {evt.estado === 'ACTIVE' ? 'Activo' : 'Cancelado'}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
 

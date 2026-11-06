@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import FaceRegistration from '../../components/FaceRecognition/FaceRegistration';
 import DepartmentsTab from '../../components/DepartmentsTab';
-import { Search, Filter, Users, Fingerprint, Clock, MoreVertical, Plus, AlertCircle, AlertTriangle, RefreshCw, Camera, Trash2, Edit, Calendar, X, Shield } from 'lucide-react';
+import { Search, Filter, Users, Fingerprint, Clock, MoreVertical, Plus, AlertCircle, AlertTriangle, RefreshCw, Camera, Trash2, Edit, Calendar, X, Shield, ExternalLink, FileText, CheckCircle2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { toast } from 'sonner';
@@ -31,6 +31,7 @@ const EmployeesPage = () => {
   const [selectedEmployeeId, setSelectedEmployeeId] = useState(null);
   const [employeeDetails, setEmployeeDetails] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isEventHistoryOpen, setIsEventHistoryOpen] = useState(false);
   const [modalLoading, setModalLoading] = useState(false);
   const [modalError, setModalError] = useState(null);
   
@@ -156,6 +157,61 @@ const EmployeesPage = () => {
     } catch {
       return '';
     }
+  };
+
+  // Configuraciones y clasificación temporal de eventos (En curso, Concluido, Programado)
+  const EVENT_CONFIG = {
+    OVERTIME: { label: 'Horas Extra', color: '#3b82f6', bg: 'rgba(59, 130, 246, 0.1)', border: 'rgba(59, 130, 246, 0.3)' },
+    EARLY_EXIT: { label: 'Salida Anticipada', color: '#eab308', bg: 'rgba(234, 179, 8, 0.1)', border: 'rgba(234, 179, 8, 0.3)' },
+    JUSTIFIED_ABSENCE: { label: 'Falta Justificada', color: '#10b981', bg: 'rgba(16, 185, 129, 0.1)', border: 'rgba(16, 185, 129, 0.3)' },
+    VACATION: { label: 'Vacaciones', color: '#8b5cf6', bg: 'rgba(139, 92, 246, 0.1)', border: 'rgba(139, 92, 246, 0.3)' },
+    LATE_ARRIVAL: { label: 'Llegada Tardía', color: '#f97316', bg: 'rgba(249, 115, 22, 0.1)', border: 'rgba(249, 115, 22, 0.3)' }
+  };
+
+  const getEventTemporalStatus = (evt) => {
+    if (!evt) return { statusKey: 'COMPLETED', label: 'Concluido', color: '#a1a1aa', bg: 'rgba(161, 161, 170, 0.1)', border: 'rgba(161, 161, 170, 0.25)' };
+    if (evt.status === 'CANCELLED') {
+      return { statusKey: 'CANCELLED', label: 'Cancelado', color: '#ef4444', bg: 'rgba(239, 68, 68, 0.12)', border: 'rgba(239, 68, 68, 0.3)' };
+    }
+    
+    const today = new Date();
+    const tStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    
+    const startStr = typeof evt.date === 'string' ? evt.date.split('T')[0] : new Date(evt.date).toISOString().split('T')[0];
+    const endStr = evt.dateTo 
+      ? (typeof evt.dateTo === 'string' ? evt.dateTo.split('T')[0] : new Date(evt.dateTo).toISOString().split('T')[0]) 
+      : startStr;
+    
+    if (tStr > endStr) {
+      return { statusKey: 'COMPLETED', label: 'Concluido', color: '#a1a1aa', bg: 'rgba(161, 161, 170, 0.1)', border: 'rgba(161, 161, 170, 0.25)' };
+    } else if (tStr >= startStr && tStr <= endStr) {
+      return { statusKey: 'CURRENT', label: 'En curso hoy', color: '#10b981', bg: 'rgba(16, 185, 129, 0.15)', border: 'rgba(16, 185, 129, 0.3)' };
+    } else {
+      return { statusKey: 'SCHEDULED', label: 'Programado', color: '#60a5fa', bg: 'rgba(59, 130, 246, 0.15)', border: 'rgba(59, 130, 246, 0.3)' };
+    }
+  };
+
+  const formatEventRange = (evt) => {
+    if (!evt) return '';
+    const startStr = typeof evt.date === 'string' ? evt.date.split('T')[0] : new Date(evt.date).toISOString().split('T')[0];
+    const endStr = evt.dateTo 
+      ? (typeof evt.dateTo === 'string' ? evt.dateTo.split('T')[0] : new Date(evt.dateTo).toISOString().split('T')[0]) 
+      : null;
+
+    const formatDate = (str) => {
+      if (!str) return '';
+      const [y, m, d] = str.split('-');
+      const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+      return `${d} ${months[parseInt(m, 10) - 1]} ${y}`;
+    };
+
+    if (endStr && endStr !== startStr) {
+      const d1 = new Date(startStr);
+      const d2 = new Date(endStr);
+      const days = Math.round((d2 - d1) / (1000 * 60 * 60 * 24)) + 1;
+      return `${formatDate(startStr)} ➔ ${formatDate(endStr)} (${days} días)`;
+    }
+    return formatDate(startStr);
   };
 
   // Mapeo indexado de asistencia de hoy por empleado
@@ -1286,14 +1342,27 @@ const EmployeesPage = () => {
                                   </p>
                                   <p style={{ margin: '0.2rem 0 0 0', color: '#a1a1aa', fontSize: '0.8rem' }}>{new Date(evt.date).toLocaleDateString(undefined, { timeZone: 'UTC' })}</p>
                                 </div>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                <span style={{ padding: '0.2rem 0.5rem', background: conf.bg, color: conf.color, borderRadius: '4px', fontSize: '0.75rem' }}>
-                                  Activo
-                                </span>
-                                <button onClick={() => handleCancelEvent(evt.id)} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '0.2rem' }} title="Eliminar Evento">
-                                  <Trash2 size={16} />
-                                </button>
-                              </div>
+                              {(() => {
+                                const temporal = getEventTemporalStatus(evt);
+                                return (
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <span style={{ 
+                                      padding: '0.2rem 0.55rem', 
+                                      background: temporal.bg, 
+                                      color: temporal.color, 
+                                      border: `1px solid ${temporal.border}`,
+                                      borderRadius: '4px', 
+                                      fontSize: '0.75rem',
+                                      fontWeight: 600
+                                    }}>
+                                      {temporal.label}
+                                    </span>
+                                    <button onClick={() => handleCancelEvent(evt.id)} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '0.2rem' }} title="Eliminar Evento">
+                                      <Trash2 size={16} />
+                                    </button>
+                                  </div>
+                                );
+                              })()}
                             </div>
                           );
                         })}
@@ -1304,12 +1373,45 @@ const EmployeesPage = () => {
               ) : null}
             </div>
             {employeeDetails && (
-              <div style={{ padding: '1rem 1.5rem', borderTop: '1px solid #3f3f46', display: 'flex', justifyContent: 'flex-end' }}>
+              <div style={{ padding: '1rem 1.5rem', borderTop: '1px solid #3f3f46', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                <button 
+                  type="button"
+                  onClick={() => setIsEventHistoryOpen(true)}
+                  style={{
+                    padding: '0.65rem 1.25rem',
+                    background: 'rgba(59, 130, 246, 0.12)',
+                    color: '#60a5fa',
+                    border: '1px solid rgba(59, 130, 246, 0.3)',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                    fontSize: '0.88rem',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  <Calendar size={16} /> Historial Global de Eventos ({employeeDetails.eventRequests?.length || 0})
+                </button>
                 <button style={btnSecondary} onClick={() => setIsModalOpen(false)}>Cerrar</button>
               </div>
             )}
           </div>
         </div>
+      )}
+
+      {/* Modal de Historial Completo de Eventos del Empleado */}
+      {isEventHistoryOpen && employeeDetails && (
+        <EmployeeEventHistoryModal
+          employee={employeeDetails}
+          onClose={() => setIsEventHistoryOpen(false)}
+          onCancelEvent={handleCancelEvent}
+          navigate={navigate}
+          getEventTemporalStatus={getEventTemporalStatus}
+          formatEventRange={formatEventRange}
+          EVENT_CONFIG={EVENT_CONFIG}
+        />
       )}
 
       {/* Edit Employee Modal */}
@@ -1644,6 +1746,485 @@ const EditEmployeeModal = ({ employee, departmentsList, onClose, onSaved }) => {
             <button type="submit" style={btnPrimary} disabled={loading}>{loading ? 'Guardando...' : 'Guardar Cambios'}</button>
           </div>
         </form>
+      </div>
+    </div>
+  );
+};
+
+// --- Modal de Historial Completo de Eventos del Empleado ---
+const EmployeeEventHistoryModal = ({ 
+  employee, 
+  onClose, 
+  onCancelEvent, 
+  navigate,
+  getEventTemporalStatus,
+  formatEventRange,
+  EVENT_CONFIG
+}) => {
+  const [selectedYear, setSelectedYear] = useState('ALL');
+  const [selectedMonth, setSelectedMonth] = useState('ALL');
+  const [selectedType, setSelectedType] = useState('ALL');
+  const [selectedStatus, setSelectedStatus] = useState('ALL');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const events = useMemo(() => employee?.eventRequests || [], [employee]);
+
+  // Años disponibles en los registros del empleado
+  const availableYears = useMemo(() => {
+    const set = new Set();
+    const currentYear = new Date().getFullYear();
+    set.add(currentYear);
+    events.forEach(e => {
+      if (e.date) {
+        const y = new Date(e.date).getFullYear();
+        if (y) set.add(y);
+      }
+      if (e.dateTo) {
+        const y2 = new Date(e.dateTo).getFullYear();
+        if (y2) set.add(y2);
+      }
+    });
+    return Array.from(set).sort((a, b) => b - a);
+  }, [events]);
+
+  const months = [
+    { num: '0', name: 'Enero' },
+    { num: '1', name: 'Febrero' },
+    { num: '2', name: 'Marzo' },
+    { num: '3', name: 'Abril' },
+    { num: '4', name: 'Mayo' },
+    { num: '5', name: 'Junio' },
+    { num: '6', name: 'Julio' },
+    { num: '7', name: 'Agosto' },
+    { num: '8', name: 'Septiembre' },
+    { num: '9', name: 'Octubre' },
+    { num: '10', name: 'Noviembre' },
+    { num: '11', name: 'Diciembre' }
+  ];
+
+  // Cálculo de estadísticas globales del empleado
+  const stats = useMemo(() => {
+    let vacationDays = 0;
+    let overtimeMins = 0;
+    let justifiedAbsences = 0;
+    let otherCount = 0;
+
+    events.forEach(evt => {
+      if (evt.status === 'CANCELLED') return;
+      if (evt.type === 'VACATION') {
+        const start = new Date(evt.date);
+        const end = evt.dateTo ? new Date(evt.dateTo) : start;
+        const days = Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1;
+        vacationDays += Math.max(1, days);
+      } else if (evt.type === 'OVERTIME') {
+        overtimeMins += (evt.minutes || 0);
+      } else if (evt.type === 'JUSTIFIED_ABSENCE') {
+        justifiedAbsences++;
+      } else {
+        otherCount++;
+      }
+    });
+
+    return {
+      vacationDays,
+      overtimeHours: +(overtimeMins / 60).toFixed(1),
+      justifiedAbsences,
+      otherCount,
+      totalEvents: events.length
+    };
+  }, [events]);
+
+  // Filtrado reactivo de eventos
+  const filteredEvents = useMemo(() => {
+    return events.filter(evt => {
+      const temporal = getEventTemporalStatus(evt);
+      if (selectedStatus !== 'ALL' && temporal.statusKey !== selectedStatus) {
+        return false;
+      }
+      if (selectedType !== 'ALL' && evt.type !== selectedType) {
+        return false;
+      }
+
+      // Filtro de Año
+      if (selectedYear !== 'ALL') {
+        const y1 = new Date(evt.date).getFullYear();
+        const y2 = evt.dateTo ? new Date(evt.dateTo).getFullYear() : y1;
+        const targetYear = parseInt(selectedYear, 10);
+        if (y1 !== targetYear && y2 !== targetYear) return false;
+      }
+
+      // Filtro de Mes
+      if (selectedMonth !== 'ALL') {
+        const m1 = new Date(evt.date).getMonth();
+        const m2 = evt.dateTo ? new Date(evt.dateTo).getMonth() : m1;
+        const targetMonth = parseInt(selectedMonth, 10);
+        if (m1 !== targetMonth && m2 !== targetMonth) return false;
+      }
+
+      // Búsqueda por texto
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const reason = (evt.reason || '').toLowerCase();
+        const approvedBy = (evt.registeredBy?.name || '').toLowerCase();
+        const typeLabel = (EVENT_CONFIG[evt.type]?.label || '').toLowerCase();
+        if (!reason.includes(q) && !approvedBy.includes(q) && !typeLabel.includes(q)) {
+          return false;
+        }
+      }
+
+      return true;
+    }).sort((a, b) => new Date(b.date) - new Date(a.date));
+  }, [events, selectedYear, selectedMonth, selectedType, selectedStatus, searchQuery, getEventTemporalStatus, EVENT_CONFIG]);
+
+  const hasActiveFilters = selectedYear !== 'ALL' || selectedMonth !== 'ALL' || selectedType !== 'ALL' || selectedStatus !== 'ALL' || searchQuery.trim() !== '';
+
+  const resetFilters = () => {
+    setSelectedYear('ALL');
+    setSelectedMonth('ALL');
+    setSelectedType('ALL');
+    setSelectedStatus('ALL');
+    setSearchQuery('');
+  };
+
+  const getInitials = (f, l) => `${(f || '').charAt(0)}${(l || '').charAt(0)}`.toUpperCase();
+
+  return (
+    <div className="modal-overlay" onClick={onClose} style={{ zIndex: 1100 }}>
+      <div 
+        className="modal-content page-glow" 
+        onClick={e => e.stopPropagation()} 
+        style={{ 
+          maxWidth: '820px', 
+          width: '95%',
+          maxHeight: '90vh', 
+          display: 'flex', 
+          flexDirection: 'column',
+          background: '#141417',
+          border: '1px solid #3f3f46',
+          borderRadius: '16px',
+          overflow: 'hidden',
+          padding: 0
+        }}
+      >
+        {/* Encabezado */}
+        <div style={{ padding: '1.25rem 1.75rem', borderBottom: '1px solid #27272a', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#18181b' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'rgba(59, 130, 246, 0.2)', color: '#60a5fa', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '1.2rem' }}>
+              {getInitials(employee.firstName, employee.lastName)}
+            </div>
+            <div>
+              <h3 style={{ margin: 0, color: '#fff', fontSize: '1.25rem', fontWeight: 600 }}>
+                Historial Global de Eventos
+              </h3>
+              <p style={{ margin: '0.2rem 0 0', color: '#a1a1aa', fontSize: '0.85rem' }}>
+                <strong style={{ color: '#e4e4e7' }}>{employee.firstName} {employee.lastName}</strong> • {employee.identifier} • {employee.department?.name || 'General'}
+              </p>
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <button
+              onClick={() => {
+                onClose();
+                navigate('/dashboard/reports');
+              }}
+              title="Ir a reportes para ver el impacto en asistencias"
+              style={{
+                background: 'rgba(59, 130, 246, 0.1)',
+                border: '1px solid rgba(59, 130, 246, 0.3)',
+                color: '#60a5fa',
+                borderRadius: '8px',
+                padding: '0.45rem 0.85rem',
+                fontSize: '0.8rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              <ExternalLink size={14} /> Ver en Reportes
+            </button>
+            <button 
+              onClick={onClose} 
+              style={{ background: 'transparent', border: 'none', color: '#a1a1aa', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '0.25rem' }}
+            >
+              <X size={22} />
+            </button>
+          </div>
+        </div>
+
+        {/* Cuerpo del Modal con Scroll */}
+        <div style={{ padding: '1.5rem 1.75rem', overflowY: 'auto', flex: 1 }}>
+          {/* Tarjetas de Resumen KPI */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
+            <div style={{ background: '#1c1c21', border: '1px solid rgba(139, 92, 246, 0.25)', borderRadius: '10px', padding: '1rem' }}>
+              <span style={{ fontSize: '0.75rem', color: '#a1a1aa', fontWeight: 600 }}>Vacaciones</span>
+              <div style={{ fontSize: '1.6rem', color: '#a78bfa', fontWeight: 700, margin: '0.25rem 0 0' }}>
+                {stats.vacationDays} <span style={{ fontSize: '0.85rem', color: '#a1a1aa', fontWeight: 400 }}>días</span>
+              </div>
+            </div>
+            <div style={{ background: '#1c1c21', border: '1px solid rgba(59, 130, 246, 0.25)', borderRadius: '10px', padding: '1rem' }}>
+              <span style={{ fontSize: '0.75rem', color: '#a1a1aa', fontWeight: 600 }}>Horas Extra</span>
+              <div style={{ fontSize: '1.6rem', color: '#60a5fa', fontWeight: 700, margin: '0.25rem 0 0' }}>
+                {stats.overtimeHours} <span style={{ fontSize: '0.85rem', color: '#a1a1aa', fontWeight: 400 }}>hrs</span>
+              </div>
+            </div>
+            <div style={{ background: '#1c1c21', border: '1px solid rgba(16, 185, 129, 0.25)', borderRadius: '10px', padding: '1rem' }}>
+              <span style={{ fontSize: '0.75rem', color: '#a1a1aa', fontWeight: 600 }}>Faltas Justificadas</span>
+              <div style={{ fontSize: '1.6rem', color: '#34d399', fontWeight: 700, margin: '0.25rem 0 0' }}>
+                {stats.justifiedAbsences} <span style={{ fontSize: '0.85rem', color: '#a1a1aa', fontWeight: 400 }}>días</span>
+              </div>
+            </div>
+            <div style={{ background: '#1c1c21', border: '1px solid rgba(234, 179, 8, 0.25)', borderRadius: '10px', padding: '1rem' }}>
+              <span style={{ fontSize: '0.75rem', color: '#a1a1aa', fontWeight: 600 }}>Otras Incidencias</span>
+              <div style={{ fontSize: '1.6rem', color: '#facc15', fontWeight: 700, margin: '0.25rem 0 0' }}>
+                {stats.otherCount} <span style={{ fontSize: '0.85rem', color: '#a1a1aa', fontWeight: 400 }}>reg.</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Barra de Filtros (Año, Mes, Tipo, Estado, Búsqueda) */}
+          <div style={{ background: '#1c1c21', border: '1px solid #27272a', borderRadius: '12px', padding: '1rem', marginBottom: '1.25rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '0.75rem', marginBottom: '0.75rem' }}>
+              {/* Filtro Año */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', color: '#a1a1aa', marginBottom: '0.35rem' }}>Año</label>
+                <select 
+                  value={selectedYear} 
+                  onChange={e => setSelectedYear(e.target.value)}
+                  style={{ ...inputStyle, padding: '0.5rem', fontSize: '0.85rem' }}
+                >
+                  <option value="ALL">Todos los años</option>
+                  {availableYears.map(y => (
+                    <option key={y} value={y}>{y}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Filtro Mes */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', color: '#a1a1aa', marginBottom: '0.35rem' }}>Mes</label>
+                <select 
+                  value={selectedMonth} 
+                  onChange={e => setSelectedMonth(e.target.value)}
+                  style={{ ...inputStyle, padding: '0.5rem', fontSize: '0.85rem' }}
+                >
+                  <option value="ALL">Todos los meses</option>
+                  {months.map(m => (
+                    <option key={m.num} value={m.num}>{m.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Filtro Tipo */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', color: '#a1a1aa', marginBottom: '0.35rem' }}>Tipo de Evento</label>
+                <select 
+                  value={selectedType} 
+                  onChange={e => setSelectedType(e.target.value)}
+                  style={{ ...inputStyle, padding: '0.5rem', fontSize: '0.85rem' }}
+                >
+                  <option value="ALL">Todos los tipos</option>
+                  <option value="VACATION">Vacaciones</option>
+                  <option value="OVERTIME">Horas Extra</option>
+                  <option value="JUSTIFIED_ABSENCE">Falta Justificada</option>
+                  <option value="EARLY_EXIT">Salida Anticipada</option>
+                  <option value="LATE_ARRIVAL">Llegada Tardía</option>
+                </select>
+              </div>
+
+              {/* Filtro Estado Temporal */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', color: '#a1a1aa', marginBottom: '0.35rem' }}>Estado</label>
+                <select 
+                  value={selectedStatus} 
+                  onChange={e => setSelectedStatus(e.target.value)}
+                  style={{ ...inputStyle, padding: '0.5rem', fontSize: '0.85rem' }}
+                >
+                  <option value="ALL">Todos los estados</option>
+                  <option value="CURRENT">🟢 En curso hoy</option>
+                  <option value="COMPLETED">⚪ Concluido / Pasado</option>
+                  <option value="SCHEDULED">🔵 Programado (Futuro)</option>
+                  <option value="CANCELLED">🔴 Cancelado</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Buscador de texto y reset */}
+            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+              <div style={{ position: 'relative', flex: 1 }}>
+                <Search size={16} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: '#71717a' }} />
+                <input 
+                  type="text"
+                  placeholder="Buscar en motivos o por quien aprobó..."
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  style={{ ...inputStyle, paddingLeft: '2.25rem', padding: '0.5rem 0.5rem 0.5rem 2.25rem', fontSize: '0.85rem' }}
+                />
+              </div>
+              {hasActiveFilters && (
+                <button
+                  type="button"
+                  onClick={resetFilters}
+                  style={{
+                    padding: '0.5rem 0.85rem',
+                    background: 'rgba(239, 68, 68, 0.12)',
+                    color: '#ef4444',
+                    border: '1px solid rgba(239, 68, 68, 0.3)',
+                    borderRadius: '8px',
+                    fontSize: '0.8rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  Limpiar filtros ✕
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Contador de resultados */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', fontSize: '0.85rem', color: '#a1a1aa' }}>
+            <span>Mostrando <strong style={{ color: '#fff' }}>{filteredEvents.length}</strong> de {events.length} evento(s)</span>
+            {hasActiveFilters && <span style={{ color: '#f97316', fontSize: '0.78rem' }}>● Filtros aplicados</span>}
+          </div>
+
+          {/* Lista de Eventos */}
+          {filteredEvents.length === 0 ? (
+            <div style={{ padding: '3.5rem 1.5rem', textAlign: 'center', background: '#1c1c21', borderRadius: '12px', border: '1px solid #27272a' }}>
+              <Calendar size={40} style={{ color: '#52525b', margin: '0 auto 0.75rem' }} />
+              <h4 style={{ color: '#fff', margin: '0 0 0.5rem' }}>No se encontraron eventos</h4>
+              <p style={{ color: '#a1a1aa', fontSize: '0.88rem', margin: '0 0 1rem' }}>
+                {hasActiveFilters 
+                  ? 'No hay eventos que coincidan con los filtros seleccionados.' 
+                  : 'Este empleado aún no tiene eventos ni incidencias registradas.'}
+              </p>
+              {hasActiveFilters && (
+                <button onClick={resetFilters} style={{ ...btnSecondary, padding: '0.5rem 1rem', fontSize: '0.85rem' }}>
+                  Restablecer filtros
+                </button>
+              )}
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+              {filteredEvents.map(evt => {
+                const conf = EVENT_CONFIG[evt.type] || { label: evt.type, color: '#3b82f6', bg: 'rgba(59, 130, 246, 0.1)', border: 'rgba(59, 130, 246, 0.3)' };
+                const temporal = getEventTemporalStatus(evt);
+                const rangeStr = formatEventRange(evt);
+
+                return (
+                  <div 
+                    key={evt.id}
+                    style={{
+                      background: '#1c1c21',
+                      border: `1px solid ${conf.border}`,
+                      borderRadius: '10px',
+                      padding: '1rem 1.25rem',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.65rem',
+                      transition: 'border-color 0.2s',
+                      position: 'relative'
+                    }}
+                  >
+                    {/* Fila Superior: Tipo, Rango de Fecha y Badges */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
+                        <span style={{ 
+                          padding: '0.25rem 0.65rem', 
+                          background: conf.bg, 
+                          color: conf.color, 
+                          border: `1px solid ${conf.border}`, 
+                          borderRadius: '6px', 
+                          fontSize: '0.8rem', 
+                          fontWeight: 700 
+                        }}>
+                          {conf.label}
+                        </span>
+                        <span style={{ color: '#fff', fontSize: '0.9rem', fontWeight: 600 }}>
+                          {rangeStr}
+                        </span>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                        <span style={{ 
+                          padding: '0.2rem 0.6rem', 
+                          background: temporal.bg, 
+                          color: temporal.color, 
+                          border: `1px solid ${temporal.border}`, 
+                          borderRadius: '999px', 
+                          fontSize: '0.75rem', 
+                          fontWeight: 600,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.35rem'
+                        }}>
+                          {temporal.statusKey === 'CURRENT' && (
+                            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981', boxShadow: '0 0 6px #10b981' }} />
+                          )}
+                          {temporal.label}
+                        </span>
+
+                        <button 
+                          onClick={() => onCancelEvent(evt.id)} 
+                          style={{ 
+                            background: 'transparent', 
+                            border: 'none', 
+                            color: '#ef4444', 
+                            cursor: 'pointer', 
+                            padding: '0.25rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            opacity: 0.8
+                          }} 
+                          title="Eliminar evento de forma permanente"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Fila Media: Detalle de Horas Extra y Motivo */}
+                    {evt.type === 'OVERTIME' && evt.minutes && (
+                      <div style={{ fontSize: '0.82rem', color: '#60a5fa', fontWeight: 500 }}>
+                        ⏱️ Horas extra autorizadas: <strong>{evt.minutes} minutos</strong> ({(evt.minutes / 60).toFixed(1)} hrs de jornada)
+                      </div>
+                    )}
+
+                    <div style={{ background: 'rgba(255, 255, 255, 0.02)', padding: '0.6rem 0.85rem', borderRadius: '6px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                      <p style={{ margin: 0, color: '#e4e4e7', fontSize: '0.85rem', lineHeight: '1.4' }}>
+                        <span style={{ color: '#a1a1aa', fontWeight: 500 }}>Motivo: </span>
+                        {evt.reason || 'Sin motivo especificado'}
+                      </p>
+                    </div>
+
+                    {/* Fila Inferior: Auditoría y Registro */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem', color: '#71717a', flexWrap: 'wrap', gap: '0.5rem', paddingTop: '0.25rem' }}>
+                      <span>
+                        👤 Aprobado por: <strong style={{ color: '#a1a1aa' }}>{evt.registeredBy?.name || 'Administrador'}</strong>
+                      </span>
+                      <span>
+                        🕒 Registrado el: {new Date(evt.createdAt).toLocaleDateString()} a las {new Date(evt.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Footer del Modal */}
+        <div style={{ padding: '1rem 1.75rem', borderTop: '1px solid #27272a', background: '#18181b', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+          <p style={{ margin: 0, fontSize: '0.78rem', color: '#71717a' }}>
+            ℹ️ Todos los eventos concluidos o en curso se computan automáticamente en el módulo de <strong style={{ color: '#a1a1aa' }}>Reportes y Analíticas</strong>.
+          </p>
+          <button style={btnSecondary} onClick={onClose}>
+            Cerrar Historial
+          </button>
+        </div>
       </div>
     </div>
   );

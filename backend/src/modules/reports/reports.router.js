@@ -9,7 +9,7 @@ router.use(requireJwt);
 // --- Helpers ---
 // Determine working days. Since Shift model lacks daysOfWeek, we assume Mon-Fri (1-5).
 const isWorkingDay = (dateObj) => {
-  const day = dateObj.getDay();
+  const day = typeof dateObj.getUTCDay === 'function' ? dateObj.getUTCDay() : dateObj.getDay();
   return day >= 1 && day <= 5; // Lunes a Viernes
 };
 
@@ -66,8 +66,9 @@ const getShiftCascadeForEmployees = async (employeeIds) => {
 const buildEventMapForDateRange = async (start, end, employeeIds = null, department = null, extraEmployeeIds = []) => {
   const evtWhere = { 
     status: 'ACTIVE',
+    date: { lte: end },
     OR: [
-      { date: { gte: start, lte: end } },
+      { date: { gte: start } },
       { dateTo: { gte: start } } 
     ]
   };
@@ -146,9 +147,9 @@ router.get('/kpis', async (req, res) => {
     const start = new Date(startDate);
     const end = new Date(endDate);
     
-    // Validar máximo 90 días
-    if ((end - start) / (1000 * 60 * 60 * 24) > 90) {
-      return res.status(400).json({ error: 'El rango de fechas no puede superar los 90 días' });
+    // Validar máximo 366 días (1 año)
+    if ((end - start) / (1000 * 60 * 60 * 24) > 366) {
+      return res.status(400).json({ error: 'El rango de fechas no puede superar 1 año (366 días)' });
     }
 
     const attWhere = { date: { gte: start, lte: end } };
@@ -551,8 +552,8 @@ router.get('/attendance-consolidated', async (req, res) => {
     const start = new Date(startDate);
     const end = new Date(endDate);
     
-    if ((end - start) / (1000 * 60 * 60 * 24) > 90) {
-      return res.status(400).json({ error: 'El rango de fechas no puede superar los 90 días' });
+    if ((end - start) / (1000 * 60 * 60 * 24) > 366) {
+      return res.status(400).json({ error: 'El rango de fechas no puede superar 1 año (366 días)' });
     }
 
     const attWhere = { date: { gte: start, lte: end } };
@@ -825,8 +826,8 @@ router.get('/breaks-consolidated', async (req, res) => {
     const start = new Date(startDate);
     const end = new Date(endDate);
     
-    if ((end - start) / (1000 * 60 * 60 * 24) > 90) {
-      return res.status(400).json({ error: 'El rango de fechas no puede superar los 90 días' });
+    if ((end - start) / (1000 * 60 * 60 * 24) > 366) {
+      return res.status(400).json({ error: 'El rango de fechas no puede superar 1 año (366 días)' });
     }
 
     const attWhere = { date: { gte: start, lte: end } };
@@ -1155,6 +1156,186 @@ router.get('/devices-consolidated', async (req, res) => {
   } catch (error) {
     console.error('Error in /devices-consolidated:', error);
     res.status(500).json({ error: 'Error del servidor al obtener datos de dispositivos' });
+  }
+});
+
+// ============================================
+// ENDPOINT: /api/v1/reports/events-consolidated
+// ============================================
+router.get('/events-consolidated', async (req, res) => {
+  try {
+    const { startDate, endDate, department, type, status, limit } = req.query;
+
+    let start, end;
+    if (startDate && endDate) {
+      const sStr = startDate.includes('T') ? startDate : `${startDate}T00:00:00.000Z`;
+      const eStr = endDate.includes('T') ? endDate : `${endDate}T23:59:59.999Z`;
+      start = new Date(sStr);
+      end = new Date(eStr);
+    } else {
+      const now = new Date();
+      start = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0));
+      end = new Date(Date.UTC(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999));
+    }
+
+    if ((end - start) / (1000 * 60 * 60 * 24) > 366) {
+      return res.status(400).json({ error: 'El rango de fechas no puede superar 1 año (366 días)' });
+    }
+
+    const whereClause = {
+      OR: [
+        {
+          dateTo: null,
+          date: { gte: start, lte: end }
+        },
+        {
+          dateTo: { not: null, gte: start },
+          date: { lte: end }
+        }
+      ]
+    };
+
+    if (req.user?.companyId) {
+      whereClause.companyId = req.user.companyId;
+    }
+
+    if (status && status !== 'ALL' && status !== 'Todos los estados') {
+      whereClause.status = status;
+    }
+    if (type && type !== 'ALL' && type !== 'Todos los tipos') {
+      whereClause.type = type;
+    }
+    if (department && department !== 'Todos los departamentos') {
+      whereClause.employee = { department: { name: department } };
+    }
+
+    const events = await prisma.eventRequest.findMany({
+      where: whereClause,
+      include: {
+        employee: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            identifier: true,
+            department: { select: { id: true, name: true } }
+          }
+        },
+        registeredBy: {
+          select: { id: true, name: true, email: true }
+        }
+      },
+      orderBy: { date: 'desc' },
+      take: limit ? parseInt(limit, 10) : 500
+    });
+
+    let totalEvents = events.length;
+    let vacationCount = 0;
+    let vacationDaysTotal = 0;
+    let overtimeCount = 0;
+    let overtimeHoursTotal = 0;
+    let justifiedCount = 0;
+    let earlyExitCount = 0;
+    let lateArrivalCount = 0;
+    let activeEventsCount = 0;
+    let cancelledEventsCount = 0;
+
+    const deptMap = {};
+    const typeMap = {
+      VACATION: 0,
+      OVERTIME: 0,
+      JUSTIFIED_ABSENCE: 0,
+      EARLY_EXIT: 0,
+      LATE_ARRIVAL: 0
+    };
+
+    const formattedList = events.map(evt => {
+      if (evt.status === 'ACTIVE') activeEventsCount++;
+      if (evt.status === 'CANCELLED') cancelledEventsCount++;
+
+      const deptName = evt.employee?.department?.name || 'Sin departamento';
+      deptMap[deptName] = (deptMap[deptName] || 0) + 1;
+      if (typeMap[evt.type] !== undefined) typeMap[evt.type]++;
+
+      let durationLabel = '1 día';
+      let daysCount = 1;
+      if (evt.dateTo) {
+        const d1 = new Date(evt.date);
+        const d2 = new Date(evt.dateTo);
+        daysCount = Math.max(1, Math.round((d2 - d1) / (1000 * 60 * 60 * 24)) + 1);
+        durationLabel = `${daysCount} días`;
+      }
+
+      if (evt.type === 'VACATION') {
+        vacationCount++;
+        if (evt.status === 'ACTIVE') vacationDaysTotal += daysCount;
+      } else if (evt.type === 'OVERTIME') {
+        overtimeCount++;
+        const hrs = (evt.minutes || 0) / 60;
+        if (evt.status === 'ACTIVE') overtimeHoursTotal += hrs;
+        durationLabel = `${hrs.toFixed(1).replace('.0', '')} hrs extra`;
+      } else if (evt.type === 'JUSTIFIED_ABSENCE') {
+        justifiedCount++;
+      } else if (evt.type === 'EARLY_EXIT') {
+        earlyExitCount++;
+      } else if (evt.type === 'LATE_ARRIVAL') {
+        lateArrivalCount++;
+      }
+
+      const dateStr = typeof evt.date === 'string' ? evt.date.split('T')[0] : new Date(evt.date).toISOString().split('T')[0];
+      const dateToStr = evt.dateTo ? (typeof evt.dateTo === 'string' ? evt.dateTo.split('T')[0] : new Date(evt.dateTo).toISOString().split('T')[0]) : null;
+
+      return {
+        id: evt.id,
+        empleado: `${evt.employee?.firstName || ''} ${evt.employee?.lastName || ''}`.trim(),
+        identificador: evt.employee?.identifier || 'N/A',
+        departamento: deptName,
+        tipo: evt.type,
+        fecha: dateStr,
+        fechaFin: dateToStr,
+        rangoTexto: dateToStr && dateToStr !== dateStr ? `${dateStr} al ${dateToStr}` : dateStr,
+        duracion: durationLabel,
+        motivo: evt.reason || 'Sin motivo especificado',
+        aprobadoPor: evt.registeredBy?.name || 'Administrador',
+        estado: evt.status,
+        batchId: evt.batchId,
+        esGrupal: !!evt.batchId
+      };
+    });
+
+    const distribution = [
+      { name: 'Vacaciones', value: typeMap.VACATION, color: '#8b5cf6' },
+      { name: 'Horas Extra', value: typeMap.OVERTIME, color: '#3b82f6' },
+      { name: 'Faltas Justificadas', value: typeMap.JUSTIFIED_ABSENCE, color: '#10b981' },
+      { name: 'Salidas Anticipadas', value: typeMap.EARLY_EXIT, color: '#eab308' },
+      { name: 'Llegadas Tardías', value: typeMap.LATE_ARRIVAL, color: '#f97316' }
+    ].filter(d => d.value > 0);
+
+    const deptBreakdown = Object.keys(deptMap).map(name => ({
+      name,
+      total: deptMap[name]
+    })).sort((a, b) => b.total - a.total);
+
+    res.json({
+      kpis: {
+        totalEvents,
+        vacationCount,
+        vacationDaysTotal,
+        overtimeCount,
+        overtimeHoursTotal: +overtimeHoursTotal.toFixed(1),
+        justifiedCount,
+        earlyExitCount,
+        lateArrivalCount,
+        activeEventsCount,
+        cancelledEventsCount
+      },
+      distribution,
+      deptBreakdown,
+      events: formattedList
+    });
+  } catch (error) {
+    console.error('Error in /events-consolidated:', error);
+    res.status(500).json({ error: 'Error del servidor al obtener datos de eventos' });
   }
 });
 
