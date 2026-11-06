@@ -667,6 +667,25 @@ const AttendancePage = () => {
             </button>
           )}
           
+          {/* Botón de Refresco en Tiempo Real */}
+          <button
+            type="button"
+            onClick={fetchData}
+            disabled={loading}
+            style={{
+              ...btnSecondary,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.45rem',
+              padding: '0.65rem 1rem',
+              fontSize: '0.85rem'
+            }}
+            title="Refrescar datos en tiempo real"
+          >
+            <RefreshCw size={15} className={loading ? "spin-animation" : ""} />
+            Actualizar
+          </button>
+
           {/* Botón Principal para Exportar Reporte */}
           <button 
             onClick={() => setIsExportModalOpen(true)}
