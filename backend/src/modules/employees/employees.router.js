@@ -408,7 +408,27 @@ router.get('/:id', async (req, res) => {
       }
     }
 
-    res.json({ ...employee, adminRole });
+    // Calcular horario efectivo (Específico de empleado > Departamento > Global del sistema)
+    let effectiveShift = null;
+    const empShift = employee.shifts?.[0]?.shift;
+    const deptShift = employee.department?.shifts?.[0]?.shift;
+    if (empShift) {
+      effectiveShift = { ...empShift, source: 'EMPLOYEE' };
+    } else if (deptShift) {
+      effectiveShift = { ...deptShift, source: 'DEPARTMENT' };
+    } else {
+      const settings = await prisma.systemSettings.findFirst({ where: { companyId: employee.companyId } });
+      effectiveShift = {
+        id: 'global',
+        name: 'Horario Global',
+        startTime: `${(settings?.workdayStartHour ?? 8).toString().padStart(2, '0')}:${(settings?.workdayStartMinute ?? 0).toString().padStart(2, '0')}`,
+        endTime: `${(settings?.workdayEndHour ?? 17).toString().padStart(2, '0')}:${(settings?.workdayEndMinute ?? 0).toString().padStart(2, '0')}`,
+        tolerance: settings?.latenessToleranceMin ?? 15,
+        source: 'GLOBAL'
+      };
+    }
+
+    res.json({ ...employee, adminRole, effectiveShift });
   } catch (error) {
     res.status(500).json({ error: 'Error al obtener empleado' });
   }

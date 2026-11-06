@@ -135,7 +135,7 @@ router.get('/kpis', async (req, res) => {
   try {
     const settings = await prisma.systemSettings.findFirst();
     const tz = settings?.timezone || DEFAULT_TZ;
-    let { startDate, endDate, department } = req.query;
+    let { startDate, endDate, department, employeeId } = req.query;
     
     if (!startDate || !endDate) {
       const now = new Date();
@@ -153,6 +153,9 @@ router.get('/kpis', async (req, res) => {
     }
 
     const attWhere = { date: { gte: start, lte: end } };
+    if (employeeId && employeeId !== 'ALL' && employeeId !== 'Todos los colaboradores') {
+      attWhere.employeeId = employeeId;
+    }
     if (department && department !== 'Todos los departamentos') {
       attWhere.employee = { department: { name: department } };
     }
@@ -188,7 +191,7 @@ router.get('/kpis', async (req, res) => {
     const { eventMap, expandedEvents, shiftMap, globalShift } = await buildEventMapForDateRange(
       start, 
       end, 
-      null, 
+      (employeeId && employeeId !== 'ALL' && employeeId !== 'Todos los colaboradores') ? [employeeId] : null, 
       (department && department !== 'Todos los departamentos') ? department : null, 
       attEmpIds
     );
@@ -400,6 +403,9 @@ router.get('/kpis', async (req, res) => {
 
     // Detectar Ausencias (Días hábiles sin asistencia ni justificación)
     const empWhere = { isActive: true };
+    if (employeeId && employeeId !== 'ALL' && employeeId !== 'Todos los colaboradores') {
+      empWhere.id = employeeId;
+    }
     if (department && department !== 'Todos los departamentos') {
       empWhere.department = { name: department };
     }
@@ -557,8 +563,12 @@ router.get('/attendance-consolidated', async (req, res) => {
     }
 
     const attWhere = { date: { gte: start, lte: end } };
-    if (employeeId) attWhere.employeeId = employeeId;
-    if (department) attWhere.employee = { department: { name: department } };
+    if (employeeId && employeeId !== 'ALL' && employeeId !== 'Todos los colaboradores') {
+      attWhere.employeeId = employeeId;
+    }
+    if (department && department !== 'Todos los departamentos') {
+      attWhere.employee = { department: { name: department } };
+    }
 
     const parsedLimit = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 200);
     const parsedPage = Math.max(parseInt(page, 10) || 1, 1);
@@ -594,7 +604,13 @@ router.get('/attendance-consolidated', async (req, res) => {
     });
 
     const attEmpIds = attendances.map(a => a.employeeId);
-    const { eventMap, shiftMap, expandedEvents, globalShift } = await buildEventMapForDateRange(start, end, employeeId ? [employeeId] : null, department, attEmpIds);
+    const { eventMap, shiftMap, expandedEvents, globalShift } = await buildEventMapForDateRange(
+      start, 
+      end, 
+      (employeeId && employeeId !== 'ALL' && employeeId !== 'Todos los colaboradores') ? [employeeId] : null, 
+      (department && department !== 'Todos los departamentos') ? department : null, 
+      attEmpIds
+    );
 
     const unifiedList = [];
     const attendanceMap = {};
@@ -741,9 +757,9 @@ router.get('/attendance-consolidated', async (req, res) => {
 
     // Incluir ausencias injustificadas para colaboradores activos en días hábiles
     const activeEmps = await prisma.employee.findMany({
-      where: employeeId 
+      where: (employeeId && employeeId !== 'ALL' && employeeId !== 'Todos los colaboradores') 
         ? { id: employeeId, isActive: true } 
-        : { isActive: true, ...(department ? { department: { name: department } } : {}) },
+        : { isActive: true, ...(department && department !== 'Todos los departamentos' ? { department: { name: department } } : {}) },
       select: { id: true, firstName: true, lastName: true, department: { select: { name: true } } }
     });
     const { map: activeShiftMap } = await getShiftCascadeForEmployees(activeEmps.map(e => e.id));
@@ -831,8 +847,12 @@ router.get('/breaks-consolidated', async (req, res) => {
     }
 
     const attWhere = { date: { gte: start, lte: end } };
-    if (employeeId) attWhere.employeeId = employeeId;
-    if (department) attWhere.employee = { department: { name: department } };
+    if (employeeId && employeeId !== 'ALL' && employeeId !== 'Todos los colaboradores') {
+      attWhere.employeeId = employeeId;
+    }
+    if (department && department !== 'Todos los departamentos') {
+      attWhere.employee = { department: { name: department } };
+    }
 
     const attendances = await prisma.attendanceRecord.findMany({
       where: attWhere,
@@ -842,7 +862,13 @@ router.get('/breaks-consolidated', async (req, res) => {
     });
 
     const attEmpIds = attendances.map(a => a.employeeId);
-    const { eventMap, shiftMap, globalShift } = await buildEventMapForDateRange(start, end, employeeId ? [employeeId] : null, department, attEmpIds);
+    const { eventMap, shiftMap, globalShift } = await buildEventMapForDateRange(
+      start, 
+      end, 
+      (employeeId && employeeId !== 'ALL' && employeeId !== 'Todos los colaboradores') ? [employeeId] : null, 
+      (department && department !== 'Todos los departamentos') ? department : null, 
+      attEmpIds
+    );
 
     const unifiedList = [];
 
@@ -1164,7 +1190,7 @@ router.get('/devices-consolidated', async (req, res) => {
 // ============================================
 router.get('/events-consolidated', async (req, res) => {
   try {
-    const { startDate, endDate, department, type, status, limit } = req.query;
+    const { startDate, endDate, department, employeeId, type, status, limit } = req.query;
 
     let start, end;
     if (startDate && endDate) {
@@ -1204,6 +1230,9 @@ router.get('/events-consolidated', async (req, res) => {
     }
     if (type && type !== 'ALL' && type !== 'Todos los tipos') {
       whereClause.type = type;
+    }
+    if (employeeId && employeeId !== 'ALL' && employeeId !== 'Todos los colaboradores') {
+      whereClause.employeeId = employeeId;
     }
     if (department && department !== 'Todos los departamentos') {
       whereClause.employee = { department: { name: department } };

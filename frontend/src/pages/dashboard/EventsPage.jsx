@@ -923,8 +923,25 @@ const EventsPage = () => {
                             </div>
                           ) : (evt.startTime || evt.endTime) ? (
                             <div style={{ fontSize: '0.78rem', color: '#e4e4e7' }}>
-                              {evt.startTime && <div>De: {new Date(evt.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>}
-                              {evt.endTime && <div>A: {new Date(evt.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>}
+                              {evt.type === 'EARLY_EXIT' ? (
+                                <div>
+                                  <span style={{ color: '#eab308', fontWeight: 600 }}>
+                                    Salida: {evt.startTime ? new Date(evt.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : (evt.endTime ? new Date(evt.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Hora abierta')}
+                                  </span>
+                                  {evt.minutes ? <div style={{ color: '#71717a', fontSize: '0.72rem' }}>({(evt.minutes / 60).toFixed(1)} hrs antes)</div> : null}
+                                </div>
+                              ) : evt.type === 'LATE_ARRIVAL' ? (
+                                <div>
+                                  <span style={{ color: '#f97316', fontWeight: 600 }}>
+                                    Llegada: {evt.startTime ? new Date(evt.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Tolerancia'}
+                                  </span>
+                                </div>
+                              ) : (
+                                <>
+                                  {evt.startTime && <div>De: {new Date(evt.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>}
+                                  {evt.endTime && <div>A: {new Date(evt.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>}
+                                </>
+                              )}
                             </div>
                           ) : (
                             <span style={{ color: '#a1a1aa', fontSize: '0.8rem' }}>
@@ -1221,9 +1238,22 @@ const CancelEventModal = ({ event, isCanceling, onClose, onConfirm }) => {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontSize: '0.75rem', color: '#71717a', fontWeight: 600 }}>DETALLE</span>
               <span style={{ fontSize: '0.85rem', color: '#d4d4d8' }}>
-                {event.minutes ? `${event.minutes / 60} hrs extra` : null}
-                {event.startTime && `Desde ${new Date(event.startTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`}
-                {event.endTime && ` Hasta ${new Date(event.endTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`}
+                {event.type === 'EARLY_EXIT' ? (
+                  <span style={{ color: '#eab308', fontWeight: 600 }}>
+                    Salida autorizada: {event.startTime ? new Date(event.startTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : (event.endTime ? new Date(event.endTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'Horario flexible')}
+                    {event.minutes ? ` (${(event.minutes / 60).toFixed(1)} hrs antes)` : ''}
+                  </span>
+                ) : event.type === 'LATE_ARRIVAL' ? (
+                  <span style={{ color: '#f97316', fontWeight: 600 }}>
+                    Llegada autorizada: {event.startTime ? new Date(event.startTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'Tolerancia'}
+                  </span>
+                ) : (
+                  <>
+                    {event.minutes ? `${event.minutes / 60} hrs extra` : null}
+                    {event.startTime && `Desde ${new Date(event.startTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`}
+                    {event.endTime && ` Hasta ${new Date(event.endTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`}
+                  </>
+                )}
               </span>
             </div>
           )}
@@ -1382,11 +1412,23 @@ const CreateEventModal = ({ onClose, onCreated }) => {
         payload.minutes = parseFloat(formData.hours) * 60;
       }
     } else if (formData.type === 'EARLY_EXIT') {
+      const empShift = selectedEmp?.shifts?.[0]?.shift || selectedEmp?.department?.shifts?.[0]?.shift;
       if (formData.startTime) {
         payload.startTime = new Date(`${formData.date}T${formData.startTime}`).toISOString();
       }
-      if (formData.endTime) {
-        payload.endTime = new Date(`${formData.date}T${formData.endTime}`).toISOString();
+      const refEnd = formData.endTime || empShift?.endTime;
+      if (refEnd) {
+        payload.endTime = new Date(`${formData.date}T${refEnd}`).toISOString();
+      }
+      if (formData.startTime && refEnd) {
+        const [sh, sm] = refEnd.split(':').map(Number);
+        const [eh, em] = formData.startTime.split(':').map(Number);
+        if (!isNaN(sh) && !isNaN(sm) && !isNaN(eh) && !isNaN(em)) {
+          const diffMin = (sh * 60 + sm) - (eh * 60 + em);
+          if (diffMin > 0) {
+            payload.minutes = diffMin;
+          }
+        }
       }
     } else if (formData.type === 'LATE_ARRIVAL') {
       if (formData.startTime) {
@@ -1471,6 +1513,16 @@ const CreateEventModal = ({ onClose, onCreated }) => {
                 selectedEmp={selectedEmp}
                 onSelect={setSelectedEmp}
               />
+              {selectedEmp && (() => {
+                const empShift = selectedEmp?.shifts?.[0]?.shift || selectedEmp?.department?.shifts?.[0]?.shift;
+                if (!empShift) return null;
+                return (
+                  <div style={{ marginTop: '0.45rem', padding: '0.45rem 0.75rem', background: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.25)', borderRadius: '6px', fontSize: '0.8rem', color: '#93c5fd', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Clock size={14} />
+                    <span>Turno habitual asignado: <strong>Entrada {empShift.startTime} — Salida {empShift.endTime}</strong></span>
+                  </div>
+                );
+              })()}
             </div>
           ) : (
             <div>
@@ -1546,28 +1598,41 @@ const CreateEventModal = ({ onClose, onCreated }) => {
             </div>
           )}
 
-          {formData.type === 'EARLY_EXIT' && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-              <div>
-                <label style={labelStyle}>Hora de Salida (Opcional)</label>
-                <input 
-                  type="time" 
-                  value={formData.startTime}
-                  onChange={e => setFormData({...formData, startTime: e.target.value})}
-                  style={inputStyle}
-                />
+          {formData.type === 'EARLY_EXIT' && (() => {
+            const empShift = selectedEmp?.shifts?.[0]?.shift || selectedEmp?.department?.shifts?.[0]?.shift;
+            return (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div>
+                  <label style={labelStyle}>
+                    Hora Autorizada de Salida <span style={{ color: '#eab308' }}>*</span>
+                  </label>
+                  <input 
+                    type="time" 
+                    value={formData.startTime}
+                    onChange={e => setFormData({...formData, startTime: e.target.value})}
+                    style={inputStyle}
+                    required
+                  />
+                  <span style={{ fontSize: '0.72rem', color: '#a1a1aa', marginTop: '2px', display: 'block' }}>
+                    ¿A qué hora saldrá el colaborador?
+                  </span>
+                </div>
+                <div>
+                  <label style={labelStyle}>Hora Habitual de Fin de Turno</label>
+                  <input 
+                    type="time" 
+                    value={formData.endTime || empShift?.endTime || ''}
+                    onChange={e => setFormData({...formData, endTime: e.target.value})}
+                    style={inputStyle}
+                    placeholder="Hora de fin de turno"
+                  />
+                  <span style={{ fontSize: '0.72rem', color: '#a1a1aa', marginTop: '2px', display: 'block' }}>
+                    {empShift?.endTime ? `Turno normal: ${empShift.endTime}` : 'Referencia de salida habitual'}
+                  </span>
+                </div>
               </div>
-              <div>
-                <label style={labelStyle}>Hora Esperada (Opcional)</label>
-                <input 
-                  type="time" 
-                  value={formData.endTime}
-                  onChange={e => setFormData({...formData, endTime: e.target.value})}
-                  style={inputStyle}
-                />
-              </div>
-            </div>
-          )}
+            );
+          })()}
 
           {formData.type === 'LATE_ARRIVAL' && (
             <div>

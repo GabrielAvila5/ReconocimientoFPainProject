@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import FaceRegistration from '../../components/FaceRecognition/FaceRegistration';
 import DepartmentsTab from '../../components/DepartmentsTab';
-import { Search, Filter, Users, Fingerprint, Clock, MoreVertical, Plus, AlertCircle, AlertTriangle, RefreshCw, Camera, Trash2, Edit, Calendar, X, Shield, ExternalLink, FileText, CheckCircle2 } from 'lucide-react';
+import { Search, Filter, Users, Fingerprint, Clock, MoreVertical, Plus, AlertCircle, AlertTriangle, RefreshCw, Camera, Trash2, Edit, Calendar, X, Shield, ExternalLink, FileText, CheckCircle2, LogOut, LogIn, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { toast } from 'sonner';
@@ -157,6 +157,31 @@ const EmployeesPage = () => {
     } catch {
       return '';
     }
+  };
+
+  const formatTimeSafe = (timeVal) => {
+    if (!timeVal) return '';
+    if (typeof timeVal === 'string' && timeVal.includes('T')) {
+      const d = new Date(timeVal);
+      if (!isNaN(d.getTime())) {
+        return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      }
+    }
+    if (typeof timeVal === 'string' && timeVal.includes(':')) {
+      const parts = timeVal.split(':');
+      const h = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10);
+      if (!isNaN(h) && !isNaN(m)) {
+        const d = new Date();
+        d.setHours(h, m, 0, 0);
+        return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      }
+    }
+    const d = new Date(timeVal);
+    if (!isNaN(d.getTime())) {
+      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+    return String(timeVal);
   };
 
   // Configuraciones y clasificación temporal de eventos (En curso, Concluido, Programado)
@@ -1140,6 +1165,29 @@ const EmployeesPage = () => {
                           </div>
                         );
                       }
+
+                      const activeTodayEvent = employeeDetails.eventRequests?.find(e => {
+                        if (e.status === 'CANCELLED') return false;
+                        const eDate = typeof e.date === 'string' ? e.date.split('T')[0] : '';
+                        const eDateTo = e.dateTo ? (typeof e.dateTo === 'string' ? e.dateTo.split('T')[0] : '') : eDate;
+                        return todayStr >= eDate && todayStr <= eDateTo;
+                      });
+
+                      if (activeTodayEvent) {
+                        const eventCfg = EVENT_CONFIG[activeTodayEvent.type] || { label: activeTodayEvent.type, color: '#eab308' };
+                        const exitTime = formatTimeSafe(activeTodayEvent.startTime || activeTodayEvent.endTime);
+                        return (
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', padding: '0.4rem 0.85rem', background: 'rgba(234, 179, 8, 0.12)', color: '#facc15', borderRadius: '8px', border: '1px solid rgba(234, 179, 8, 0.3)', flexWrap: 'wrap' }}>
+                            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: eventCfg.color || '#eab308' }} />
+                            <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>Sin registro hoy</span>
+                            <span style={{ color: '#d4d4d8', fontSize: '0.8rem' }}>
+                              • Evento activo: <strong style={{ color: eventCfg.color }}>{eventCfg.label}</strong>
+                              {activeTodayEvent.type === 'EARLY_EXIT' && exitTime ? ` (Salida autorizada: ${exitTime})` : ''}
+                            </span>
+                          </div>
+                        );
+                      }
+
                       return (
                         <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', padding: '0.4rem 0.85rem', background: 'rgba(255, 255, 255, 0.05)', color: '#a1a1aa', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
                           <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#71717a' }} />
@@ -1191,25 +1239,24 @@ const EmployeesPage = () => {
                     {(() => {
                       const empShift = employeeDetails.shifts?.[0]?.shift;
                       const deptShift = employeeDetails.department?.shifts?.[0]?.shift;
-                      
-                      const formatTime = (timeStr) => {
-                        if (!timeStr) return '';
-                        const [h, m] = timeStr.split(':');
-                        const d = new Date();
-                        d.setHours(parseInt(h, 10), parseInt(m, 10), 0);
-                        return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-                      };
+                      const effShift = employeeDetails.effectiveShift;
 
                       if (empShift) {
                         return (
                           <span style={{ padding: '0.3rem 0.8rem', background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6', borderRadius: '999px', fontSize: '0.8rem', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
-                            Específico: {formatTime(empShift.startTime)} - {formatTime(empShift.endTime)}
+                            Específico: {formatTimeSafe(empShift.startTime)} - {formatTimeSafe(empShift.endTime)}
                           </span>
                         );
                       } else if (deptShift) {
                         return (
                           <span style={{ padding: '0.3rem 0.8rem', background: 'rgba(139, 92, 246, 0.1)', color: '#8b5cf6', borderRadius: '999px', fontSize: '0.8rem', border: '1px solid rgba(139, 92, 246, 0.2)' }}>
-                            Por Departamento: {formatTime(deptShift.startTime)} - {formatTime(deptShift.endTime)}
+                            Por Departamento: {formatTimeSafe(deptShift.startTime)} - {formatTimeSafe(deptShift.endTime)}
+                          </span>
+                        );
+                      } else if (effShift) {
+                        return (
+                          <span style={{ padding: '0.3rem 0.8rem', background: 'rgba(161, 161, 170, 0.1)', color: '#a1a1aa', borderRadius: '999px', fontSize: '0.8rem', border: '1px solid rgba(161, 161, 170, 0.2)' }}>
+                            Horario Global: {formatTimeSafe(effShift.startTime)} - {formatTimeSafe(effShift.endTime)}
                           </span>
                         );
                       } else {
@@ -1249,11 +1296,12 @@ const EmployeesPage = () => {
                             </p>
                           </div>
                           {(() => {
-                            const currentShift = employeeDetails.shifts?.[0]?.shift || employeeDetails.department?.shifts?.[0]?.shift;
+                            const currentShift = employeeDetails.shifts?.[0]?.shift || employeeDetails.department?.shifts?.[0]?.shift || employeeDetails.effectiveShift;
                             const normalEndTimeStr = currentShift ? currentShift.endTime : '17:00';
                             const targetDate = employeeDetails.attendances[0].date.split('T')[0];
                             const overtimeEventsDay = employeeDetails.eventRequests?.filter(e => e.type === 'OVERTIME' && e.date.startsWith(targetDate)) || [];
                             const totalOvertimeMinutes = overtimeEventsDay.reduce((sum, e) => sum + (e.minutes || 0), 0);
+                            const earlyExitDay = employeeDetails.eventRequests?.find(e => e.type === 'EARLY_EXIT' && e.date.startsWith(targetDate));
                             
                             let expectedEndTime = normalEndTimeStr;
                             let extraInfo = null;
@@ -1266,11 +1314,7 @@ const EmployeesPage = () => {
                               extraInfo = ' (con horas extra acumuladas)';
                             }
 
-                            // Convert 24h normalEndTimeStr to 12h for display
-                            const [nh, nm] = normalEndTimeStr.split(':');
-                            const normalDateObj = new Date();
-                            normalDateObj.setHours(parseInt(nh, 10), parseInt(nm, 10), 0);
-                            const displayNormalEndTime = normalDateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                            const displayNormalEndTime = formatTimeSafe(normalEndTimeStr);
 
                             return (
                               <>
@@ -1280,6 +1324,14 @@ const EmployeesPage = () => {
                                     {displayNormalEndTime}
                                   </p>
                                 </div>
+                                {earlyExitDay && (
+                                  <div>
+                                    <p style={{ margin: 0, fontSize: '0.8rem', color: '#eab308' }}>Salida Autorizada</p>
+                                    <p style={{ margin: '0.2rem 0 0 0', color: '#fef08a', fontWeight: 600 }}>
+                                      {formatTimeSafe(earlyExitDay.startTime || earlyExitDay.endTime) || 'Salida anticipada'}
+                                    </p>
+                                  </div>
+                                )}
                                 {totalOvertimeMinutes > 0 && (
                                   <div>
                                     <p style={{ margin: 0, fontSize: '0.8rem', color: '#3b82f6' }}>Salida Esperada</p>
@@ -1304,65 +1356,190 @@ const EmployeesPage = () => {
                   {employeeDetails.eventRequests && employeeDetails.eventRequests.length > 0 && (
                     <div style={{ marginTop: '1.5rem' }}>
                       <h5 style={{ margin: '0 0 0.75rem 0', color: '#a1a1aa', fontSize: '0.9rem' }}>Eventos Recientes</h5>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                         {employeeDetails.eventRequests.map(evt => {
-                          const eventConfig = {
-                            OVERTIME: { label: 'Horas Extra', color: '#3b82f6', bg: 'rgba(59, 130, 246, 0.05)' },
-                            EARLY_EXIT: { label: 'Salida Anticipada', color: '#eab308', bg: 'rgba(234, 179, 8, 0.05)' },
-                            JUSTIFIED_ABSENCE: { label: 'Falta Justificada', color: '#10b981', bg: 'rgba(16, 185, 129, 0.05)' },
-                            VACATION: { label: 'Vacaciones', color: '#8b5cf6', bg: 'rgba(139, 92, 246, 0.05)' },
-                            LATE_ARRIVAL: { label: 'Llegada Tardía', color: '#f97316', bg: 'rgba(249, 115, 22, 0.05)' }
-                          };
-                          const conf = eventConfig[evt.type] || { label: evt.type, color: '#3b82f6', bg: 'rgba(59, 130, 246, 0.05)' };
+                          const conf = EVENT_CONFIG[evt.type] || { label: evt.type, color: '#3b82f6', bg: 'rgba(59, 130, 246, 0.08)', border: 'rgba(59, 130, 246, 0.3)' };
+                          const temporal = getEventTemporalStatus(evt);
+                          const evtDateStr = new Date(evt.date).toLocaleDateString(undefined, { timeZone: 'UTC' });
+
+                          const activeShift = 
+                            employeeDetails.shifts?.[0]?.shift || 
+                            employeeDetails.department?.shifts?.[0]?.shift || 
+                            employeeDetails.effectiveShift || null;
+                          const shiftStart = activeShift?.startTime ? formatTimeSafe(activeShift.startTime) : null;
+                          const shiftEnd = activeShift?.endTime ? formatTimeSafe(activeShift.endTime) : null;
+
+                          const exitTime = (evt.startTime || evt.endTime) ? formatTimeSafe(evt.startTime || evt.endTime) : null;
+                          const arrivalTime = evt.startTime ? formatTimeSafe(evt.startTime) : null;
 
                           let overtimeText = null;
+                          let calculatedEndTime = null;
                           if (evt.type === 'OVERTIME' && evt.minutes) {
                             const evtDate = evt.date.split('T')[0];
                             const overtimeEventsForDay = employeeDetails.eventRequests?.filter(e => e.type === 'OVERTIME' && e.date.startsWith(evtDate)) || [];
                             const totalMinutes = overtimeEventsForDay.reduce((sum, e) => sum + (e.minutes || 0), 0);
 
-                            const currentShift = employeeDetails.shifts?.[0]?.shift || employeeDetails.department?.shifts?.[0]?.shift;
-                            const normalEndTimeStr = currentShift ? currentShift.endTime : '17:00';
+                            const normalEndTimeStr = activeShift ? activeShift.endTime : '17:00';
                             const [h, m] = normalEndTimeStr.split(':').map(Number);
                             const endObj = new Date();
                             endObj.setHours(h, m + totalMinutes, 0);
-                            const endTimeStr = endObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                            calculatedEndTime = endObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
                             
                             const hours = (evt.minutes / 60).toFixed(1).replace('.0', '');
                             const totalHoursStr = (totalMinutes / 60).toFixed(1).replace('.0', '');
-                            overtimeText = `${hours}h (Día: ${totalHoursStr}h, Termina a las ${endTimeStr})`;
+                            overtimeText = `${hours}h (Día: ${totalHoursStr}h, Termina a las ${calculatedEndTime})`;
                           }
 
                           return (
-                            <div key={evt.id} style={{ background: conf.bg, border: `1px solid ${conf.color}33`, padding: '0.75rem', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <div>
-                                  <p style={{ margin: 0, color: conf.color, fontWeight: 500, fontSize: '0.9rem' }}>
+                            <div 
+                              key={evt.id} 
+                              style={{ 
+                                background: conf.bg, 
+                                border: `1px solid ${conf.border}`, 
+                                padding: '0.85rem 1rem', 
+                                borderRadius: '8px', 
+                                display: 'flex', 
+                                flexDirection: 'column', 
+                                gap: '0.55rem' 
+                              }}
+                            >
+                              {/* Fila Superior: Tipo, Fecha y Estado */}
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                  <span style={{ 
+                                    padding: '0.2rem 0.55rem', 
+                                    background: conf.bg, 
+                                    color: conf.color, 
+                                    border: `1px solid ${conf.border}`, 
+                                    borderRadius: '4px', 
+                                    fontSize: '0.8rem', 
+                                    fontWeight: 700 
+                                  }}>
                                     {conf.label}
-                                    {overtimeText && <span style={{ fontSize: '0.8rem', marginLeft: '0.5rem', opacity: 0.9 }}>- {overtimeText}</span>}
-                                  </p>
-                                  <p style={{ margin: '0.2rem 0 0 0', color: '#a1a1aa', fontSize: '0.8rem' }}>{new Date(evt.date).toLocaleDateString(undefined, { timeZone: 'UTC' })}</p>
+                                  </span>
+                                  <span style={{ color: '#fff', fontSize: '0.85rem', fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                    <Calendar size={13} style={{ color: '#a1a1aa' }} />
+                                    {evtDateStr}{evt.dateTo ? ` al ${new Date(evt.dateTo).toLocaleDateString(undefined, { timeZone: 'UTC' })}` : ''}
+                                  </span>
                                 </div>
-                              {(() => {
-                                const temporal = getEventTemporalStatus(evt);
-                                return (
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                    <span style={{ 
-                                      padding: '0.2rem 0.55rem', 
-                                      background: temporal.bg, 
-                                      color: temporal.color, 
-                                      border: `1px solid ${temporal.border}`,
-                                      borderRadius: '4px', 
-                                      fontSize: '0.75rem',
-                                      fontWeight: 600
-                                    }}>
-                                      {temporal.label}
-                                    </span>
-                                    <button onClick={() => handleCancelEvent(evt.id)} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '0.2rem' }} title="Eliminar Evento">
-                                      <Trash2 size={16} />
-                                    </button>
+
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                  <span style={{ 
+                                    padding: '0.2rem 0.55rem', 
+                                    background: temporal.bg, 
+                                    color: temporal.color, 
+                                    border: `1px solid ${temporal.border}`, 
+                                    borderRadius: '999px', 
+                                    fontSize: '0.75rem', 
+                                    fontWeight: 600,
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px'
+                                  }}>
+                                    {temporal.statusKey === 'CURRENT' && (
+                                      <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981', boxShadow: '0 0 6px #10b981' }} />
+                                    )}
+                                    {temporal.label}
+                                  </span>
+                                  <button 
+                                    onClick={() => handleCancelEvent(evt.id)} 
+                                    style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '0.2rem' }} 
+                                    title="Eliminar Evento"
+                                  >
+                                    <Trash2 size={15} />
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* Fila Media: Desglose de Horarios (Llegada programada, Salida habitual y Hora de salida) */}
+                              <div style={{ 
+                                background: 'rgba(0, 0, 0, 0.35)', 
+                                padding: '0.65rem 0.85rem', 
+                                borderRadius: '6px', 
+                                border: '1px solid rgba(255, 255, 255, 0.06)',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '0.35rem',
+                                fontSize: '0.82rem'
+                              }}>
+                                {/* Horario habitual según turno (A qué hora debería llegar y salir) */}
+                                {shiftStart && shiftEnd && (
+                                  <div style={{ color: '#a1a1aa', display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                                    <Clock size={13} style={{ color: '#71717a' }} />
+                                    <span>Jornada habitual según turno:</span>
+                                    <span style={{ color: '#e4e4e7' }}>Entrada: <strong style={{ color: '#fff' }}>{shiftStart}</strong></span>
+                                    <span>•</span>
+                                    <span style={{ color: '#e4e4e7' }}>Salida: <strong style={{ color: '#fff' }}>{shiftEnd}</strong></span>
                                   </div>
-                                );
-                              })()}
+                                )}
+
+                                {/* A qué hora saldrá (Salida Anticipada) */}
+                                {evt.type === 'EARLY_EXIT' && (
+                                  <div style={{ color: '#eab308', display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap', fontWeight: 500, marginTop: '0.1rem' }}>
+                                    <LogOut size={14} style={{ color: '#eab308' }} />
+                                    <span>Salida anticipada autorizada:</span>
+                                    <strong style={{ color: '#fef08a', fontSize: '0.88rem', background: 'rgba(234, 179, 8, 0.15)', padding: '0.15rem 0.45rem', borderRadius: '4px', border: '1px solid rgba(234, 179, 8, 0.3)' }}>
+                                      {exitTime ? `Saldrá a las ${exitTime}` : 'Salida autorizada (Horario libre)'}
+                                    </strong>
+                                    {shiftEnd && exitTime && (
+                                      <span style={{ color: '#ca8a04', fontSize: '0.78rem' }}>
+                                        (Salida habitual: {shiftEnd})
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+
+                                {/* A qué hora llegará (Llegada Tardía) */}
+                                {evt.type === 'LATE_ARRIVAL' && (
+                                  <div style={{ color: '#f97316', display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap', fontWeight: 500, marginTop: '0.1rem' }}>
+                                    <LogIn size={14} style={{ color: '#f97316' }} />
+                                    <span>Llegada tardía autorizada:</span>
+                                    <strong style={{ color: '#fdba74', fontSize: '0.88rem', background: 'rgba(249, 115, 22, 0.15)', padding: '0.15rem 0.45rem', borderRadius: '4px', border: '1px solid rgba(249, 115, 22, 0.3)' }}>
+                                      {arrivalTime ? `Llegará a las ${arrivalTime}` : 'Tolerancia especial'}
+                                    </strong>
+                                    {shiftStart && (
+                                      <span style={{ color: '#c2410c', fontSize: '0.78rem' }}>
+                                        (Entrada habitual: {shiftStart})
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+
+                                {/* Horas Extra */}
+                                {evt.type === 'OVERTIME' && (
+                                  <div style={{ color: '#60a5fa', display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap', fontWeight: 500, marginTop: '0.1rem' }}>
+                                    <Clock size={14} style={{ color: '#60a5fa' }} />
+                                    <span>Horas extra autorizadas:</span>
+                                    <strong style={{ color: '#93c5fd', fontSize: '0.88rem', background: 'rgba(59, 130, 246, 0.15)', padding: '0.15rem 0.45rem', borderRadius: '4px', border: '1px solid rgba(59, 130, 246, 0.3)' }}>
+                                      +{evt.minutes ? (evt.minutes / 60).toFixed(1).replace('.0', '') : '0'} hrs ({evt.minutes || 0} mins)
+                                    </strong>
+                                    {calculatedEndTime && (
+                                      <span style={{ color: '#3b82f6', fontSize: '0.78rem' }}>
+                                        (Termina a las {calculatedEndTime})
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+
+                                {/* Vacaciones o Falta Justificada */}
+                                {(evt.type === 'VACATION' || evt.type === 'JUSTIFIED_ABSENCE') && (
+                                  <div style={{ color: conf.color, display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap', fontWeight: 500 }}>
+                                    <Calendar size={13} />
+                                    <span>Cobertura de jornada:</span>
+                                    <strong style={{ color: '#fff', fontSize: '0.85rem' }}>
+                                      Jornada completa {shiftStart && shiftEnd ? `(${shiftStart} a ${shiftEnd})` : ''}
+                                    </strong>
+                                  </div>
+                                )}
+
+                                {/* Motivo del evento */}
+                                {evt.reason && (
+                                  <div style={{ color: '#d4d4d8', fontSize: '0.78rem', marginTop: '0.2rem', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '0.3rem' }}>
+                                    <span style={{ color: '#a1a1aa', fontWeight: 500 }}>Motivo: </span>
+                                    <span style={{ fontStyle: 'italic' }}>"{evt.reason}"</span>
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           );
                         })}
@@ -2114,6 +2291,15 @@ const EmployeeEventHistoryModal = ({
                 const temporal = getEventTemporalStatus(evt);
                 const rangeStr = formatEventRange(evt);
 
+                const activeShift = 
+                  employee?.shifts?.[0]?.shift || 
+                  employee?.department?.shifts?.[0]?.shift || 
+                  employee?.effectiveShift || null;
+                const shiftStart = activeShift?.startTime ? formatTimeSafe(activeShift.startTime) : null;
+                const shiftEnd = activeShift?.endTime ? formatTimeSafe(activeShift.endTime) : null;
+                const exitTime = (evt.startTime || evt.endTime) ? formatTimeSafe(evt.startTime || evt.endTime) : null;
+                const arrivalTime = evt.startTime ? formatTimeSafe(evt.startTime) : null;
+
                 return (
                   <div 
                     key={evt.id}
@@ -2186,12 +2372,82 @@ const EmployeeEventHistoryModal = ({
                       </div>
                     </div>
 
-                    {/* Fila Media: Detalle de Horas Extra y Motivo */}
-                    {evt.type === 'OVERTIME' && evt.minutes && (
-                      <div style={{ fontSize: '0.82rem', color: '#60a5fa', fontWeight: 500 }}>
-                        ⏱️ Horas extra autorizadas: <strong>{evt.minutes} minutos</strong> ({(evt.minutes / 60).toFixed(1)} hrs de jornada)
-                      </div>
-                    )}
+                    {/* Fila Media: Desglose Completo de Horarios Programados y Autorizados */}
+                    <div style={{ 
+                      background: 'rgba(0, 0, 0, 0.4)', 
+                      padding: '0.75rem 1rem', 
+                      borderRadius: '8px', 
+                      border: '1px solid rgba(255, 255, 255, 0.06)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.4rem',
+                      fontSize: '0.82rem'
+                    }}>
+                      {shiftStart && shiftEnd && (
+                        <div style={{ color: '#a1a1aa', display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                          <Clock size={13} style={{ color: '#71717a' }} />
+                          <span>Jornada habitual según turno:</span>
+                          <span style={{ color: '#e4e4e7' }}>Entrada: <strong style={{ color: '#fff' }}>{shiftStart}</strong></span>
+                          <span>•</span>
+                          <span style={{ color: '#e4e4e7' }}>Salida: <strong style={{ color: '#fff' }}>{shiftEnd}</strong></span>
+                        </div>
+                      )}
+
+                      {evt.type === 'EARLY_EXIT' && (
+                        <div style={{ color: '#eab308', display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap', fontWeight: 500 }}>
+                          <LogOut size={14} style={{ color: '#eab308' }} />
+                          <span>Salida anticipada autorizada:</span>
+                          <strong style={{ color: '#fef08a', fontSize: '0.9rem', background: 'rgba(234, 179, 8, 0.15)', padding: '0.15rem 0.45rem', borderRadius: '4px', border: '1px solid rgba(234, 179, 8, 0.3)' }}>
+                            {exitTime ? `Saldrá a las ${exitTime}` : 'Salida autorizada (Horario libre)'}
+                          </strong>
+                          {shiftEnd && exitTime && (
+                            <span style={{ color: '#ca8a04', fontSize: '0.78rem' }}>
+                              (Salida habitual: {shiftEnd})
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      {evt.type === 'LATE_ARRIVAL' && (
+                        <div style={{ color: '#f97316', display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap', fontWeight: 500 }}>
+                          <LogIn size={14} style={{ color: '#f97316' }} />
+                          <span>Llegada tardía autorizada:</span>
+                          <strong style={{ color: '#fdba74', fontSize: '0.9rem', background: 'rgba(249, 115, 22, 0.15)', padding: '0.15rem 0.45rem', borderRadius: '4px', border: '1px solid rgba(249, 115, 22, 0.3)' }}>
+                            {arrivalTime ? `Llegará a las ${arrivalTime}` : 'Tolerancia especial'}
+                          </strong>
+                          {shiftStart && (
+                            <span style={{ color: '#c2410c', fontSize: '0.78rem' }}>
+                              (Entrada habitual: {shiftStart})
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      {evt.type === 'OVERTIME' && (
+                        <div style={{ color: '#60a5fa', display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap', fontWeight: 500 }}>
+                          <Clock size={14} style={{ color: '#60a5fa' }} />
+                          <span>Horas extra autorizadas:</span>
+                          <strong style={{ color: '#93c5fd', fontSize: '0.9rem', background: 'rgba(59, 130, 246, 0.15)', padding: '0.15rem 0.45rem', borderRadius: '4px', border: '1px solid rgba(59, 130, 246, 0.3)' }}>
+                            +{evt.minutes ? (evt.minutes / 60).toFixed(1).replace('.0', '') : '0'} hrs ({evt.minutes || 0} mins)
+                          </strong>
+                          {shiftEnd && (
+                            <span style={{ color: '#3b82f6', fontSize: '0.78rem' }}>
+                              (Salida normal: {shiftEnd})
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      {(evt.type === 'VACATION' || evt.type === 'JUSTIFIED_ABSENCE') && (
+                        <div style={{ color: conf.color, display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap', fontWeight: 500 }}>
+                          <Calendar size={13} />
+                          <span>Cobertura de jornada:</span>
+                          <strong style={{ color: '#fff', fontSize: '0.85rem' }}>
+                            Jornada completa {shiftStart && shiftEnd ? `(${shiftStart} a ${shiftEnd})` : ''}
+                          </strong>
+                        </div>
+                      )}
+                    </div>
 
                     <div style={{ background: 'rgba(255, 255, 255, 0.02)', padding: '0.6rem 0.85rem', borderRadius: '6px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
                       <p style={{ margin: 0, color: '#e4e4e7', fontSize: '0.85rem', lineHeight: '1.4' }}>

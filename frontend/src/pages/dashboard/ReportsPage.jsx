@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Download, RefreshCw, AlertCircle, Clock, CheckCircle, 
   UserX, Camera, Server, Activity, Users, Search, ChevronRight,
-  Filter, Zap, ArrowUpRight, TrendingUp, Calendar, CalendarDays, FileText, CheckCircle2
+  Filter, Zap, ArrowUpRight, TrendingUp, Calendar, CalendarDays, FileText, CheckCircle2, X
 } from 'lucide-react';
 import { 
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, 
@@ -570,11 +570,13 @@ const ReportsPage = () => {
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
   const [selectedDept, setSelectedDept] = useState('Todos los departamentos');
+  const [selectedEmployee, setSelectedEmployee] = useState('Todos los colaboradores');
   const [selectedStatus, setSelectedStatus] = useState('Todos los estados');
   const [selectedEventType, setSelectedEventType] = useState('Todos los tipos');
   const [selectedEventStatus, setSelectedEventStatus] = useState('Todos los estados');
   const [eventSearchTerm, setEventSearchTerm] = useState('');
   const [departments, setDepartments] = useState([]);
+  const [employees, setEmployees] = useState([]);
 
   // Real Data States (Asistencia)
   const [attKpis, setAttKpis] = useState({
@@ -680,6 +682,9 @@ const ReportsPage = () => {
       if (selectedDept && selectedDept !== 'Todos los departamentos') {
         qParams.push(`department=${encodeURIComponent(selectedDept)}`);
       }
+      if (selectedEmployee && selectedEmployee !== 'Todos los colaboradores') {
+        qParams.push(`employeeId=${encodeURIComponent(selectedEmployee)}`);
+      }
       const qStr = qParams.length > 0 ? `?${qParams.join('&')}` : '';
 
       let url = `${import.meta.env.VITE_API_URL || ''}/api/v1/reports/kpis${qStr}`;
@@ -753,6 +758,9 @@ const ReportsPage = () => {
         if (selectedDept && selectedDept !== 'Todos los departamentos') {
           evParams.push(`department=${encodeURIComponent(selectedDept)}`);
         }
+        if (selectedEmployee && selectedEmployee !== 'Todos los colaboradores') {
+          evParams.push(`employeeId=${encodeURIComponent(selectedEmployee)}`);
+        }
         if (selectedEventType && selectedEventType !== 'Todos los tipos') {
           evParams.push(`type=${encodeURIComponent(selectedEventType)}`);
         }
@@ -774,11 +782,18 @@ const ReportsPage = () => {
         console.error('Error fetching events consolidated report:', e);
       }
 
-      // Fetch Departments for filter
-      const depRes = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/v1/departments`, { headers: { 'Authorization': `Bearer ${token}` } });
+      // Fetch Departments & Employees for filter
+      const [depRes, empRes] = await Promise.all([
+        fetch(`${import.meta.env.VITE_API_URL || ''}/api/v1/departments`, { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch(`${import.meta.env.VITE_API_URL || ''}/api/v1/employees`, { headers: { 'Authorization': `Bearer ${token}` } })
+      ]);
       if (depRes.ok) {
         const depData = await depRes.json();
         setDepartments(depData.map(d => d.name));
+      }
+      if (empRes.ok) {
+        const empData = await empRes.json();
+        setEmployees(Array.isArray(empData) ? empData : []);
       }
 
     } catch (err) {
@@ -790,7 +805,7 @@ const ReportsPage = () => {
 
   useEffect(() => {
     fetchKpis();
-  }, [dateRange, customStart, customEnd, selectedDept, selectedEventType, selectedEventStatus]);
+  }, [dateRange, customStart, customEnd, selectedDept, selectedEmployee, selectedEventType, selectedEventStatus]);
 
   const handleRefresh = () => {
     setRefreshing(true);
@@ -854,8 +869,42 @@ const ReportsPage = () => {
     });
   };
 
+  const availableEmployees = useMemo(() => {
+    return employees.filter(emp => {
+      if (emp.isActive === false) return false;
+      if (selectedDept !== 'Todos los departamentos') {
+        const empDept = emp.department?.name || '';
+        if (empDept.toLowerCase() !== selectedDept.toLowerCase()) return false;
+      }
+      return true;
+    }).sort((a, b) => (a.firstName || '').localeCompare(b.firstName || ''));
+  }, [employees, selectedDept]);
+
+  const hasActiveFilters = 
+    selectedDept !== 'Todos los departamentos' || 
+    selectedEmployee !== 'Todos los colaboradores' || 
+    selectedStatus !== 'Todos los estados' || 
+    selectedEventType !== 'Todos los tipos' || 
+    selectedEventStatus !== 'Todos los estados' || 
+    dateRange !== 'Este Mes';
+
+  const clearAllFilters = () => {
+    setDateRange('Este Mes');
+    setCustomStart('');
+    setCustomEnd('');
+    setSelectedDept('Todos los departamentos');
+    setSelectedEmployee('Todos los colaboradores');
+    setSelectedStatus('Todos los estados');
+    setSelectedEventType('Todos los tipos');
+    setSelectedEventStatus('Todos los estados');
+    setEventSearchTerm('');
+  };
+
   const filteredEventsTable = useMemo(() => {
     let list = eventsTableData;
+    if (selectedEmployee !== 'Todos los colaboradores') {
+      list = list.filter(e => e.employeeId === selectedEmployee);
+    }
     if (eventSearchTerm.trim()) {
       const q = eventSearchTerm.toLowerCase();
       list = list.filter(e => 
@@ -867,17 +916,20 @@ const ReportsPage = () => {
       );
     }
     return list;
-  }, [eventsTableData, eventSearchTerm]);
+  }, [eventsTableData, selectedEmployee, eventSearchTerm]);
 
   const filteredAttTrend = attTrendData; // Ya viene filtrado del backend
   const doughnutData = attDistribution; // Ya viene del backend
   const filteredDevTrend = devTrendData;
   
-  // Lógica para filtrar tablas también por departamento y estado
+  // Lógica para filtrar tablas también por departamento, empleado y estado
   const filteredAttTable = useMemo(() => {
     let res = attTableData;
     if (selectedDept !== 'Todos los departamentos') {
       res = res.filter(r => r.departamento === selectedDept);
+    }
+    if (selectedEmployee !== 'Todos los colaboradores') {
+      res = res.filter(r => r.employeeId === selectedEmployee);
     }
     if (selectedStatus !== 'Todos los estados') {
       res = res.filter(r => {
@@ -887,18 +939,21 @@ const ReportsPage = () => {
       });
     }
     return res;
-  }, [attTableData, selectedDept, selectedStatus]);
+  }, [attTableData, selectedDept, selectedEmployee, selectedStatus]);
   
   const filteredBreakTable = useMemo(() => {
     let res = breakTableData;
     if (selectedDept !== 'Todos los departamentos') {
       res = res.filter(r => r.departamento === selectedDept);
     }
+    if (selectedEmployee !== 'Todos los colaboradores') {
+      res = res.filter(r => r.employeeId === selectedEmployee);
+    }
     if (selectedStatus !== 'Todos los estados') {
       res = res.filter(r => r.estado === selectedStatus);
     }
     return res;
-  }, [breakTableData, selectedDept, selectedStatus]);
+  }, [breakTableData, selectedDept, selectedEmployee, selectedStatus]);
 
   const filteredDevTable = useMemo(() => {
     let res = devTableData;
@@ -915,7 +970,12 @@ const ReportsPage = () => {
   // --- Exports ---
   const exportToCSV = () => {
     let headers, rows;
-    let filename = `Reporte_${activeTab === 'asistencia' ? 'Asistencia' : activeTab === 'descansos' ? 'Descansos' : activeTab === 'eventos' ? 'Eventos' : 'Dispositivos'}.csv`;
+    const empObj = employees.find(e => e.id === selectedEmployee);
+    const empName = empObj ? `${empObj.firstName} ${empObj.lastName}` : null;
+    const empFileTag = empName ? `_${empName.replace(/\s+/g, '_')}` : '';
+    const tabName = activeTab === 'asistencia' ? 'Asistencia' : activeTab === 'descansos' ? 'Descansos' : activeTab === 'eventos' ? 'Eventos' : 'Dispositivos';
+    const dateTag = dateRange.replace(/\s+/g, '_');
+    let filename = `Reporte_${tabName}${empFileTag}_${dateTag}.csv`;
     
     if (activeTab === 'asistencia') {
       headers = ['Empleado', 'Departamento', 'Fecha', 'Entrada Real', 'Salida Real', 'Salida Esperada', 'Horas Trabajadas', 'Horas Extra', 'Estado Asistencia'];
@@ -1065,12 +1125,48 @@ const ReportsPage = () => {
 
         {activeTab !== 'dispositivos' && (
           <select 
-            style={selectStyle} 
+            style={{
+              ...selectStyle,
+              borderColor: selectedDept !== 'Todos los departamentos' ? COLORS.orange : COLORS.border,
+              color: selectedDept !== 'Todos los departamentos' ? COLORS.orange : COLORS.textPrimary
+            }} 
             value={selectedDept}
-            onChange={(e) => setSelectedDept(e.target.value)}
+            onChange={(e) => {
+              const newDept = e.target.value;
+              setSelectedDept(newDept);
+              if (newDept !== 'Todos los departamentos' && selectedEmployee !== 'Todos los colaboradores') {
+                const emp = employees.find(x => x.id === selectedEmployee);
+                if (emp && emp.department?.name !== newDept) {
+                  setSelectedEmployee('Todos los colaboradores');
+                }
+              }
+            }}
+            title="Filtrar por Departamento"
           >
             <option>Todos los departamentos</option>
             {departments.map(d => <option key={d}>{d}</option>)}
+          </select>
+        )}
+
+        {activeTab !== 'dispositivos' && (
+          <select 
+            style={{
+              ...selectStyle,
+              borderColor: selectedEmployee !== 'Todos los colaboradores' ? COLORS.orange : COLORS.border,
+              color: selectedEmployee !== 'Todos los colaboradores' ? COLORS.orange : COLORS.textPrimary,
+              fontWeight: selectedEmployee !== 'Todos los colaboradores' ? 600 : 400,
+              maxWidth: '240px'
+            }} 
+            value={selectedEmployee}
+            onChange={(e) => setSelectedEmployee(e.target.value)}
+            title="Seleccionar un colaborador para generar reporte individual"
+          >
+            <option value="Todos los colaboradores">Todos los colaboradores</option>
+            {availableEmployees.map(emp => (
+              <option key={emp.id} value={emp.id} style={{ background: '#18181b', color: '#fff' }}>
+                {emp.firstName} {emp.lastName} {selectedDept === 'Todos los departamentos' && emp.department?.name ? `(${emp.department.name})` : ''}
+              </option>
+            ))}
           </select>
         )}
 
@@ -1145,6 +1241,26 @@ const ReportsPage = () => {
             <option>Desconectado</option>
           </select>
         )}
+
+        {hasActiveFilters && (
+          <button
+            onClick={clearAllFilters}
+            style={{
+              ...btnSecondary,
+              padding: '0.45rem 0.85rem',
+              fontSize: '0.8rem',
+              color: COLORS.red,
+              borderColor: 'rgba(239, 68, 68, 0.4)',
+              background: 'rgba(239, 68, 68, 0.1)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px'
+            }}
+            title="Restablecer todos los filtros"
+          >
+            <X size={14} /> Limpiar Filtros
+          </button>
+        )}
         
       </div>
 
@@ -1163,6 +1279,10 @@ const ReportsPage = () => {
               </h1>
               <p style={{ color: '#555', margin: '6px 0 0 0', fontSize: '13px' }}>
                 Periodo: <strong>{dateRange}</strong> • Departamento: <strong>{selectedDept}</strong>
+                {selectedEmployee !== 'Todos los colaboradores' && (() => {
+                  const empObj = employees.find(e => e.id === selectedEmployee);
+                  return empObj ? <> • Colaborador: <strong>{empObj.firstName} {empObj.lastName}</strong> ({empObj.identifier || 'N/A'})</> : null;
+                })()}
               </p>
             </div>
             <div style={{ textAlign: 'right' }}>
@@ -1172,6 +1292,63 @@ const ReportsPage = () => {
           </div>
           <hr style={{ border: '1px solid #ccc', margin: '1rem 0' }} />
         </div>
+
+        {/* Banner de Reporte Individual Activo */}
+        {selectedEmployee !== 'Todos los colaboradores' && (() => {
+          const empObj = employees.find(e => e.id === selectedEmployee);
+          if (!empObj) return null;
+          return (
+            <div className="no-print" style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '0.85rem 1.25rem',
+              borderRadius: '10px',
+              background: 'rgba(249, 115, 22, 0.08)',
+              border: '1px solid rgba(249, 115, 22, 0.3)',
+              marginBottom: '1.5rem',
+              flexWrap: 'wrap',
+              gap: '1rem'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                <div style={{
+                  width: '38px', height: '38px', borderRadius: '50%',
+                  background: 'rgba(249, 115, 22, 0.2)', color: COLORS.orange,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontWeight: 700, fontSize: '0.9rem'
+                }}>
+                  {empObj.firstName?.[0] || 'C'}{empObj.lastName?.[0] || ''}
+                </div>
+                <div>
+                  <div style={{ color: '#fff', fontWeight: 600, fontSize: '1rem' }}>
+                    Reporte Individual: {empObj.firstName} {empObj.lastName}
+                  </div>
+                  <div style={{ color: COLORS.textMuted, fontSize: '0.8rem' }}>
+                    Departamento: <strong>{empObj.department?.name || 'General'}</strong> • Identificador: <strong>{empObj.identifier || 'N/A'}</strong> • Período: <strong>{dateRange}</strong>
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedEmployee('Todos los colaboradores')}
+                style={{
+                  background: 'rgba(255,255,255,0.05)',
+                  border: `1px solid ${COLORS.border}`,
+                  borderRadius: '6px',
+                  padding: '6px 12px',
+                  color: COLORS.orange,
+                  cursor: 'pointer',
+                  fontSize: '0.82rem',
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+              >
+                <X size={14} /> Ver todos los colaboradores
+              </button>
+            </div>
+          );
+        })()}
 
         {/* Tabs */}
         <div className="no-print" style={{ display: 'flex', background: COLORS.darker, borderRadius: '8px', padding: '4px', border: `1px solid ${COLORS.border}`, width: 'fit-content', marginBottom: '2rem', flexWrap: 'wrap', gap: '4px' }}>
