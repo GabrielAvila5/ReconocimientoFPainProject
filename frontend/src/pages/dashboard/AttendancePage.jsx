@@ -31,8 +31,16 @@ import {
   Layers
 } from 'lucide-react';
 
-// --- Helpers de Fecha y Períodos ---
-const getTodayString = () => new Date().toISOString().split('T')[0];
+// --- Helpers de Fecha y Períodos (con soporte estricto de Zona Horaria Local) ---
+const getLocalDateString = (date = new Date()) => {
+  const d = date instanceof Date ? date : new Date(date);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const getTodayString = () => getLocalDateString(new Date());
 
 const formatFriendlyDate = (dateStr) => {
   if (!dateStr) return '';
@@ -60,16 +68,15 @@ const formatShortDate = (dateStr) => {
 };
 
 const getWeekRange = (dateStr) => {
-  const d = new Date(dateStr + 'T00:00:00');
-  const day = d.getDay();
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const dateObj = new Date(y, m - 1, d);
+  const day = dateObj.getDay();
   const diffToMon = day === 0 ? -6 : 1 - day;
-  const monday = new Date(d);
-  monday.setDate(d.getDate() + diffToMon);
-  const sunday = new Date(monday);
-  sunday.setDate(monday.getDate() + 6);
+  const monday = new Date(y, m - 1, d + diffToMon);
+  const sunday = new Date(y, m - 1, d + diffToMon + 6);
   return {
-    start: monday.toISOString().split('T')[0],
-    end: sunday.toISOString().split('T')[0]
+    start: getLocalDateString(monday),
+    end: getLocalDateString(sunday)
   };
 };
 
@@ -237,7 +244,9 @@ const AttendancePage = () => {
     
     // 1. Procesar registros de asistencia reales del período
     attendance.forEach(record => {
-      const recordDateStr = record.date ? new Date(record.date).toISOString().split('T')[0] : referenceDate;
+      const recordDateStr = record.date 
+        ? (typeof record.date === 'string' ? record.date.split('T')[0] : getLocalDateString(new Date(record.date))) 
+        : referenceDate;
       const recordKey = `${record.employeeId}_${recordDateStr}`;
       recordedKeys.add(recordKey);
       
@@ -290,12 +299,14 @@ const AttendancePage = () => {
     if (period === 'day') {
       evalDays.push(activeRange.start);
     } else {
-      let cur = new Date(activeRange.start + 'T00:00:00');
-      const endLimit = new Date(effectiveEndStr + 'T00:00:00');
+      const [sy, sm, sd] = activeRange.start.split('-').map(Number);
+      const [ey, em, ed] = effectiveEndStr.split('-').map(Number);
+      let cur = new Date(sy, sm - 1, sd);
+      const endLimit = new Date(ey, em - 1, ed);
       while (cur <= endLimit) {
         const dow = cur.getDay(); // 0 Dom, 6 Sab
         if (dow >= 1 && dow <= 5) {
-          evalDays.push(cur.toISOString().split('T')[0]);
+          evalDays.push(getLocalDateString(cur));
         }
         cur.setDate(cur.getDate() + 1);
       }
@@ -311,8 +322,8 @@ const AttendancePage = () => {
         // Revisar eventos justificados (vacaciones, licencias) en esa fecha
         const empEvent = activeEvents.find(e => {
           if (e.employeeId !== emp.id) return false;
-          const evStart = e.date ? new Date(e.date).toISOString().split('T')[0] : null;
-          const evEnd = e.dateTo ? new Date(e.dateTo).toISOString().split('T')[0] : evStart;
+          const evStart = e.date ? (typeof e.date === 'string' ? e.date.split('T')[0] : getLocalDateString(new Date(e.date))) : null;
+          const evEnd = e.dateTo ? (typeof e.dateTo === 'string' ? e.dateTo.split('T')[0] : getLocalDateString(new Date(e.dateTo))) : evStart;
           return evStart && dayStr >= evStart && dayStr <= (evEnd || evStart) && (e.type === 'VACATION' || e.type === 'JUSTIFIED_ABSENCE');
         });
         
@@ -457,21 +468,23 @@ const AttendancePage = () => {
 
   // Manejo de Navegación según el Período
   const handlePrev = () => {
-    const d = new Date(referenceDate + 'T00:00:00');
+    const [y, m, dNum] = referenceDate.split('-').map(Number);
+    const d = new Date(y, m - 1, dNum);
     if (period === 'day') d.setDate(d.getDate() - 1);
     else if (period === 'week') d.setDate(d.getDate() - 7);
     else if (period === 'month') d.setMonth(d.getMonth() - 1);
     else if (period === 'year') d.setFullYear(d.getFullYear() - 1);
-    setReferenceDate(d.toISOString().split('T')[0]);
+    setReferenceDate(getLocalDateString(d));
   };
 
   const handleNext = () => {
-    const d = new Date(referenceDate + 'T00:00:00');
+    const [y, m, dNum] = referenceDate.split('-').map(Number);
+    const d = new Date(y, m - 1, dNum);
     if (period === 'day') d.setDate(d.getDate() + 1);
     else if (period === 'week') d.setDate(d.getDate() + 7);
     else if (period === 'month') d.setMonth(d.getMonth() + 1);
     else if (period === 'year') d.setFullYear(d.getFullYear() + 1);
-    setReferenceDate(d.toISOString().split('T')[0]);
+    setReferenceDate(getLocalDateString(d));
   };
 
   const handleQuickReturn = () => {
@@ -2015,7 +2028,9 @@ const AttendanceExportModal = ({
         const combined = [];
 
         recordsRaw.forEach(rec => {
-          const recDate = rec.date ? new Date(rec.date).toISOString().split('T')[0] : exportRange.start;
+          const recDate = rec.date 
+            ? (typeof rec.date === 'string' ? rec.date.split('T')[0] : getLocalDateString(new Date(rec.date))) 
+            : exportRange.start;
           recordedKeys.add(`${rec.employeeId}_${recDate}`);
           
           let puntualidad = 'A tiempo';
@@ -2047,11 +2062,13 @@ const AttendanceExportModal = ({
         if (exportPeriod === 'day') {
           evalDays.push(exportRange.start);
         } else {
-          let c = new Date(exportRange.start + 'T00:00:00');
-          const eLim = new Date(effEnd + 'T00:00:00');
+          const [sy, sm, sd] = exportRange.start.split('-').map(Number);
+          const [ey, em, ed] = effEnd.split('-').map(Number);
+          let c = new Date(sy, sm - 1, sd);
+          const eLim = new Date(ey, em - 1, ed);
           while (c <= eLim) {
             const dow = c.getDay();
-            if (dow >= 1 && dow <= 5) evalDays.push(c.toISOString().split('T')[0]);
+            if (dow >= 1 && dow <= 5) evalDays.push(getLocalDateString(c));
             c.setDate(c.getDate() + 1);
           }
         }
@@ -2064,8 +2081,8 @@ const AttendanceExportModal = ({
 
             const ev = eventsRaw.find(e => {
               if (e.employeeId !== emp.id) return false;
-              const s = e.date ? new Date(e.date).toISOString().split('T')[0] : null;
-              const en = e.dateTo ? new Date(e.dateTo).toISOString().split('T')[0] : s;
+              const s = e.date ? (typeof e.date === 'string' ? e.date.split('T')[0] : getLocalDateString(new Date(e.date))) : null;
+              const en = e.dateTo ? (typeof e.dateTo === 'string' ? e.dateTo.split('T')[0] : getLocalDateString(new Date(e.dateTo))) : s;
               return s && dStr >= s && dStr <= (en || s);
             });
 
