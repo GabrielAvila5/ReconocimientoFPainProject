@@ -2,10 +2,11 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   Users, Clock, AlertTriangle, Activity, AlertCircle, 
-  ThermometerSnowflake, CameraOff, MoreHorizontal, ScanFace, 
-  LogIn, LogOut, RefreshCw, Calendar, CheckCircle2 
+  MoreHorizontal, ScanFace, LogIn, LogOut, RefreshCw, 
+  Calendar, CheckCircle2, Bell, Info, Check, ChevronRight, UserX
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { useNotifications } from '../../contexts/NotificationContext';
 
 const DashboardOverview = () => {
   const [loading, setLoading] = useState(true);
@@ -13,6 +14,13 @@ const DashboardOverview = () => {
   const [attendanceRecords, setAttendanceRecords] = useState([]);
   const [activeEvents, setActiveEvents] = useState([]);
   const [employeesCount, setEmployeesCount] = useState(0);
+  const [employeesList, setEmployeesList] = useState([]);
+
+  // Notificaciones en tiempo real y pestañas híbridas
+  const { unreadCount, markAsRead, socket, refetch: refetchNotifCount } = useNotifications();
+  const [activeAlertTab, setActiveAlertTab] = useState('alerts'); // 'alerts' | 'incidents'
+  const [notifications, setNotifications] = useState([]);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [filterAction, setFilterAction] = useState('Todos');
@@ -20,67 +28,103 @@ const DashboardOverview = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 8;
 
-  const [dismissedAlerts, setDismissedAlerts] = useState(() => {
-    const saved = localStorage.getItem('dismissedAlerts');
-    return saved ? JSON.parse(saved) : [];
-  });
-
-  const allAlerts = [
-    {
-      id: 1,
-      title: 'Persona no autorizada',
-      desc: 'Detectada en acceso norte - Cámara 02',
-      time: 'Hace 5 min',
-      Icon: AlertCircle,
-      bg: 'rgba(239, 68, 68, 0.05)',
-      border: 'rgba(239, 68, 68, 0.2)',
-      iconColor: 'text-red-500',
-      titleColor: '#fca5a5',
-      closeColor: '#ef4444',
-      descColor: '#f87171',
-      timeColor: '#991b1b'
-    },
-    {
-      id: 2,
-      title: 'Temperatura fuera de rango',
-      desc: 'Pedro Sánchez - 38.2°C',
-      time: 'Hace 15 min',
-      Icon: ThermometerSnowflake,
-      bg: 'rgba(245, 158, 11, 0.05)',
-      border: 'rgba(245, 158, 11, 0.2)',
-      iconColor: 'text-yellow-500',
-      titleColor: '#fcd34d',
-      closeColor: '#eab308',
-      descColor: '#fbbf24',
-      timeColor: '#b45309'
-    },
-    {
-      id: 3,
-      title: 'Cámara desconectada',
-      desc: 'Cámara 03 - Acceso sur',
-      time: 'Hace 32 min',
-      Icon: CameraOff,
-      bg: 'rgba(249, 115, 22, 0.05)',
-      border: 'rgba(249, 115, 22, 0.2)',
-      iconColor: 'text-orange-500',
-      titleColor: '#fdba74',
-      closeColor: '#f97316',
-      descColor: '#fb923c',
-      timeColor: '#c2410c'
+  const fetchNotifications = useCallback(async () => {
+    try {
+      setNotificationsLoading(true);
+      const token = localStorage.getItem('token');
+      const tenantId = localStorage.getItem('tenantId');
+      const baseUrl = import.meta.env.VITE_API_URL || '';
+      const headers = {
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        ...(tenantId ? { 'x-tenant-id': tenantId } : {})
+      };
+      
+      const res = await fetch(`${baseUrl}/api/v1/notifications?limit=6`, { headers });
+      if (res.ok) {
+        const data = await res.json();
+        setNotifications(data.data || []);
+      }
+    } catch (err) {
+      console.error('Error fetching dashboard notifications:', err);
+    } finally {
+      setNotificationsLoading(false);
     }
-  ];
+  }, []);
 
-  const systemAlerts = allAlerts.filter(a => !dismissedAlerts.includes(a.id));
+  const handleMarkAsRead = async (e, id) => {
+    e.stopPropagation();
+    try {
+      await markAsRead(id);
+      setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
+    } catch (err) {
+      console.error('Error marking notification as read:', err);
+    }
+  };
 
-  const removeAlert = (id) => {
-    const newDismissed = [...dismissedAlerts, id];
-    setDismissedAlerts(newDismissed);
-    localStorage.setItem('dismissedAlerts', JSON.stringify(newDismissed));
+  const getRelativeTime = (dateString) => {
+    if (!dateString) return '';
+    try {
+      const now = new Date();
+      const date = new Date(dateString);
+      const diffMs = now - date;
+      const diffSec = Math.floor(diffMs / 1000);
+      const diffMin = Math.floor(diffSec / 60);
+      const diffHours = Math.floor(diffMin / 60);
+      const diffDays = Math.floor(diffHours / 24);
+
+      if (diffSec < 60) return 'Hace un momento';
+      if (diffMin < 60) return `Hace ${diffMin} min`;
+      if (diffHours < 24) return `Hace ${diffHours} h`;
+      if (diffDays === 1) return 'Ayer';
+      if (diffDays < 7) return `Hace ${diffDays} d`;
+      return date.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
+    } catch {
+      return '';
+    }
+  };
+
+  const getNotificationStyle = (type) => {
+    switch (type) {
+      case 'ERROR':
+        return {
+          Icon: AlertCircle,
+          iconColor: '#ef4444',
+          bg: 'rgba(239, 68, 68, 0.08)',
+          border: 'rgba(239, 68, 68, 0.25)',
+          titleColor: '#fca5a5'
+        };
+      case 'WARNING':
+        return {
+          Icon: AlertTriangle,
+          iconColor: '#eab308',
+          bg: 'rgba(234, 179, 8, 0.08)',
+          border: 'rgba(234, 179, 8, 0.25)',
+          titleColor: '#fde047'
+        };
+      case 'SUCCESS':
+        return {
+          Icon: CheckCircle2,
+          iconColor: '#10b981',
+          bg: 'rgba(16, 185, 129, 0.08)',
+          border: 'rgba(16, 185, 129, 0.25)',
+          titleColor: '#86efac'
+        };
+      case 'INFO':
+      default:
+        return {
+          Icon: Info,
+          iconColor: '#3b82f6',
+          bg: 'rgba(59, 130, 246, 0.08)',
+          border: 'rgba(59, 130, 246, 0.25)',
+          titleColor: '#93c5fd'
+        };
+    }
   };
 
   const fetchData = useCallback(async () => {
     try {
       setRefreshing(true);
+      fetchNotifications();
       const token = localStorage.getItem('token');
       const tenantId = localStorage.getItem('tenantId');
       const baseUrl = import.meta.env.VITE_API_URL || '';
@@ -107,6 +151,7 @@ const DashboardOverview = () => {
         const empData = await empRes.json();
         const activeEmps = Array.isArray(empData) ? empData.filter(e => e.isActive !== false) : [];
         setEmployeesCount(activeEmps.length || (Array.isArray(empData) ? empData.length : 0));
+        setEmployeesList(activeEmps.length ? activeEmps : (Array.isArray(empData) ? empData : []));
       }
     } catch (e) {
       console.error('Error fetching dashboard data:', e);
@@ -114,7 +159,7 @@ const DashboardOverview = () => {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [fetchNotifications]);
 
   useEffect(() => {
     fetchData();
@@ -124,6 +169,22 @@ const DashboardOverview = () => {
     }, 30000);
     return () => clearInterval(timer);
   }, [fetchData]);
+
+  useEffect(() => {
+    if (!socket) return;
+    const handleNewNotif = (newNotif) => {
+      setNotifications(prev => {
+        const exists = prev.some(n => n.id === newNotif.id);
+        if (exists) return prev;
+        return [newNotif, ...prev.slice(0, 5)];
+      });
+      if (refetchNotifCount) refetchNotifCount();
+    };
+    socket.on('new_notification', handleNewNotif);
+    return () => {
+      socket.off('new_notification', handleNewNotif);
+    };
+  }, [socket, refetchNotifCount]);
 
   // Helpers de fechas
   const getLocalDateStr = (date = new Date()) => {
@@ -189,6 +250,81 @@ const DashboardOverview = () => {
   const ausenciasCount = Math.max(0, employeesCount - todayRecords.length - eventosJustificadosHoy);
   const asistenciasHoy = todayRecords.length;
   const asistenciaPctHoy = employeesCount > 0 ? Math.round((asistenciasHoy / employeesCount) * 100) : 0;
+
+  // Cálculo de incidencias operativas del día (Retardos, sin checar y permisos)
+  const todayIncidents = useMemo(() => {
+    const list = [];
+
+    // 1. Retardos registrados hoy
+    todayRecords.filter(r => r.isLate).forEach(r => {
+      const entTime = r.entrada ? new Date(r.entrada).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+      list.push({
+        id: `late_${r.id}`,
+        category: 'retardo',
+        name: `${r.employee?.firstName || 'Colaborador'} ${r.employee?.lastName || ''}`.trim(),
+        dept: r.employee?.department?.name || 'General',
+        time: entTime,
+        desc: r.lateMinutes ? `Entrada ${entTime} · +${r.lateMinutes} min de retardo` : `Entrada con retardo (${entTime})`,
+        badge: 'Retardo',
+        badgeColor: '#eab308',
+        badgeBg: 'rgba(234, 179, 8, 0.15)',
+        badgeBorder: 'rgba(234, 179, 8, 0.3)'
+      });
+    });
+
+    // 2. Colaboradores sin checar hoy (ausencias/pendientes)
+    const checkedInEmpIds = new Set(todayRecords.map(r => r.employeeId));
+    const justifiedEmpIds = new Set(
+      activeEvents
+        .filter(e => matchesDate(e.date, todayStr))
+        .map(e => e.employeeId)
+    );
+
+    const pendingEmployees = employeesList.filter(
+      e => !checkedInEmpIds.has(e.id) && !justifiedEmpIds.has(e.id)
+    );
+
+    pendingEmployees.slice(0, 5).forEach(e => {
+      list.push({
+        id: `absent_${e.id}`,
+        category: 'falta',
+        name: `${e.firstName || 'Colaborador'} ${e.lastName || ''}`.trim(),
+        dept: e.department?.name || 'General',
+        desc: 'Sin marcaje de entrada registrado el día de hoy',
+        badge: 'Sin checar',
+        badgeColor: '#ef4444',
+        badgeBg: 'rgba(239, 68, 68, 0.15)',
+        badgeBorder: 'rgba(239, 68, 68, 0.3)'
+      });
+    });
+
+    // 3. Permisos o justificaciones de hoy
+    activeEvents
+      .filter(e => matchesDate(e.date, todayStr))
+      .forEach(e => {
+        const typeLabel = e.type === 'VACATION' ? 'Vacaciones' : (e.type === 'JUSTIFIED_ABSENCE' ? 'Permiso' : 'Justificado');
+        list.push({
+          id: `justified_${e.id}`,
+          category: 'justificado',
+          name: e.employee ? `${e.employee.firstName} ${e.employee.lastName}`.trim() : 'Colaborador',
+          dept: e.employee?.department?.name || 'General',
+          desc: `${typeLabel} registrado en calendario`,
+          badge: typeLabel,
+          badgeColor: '#3b82f6',
+          badgeBg: 'rgba(59, 130, 246, 0.15)',
+          badgeBorder: 'rgba(59, 130, 246, 0.3)'
+        });
+      });
+
+    return {
+      list,
+      totalPending: pendingEmployees.length,
+      retardosCount: todayRecords.filter(r => r.isLate).length
+    };
+  }, [todayRecords, employeesList, activeEvents, todayStr]);
+
+  const unreadAlertsBadge = notifications.filter(n => !n.isRead).length || unreadCount || 0;
+  const totalTodayIncidents = (todayIncidents.retardosCount || 0) + (todayIncidents.totalPending || 0);
 
   // Tendencia Semanal (Dinámica según registros reales)
   const computeWeeklyTrend = () => {
@@ -1038,32 +1174,374 @@ const DashboardOverview = () => {
           )}
         </div>
 
-        <div className="card">
-          <div className="flex justify-between items-center mb-6">
-            <div>
-              <h3 style={{ fontSize: '1rem', marginBottom: '0.25rem' }}>Alertas del Sistema</h3>
-              <p className="text-xs text-muted">Notificaciones e incidencias</p>
+        <div className="card" style={{ display: 'flex', flexDirection: 'column' }}>
+          {/* Header con Tabs Híbridos */}
+          <div style={{ 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center', 
+            marginBottom: '1rem', 
+            borderBottom: '1px solid rgba(255, 255, 255, 0.06)', 
+            paddingBottom: '0.75rem',
+            flexWrap: 'wrap',
+            gap: '0.5rem'
+          }}>
+            {/* Tab switchers */}
+            <div style={{ 
+              display: 'inline-flex', 
+              gap: '4px', 
+              background: 'rgba(255, 255, 255, 0.04)', 
+              padding: '3px', 
+              borderRadius: '8px',
+              border: '1px solid rgba(255, 255, 255, 0.06)'
+            }}>
+              <button
+                type="button"
+                onClick={() => setActiveAlertTab('alerts')}
+                style={{
+                  background: activeAlertTab === 'alerts' ? 'var(--accent-amber, #f59e0b)' : 'transparent',
+                  color: activeAlertTab === 'alerts' ? '#000' : 'var(--text-muted)',
+                  fontWeight: activeAlertTab === 'alerts' ? 700 : 500,
+                  border: 'none',
+                  borderRadius: '6px',
+                  padding: '5px 10px',
+                  fontSize: '0.75rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                <Bell size={13} />
+                <span>Alertas</span>
+                {unreadAlertsBadge > 0 && (
+                  <span style={{
+                    backgroundColor: activeAlertTab === 'alerts' ? '#000' : '#ef4444',
+                    color: '#fff',
+                    fontSize: '0.65rem',
+                    padding: '0 5px',
+                    borderRadius: '999px',
+                    fontWeight: 700,
+                    lineHeight: '16px',
+                    minWidth: '16px',
+                    textAlign: 'center'
+                  }}>
+                    {unreadAlertsBadge}
+                  </span>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveAlertTab('incidents')}
+                style={{
+                  background: activeAlertTab === 'incidents' ? 'var(--accent-amber, #f59e0b)' : 'transparent',
+                  color: activeAlertTab === 'incidents' ? '#000' : 'var(--text-muted)',
+                  fontWeight: activeAlertTab === 'incidents' ? 700 : 500,
+                  border: 'none',
+                  borderRadius: '6px',
+                  padding: '5px 10px',
+                  fontSize: '0.75rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                <AlertTriangle size={13} />
+                <span>Incidencias Hoy</span>
+                {totalTodayIncidents > 0 && (
+                  <span style={{
+                    backgroundColor: activeAlertTab === 'incidents' ? '#000' : '#eab308',
+                    color: activeAlertTab === 'incidents' ? '#fff' : '#000',
+                    fontSize: '0.65rem',
+                    padding: '0 5px',
+                    borderRadius: '999px',
+                    fontWeight: 700,
+                    lineHeight: '16px',
+                    minWidth: '16px',
+                    textAlign: 'center'
+                  }}>
+                    {totalTodayIncidents}
+                  </span>
+                )}
+              </button>
             </div>
-            <Link to="/dashboard/notifications" style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textDecoration: 'none' }}>Ver todas</Link>
+
+            {/* Quick Link */}
+            {activeAlertTab === 'alerts' ? (
+              <Link 
+                to="/dashboard/notifications" 
+                style={{ 
+                  fontSize: '0.75rem', 
+                  color: 'var(--accent-amber)', 
+                  textDecoration: 'none', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '2px',
+                  fontWeight: 500
+                }}
+              >
+                Ver todas <ChevronRight size={13} />
+              </Link>
+            ) : (
+              <Link 
+                to="/dashboard/attendance" 
+                style={{ 
+                  fontSize: '0.75rem', 
+                  color: 'var(--accent-amber)', 
+                  textDecoration: 'none', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '2px',
+                  fontWeight: 500
+                }}
+              >
+                Asistencia <ChevronRight size={13} />
+              </Link>
+            )}
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            {systemAlerts.length === 0 ? (
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', textAlign: 'center', marginTop: '1rem' }}>No hay alertas recientes.</p>
-            ) : (
-              systemAlerts.map(alert => (
-                <div key={alert.id} style={{ backgroundColor: alert.bg, border: `1px solid ${alert.border}`, padding: '1rem', borderRadius: '8px', display: 'flex', gap: '1rem' }}>
-                  <alert.Icon size={20} className={`flex-shrink-0 ${alert.iconColor}`} />
-                  <div style={{ flex: 1 }}>
-                    <div className="flex justify-between items-start">
-                      <h4 style={{ color: alert.titleColor, fontSize: '0.875rem' }}>{alert.title}</h4>
-                      <span onClick={() => removeAlert(alert.id)} style={{ color: alert.closeColor, fontSize: '1rem', cursor: 'pointer', padding: '0 4px' }}>×</span>
-                    </div>
-                    <p style={{ color: alert.descColor, fontSize: '0.75rem', marginTop: '0.25rem' }}>{alert.desc}</p>
-                    <p style={{ color: alert.timeColor, fontSize: '0.7rem', marginTop: '0.5rem' }}>{alert.time}</p>
-                  </div>
+          {/* Subtitle */}
+          <div style={{ marginBottom: '0.75rem' }}>
+            <p className="text-xs text-muted" style={{ margin: 0 }}>
+              {activeAlertTab === 'alerts' 
+                ? 'Notificaciones del sistema y eventos en vivo' 
+                : 'Retardos y colaboradores sin checar hoy'}
+            </p>
+          </div>
+
+          {/* Body Content */}
+          <div 
+            style={{ 
+              display: 'flex', 
+              flexDirection: 'column', 
+              gap: '0.75rem', 
+              maxHeight: '440px', 
+              overflowY: 'auto', 
+              paddingRight: '4px' 
+            }}
+            className="custom-scrollbar"
+          >
+            {activeAlertTab === 'alerts' ? (
+              /* TAB 1: Alertas reales del sistema */
+              notificationsLoading && notifications.length === 0 ? (
+                <div style={{ padding: '2rem 1rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                  <RefreshCw size={24} className="animate-spin" style={{ margin: '0 auto 0.5rem auto', opacity: 0.6 }} />
+                  <p style={{ fontSize: '0.8rem' }}>Cargando alertas del sistema...</p>
                 </div>
-              ))
+              ) : notifications.length === 0 ? (
+                <div style={{ 
+                  padding: '2.5rem 1rem', 
+                  textAlign: 'center', 
+                  backgroundColor: 'rgba(16, 185, 129, 0.03)', 
+                  borderRadius: '8px',
+                  border: '1px dashed rgba(16, 185, 129, 0.2)'
+                }}>
+                  <CheckCircle2 size={32} style={{ color: '#10b981', margin: '0 auto 0.5rem auto' }} />
+                  <h4 style={{ color: '#f4f4f5', fontSize: '0.85rem', fontWeight: 600, margin: '0 0 0.25rem 0' }}>Bandeja al día</h4>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', margin: 0 }}>
+                    No hay alertas pendientes en el sistema.
+                  </p>
+                </div>
+              ) : (
+                notifications.map(notif => {
+                  const style = getNotificationStyle(notif.type);
+                  const IconComp = style.Icon;
+
+                  return (
+                    <div 
+                      key={notif.id} 
+                      style={{ 
+                        backgroundColor: style.bg, 
+                        border: `1px solid ${style.border}`, 
+                        padding: '0.85rem 0.95rem', 
+                        borderRadius: '8px', 
+                        display: 'flex', 
+                        gap: '0.75rem',
+                        opacity: notif.isRead ? 0.65 : 1,
+                        transition: 'all 0.2s ease',
+                        position: 'relative'
+                      }}
+                    >
+                      <IconComp size={18} style={{ color: style.iconColor, flexShrink: 0, marginTop: '2px' }} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
+                          <h4 style={{ 
+                            color: style.titleColor, 
+                            fontSize: '0.82rem', 
+                            fontWeight: 600, 
+                            margin: 0,
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis'
+                          }}>
+                            {notif.title}
+                          </h4>
+                          
+                          {!notif.isRead && (
+                            <button
+                              type="button"
+                              onClick={(e) => handleMarkAsRead(e, notif.id)}
+                              title="Marcar como leída"
+                              style={{
+                                background: 'rgba(255, 255, 255, 0.08)',
+                                border: 'none',
+                                borderRadius: '4px',
+                                color: 'var(--text-muted)',
+                                cursor: 'pointer',
+                                padding: '2px 6px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '3px',
+                                fontSize: '0.68rem',
+                                flexShrink: 0
+                              }}
+                              onMouseEnter={(e) => { e.currentTarget.style.color = '#fff'; e.currentTarget.style.background = 'rgba(255,255,255,0.18)'; }}
+                              onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; }}
+                            >
+                              <Check size={11} /> Leída
+                            </button>
+                          )}
+                        </div>
+
+                        <p style={{ 
+                          color: 'var(--text-muted)', 
+                          fontSize: '0.75rem', 
+                          marginTop: '0.3rem', 
+                          marginBottom: '0.4rem', 
+                          lineHeight: 1.35 
+                        }}>
+                          {notif.message}
+                        </p>
+
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          {notif.category ? (
+                            <span style={{ 
+                              fontSize: '0.62rem', 
+                              textTransform: 'uppercase', 
+                              letterSpacing: '0.5px', 
+                              color: style.iconColor, 
+                              fontWeight: 700 
+                            }}>
+                              {notif.category}
+                            </span>
+                          ) : <span />}
+                          <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                            {getRelativeTime(notif.createdAt)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )
+            ) : (
+              /* TAB 2: Incidencias de Hoy */
+              todayIncidents.list.length === 0 ? (
+                <div style={{ 
+                  padding: '2.5rem 1rem', 
+                  textAlign: 'center', 
+                  backgroundColor: 'rgba(16, 185, 129, 0.03)', 
+                  borderRadius: '8px',
+                  border: '1px dashed rgba(16, 185, 129, 0.2)'
+                }}>
+                  <CheckCircle2 size={32} style={{ color: '#10b981', margin: '0 auto 0.5rem auto' }} />
+                  <h4 style={{ color: '#f4f4f5', fontSize: '0.85rem', fontWeight: 600, margin: '0 0 0.25rem 0' }}>¡Excelente jornada!</h4>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', margin: 0 }}>
+                    Todos los colaboradores están a tiempo y sin incidencias hoy.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  {todayIncidents.list.map(inc => (
+                    <div
+                      key={inc.id}
+                      style={{
+                        backgroundColor: 'rgba(255, 255, 255, 0.02)',
+                        border: '1px solid rgba(255, 255, 255, 0.07)',
+                        padding: '0.75rem 0.9rem',
+                        borderRadius: '8px',
+                        display: 'flex',
+                        gap: '0.75rem',
+                        alignItems: 'center'
+                      }}
+                    >
+                      <div style={{
+                        width: 30,
+                        height: 30,
+                        borderRadius: '50%',
+                        backgroundColor: inc.badgeBg,
+                        border: `1px solid ${inc.badgeBorder}`,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: inc.badgeColor,
+                        flexShrink: 0
+                      }}>
+                        {inc.category === 'retardo' ? <Clock size={15} /> : (inc.category === 'falta' ? <UserX size={15} /> : <Calendar size={15} />)}
+                      </div>
+
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
+                          <h4 style={{ 
+                            fontSize: '0.82rem', 
+                            fontWeight: 600, 
+                            color: '#f4f4f5', 
+                            margin: 0,
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis'
+                          }}>
+                            {inc.name}
+                          </h4>
+                          <span style={{
+                            fontSize: '0.62rem',
+                            padding: '1px 6px',
+                            borderRadius: '4px',
+                            backgroundColor: inc.badgeBg,
+                            color: inc.badgeColor,
+                            border: `1px solid ${inc.badgeBorder}`,
+                            fontWeight: 700,
+                            flexShrink: 0
+                          }}>
+                            {inc.badge}
+                          </span>
+                        </div>
+
+                        <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: '0.2rem 0 0 0' }}>
+                          {inc.desc}
+                        </p>
+
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.25rem' }}>
+                          <span style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.4)' }}>
+                            {inc.dept}
+                          </span>
+                          {inc.time && (
+                            <span style={{ fontSize: '0.68rem', color: 'var(--accent-amber)', fontFamily: 'monospace', fontWeight: 600 }}>
+                              {inc.time}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
+                  {todayIncidents.totalPending > 5 && (
+                    <p style={{ 
+                      fontSize: '0.72rem', 
+                      textAlign: 'center', 
+                      color: 'var(--text-muted)', 
+                      margin: '0.25rem 0 0 0',
+                      padding: '0.25rem'
+                    }}>
+                      +{todayIncidents.totalPending - 5} colaboradores más sin checar...
+                    </p>
+                  )}
+                </>
+              )
             )}
           </div>
         </div>
