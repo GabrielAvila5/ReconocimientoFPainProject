@@ -110,12 +110,22 @@ const NotificationsPage = () => {
   };
   
   const getCategoryStyle = (cat) => {
-    switch(cat.toUpperCase()) {
+    switch((cat || '').toUpperCase()) {
       case 'SYSTEM': return { color: '#10b981', background: 'rgba(16,185,129,0.15)' };
       case 'DEVICE': return { color: '#3b82f6', background: 'rgba(59,130,246,0.15)' };
       case 'ATTENDANCE': return { color: '#eab308', background: 'rgba(234,179,8,0.15)' };
       case 'SECURITY': return { color: '#ef4444', background: 'rgba(239,68,68,0.15)' };
       default: return { color: 'var(--text-muted)', background: 'rgba(255,255,255,0.1)' };
+    }
+  };
+
+  const getCategoryLabel = (cat) => {
+    switch((cat || '').toUpperCase()) {
+      case 'ATTENDANCE': return 'Asistencia';
+      case 'SYSTEM': return 'Sistema';
+      case 'DEVICE': return 'Dispositivo';
+      case 'SECURITY': return 'Seguridad';
+      default: return cat;
     }
   };
 
@@ -329,7 +339,7 @@ const NotificationsPage = () => {
                         fontWeight: 600,
                         ...getCategoryStyle(notif.category)
                       }}>
-                        {notif.category}
+                        {getCategoryLabel(notif.category)}
                       </span>
                     </td>
 

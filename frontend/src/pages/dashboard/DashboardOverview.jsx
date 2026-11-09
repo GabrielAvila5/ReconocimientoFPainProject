@@ -39,7 +39,7 @@ const DashboardOverview = () => {
         ...(tenantId ? { 'x-tenant-id': tenantId } : {})
       };
       
-      const res = await fetch(`${baseUrl}/api/v1/notifications?limit=6`, { headers });
+      const res = await fetch(`${baseUrl}/api/v1/notifications?limit=30`, { headers });
       if (res.ok) {
         const data = await res.json();
         setNotifications(data.data || []);
@@ -61,23 +61,48 @@ const DashboardOverview = () => {
     }
   };
 
-  const getRelativeTime = (dateString) => {
+  const getCategoryLabel = (category) => {
+    if (!category) return '';
+    switch (category.toLowerCase()) {
+      case 'attendance':
+        return 'Asistencia';
+      case 'system':
+        return 'Sistema';
+      case 'security':
+        return 'Seguridad';
+      case 'device':
+        return 'Dispositivo';
+      default:
+        return category;
+    }
+  };
+
+  const formatNotificationTime = (dateString) => {
     if (!dateString) return '';
     try {
       const now = new Date();
       const date = new Date(dateString);
-      const diffMs = now - date;
+      const diffMs = Math.max(0, now - date);
       const diffSec = Math.floor(diffMs / 1000);
       const diffMin = Math.floor(diffSec / 60);
-      const diffHours = Math.floor(diffMin / 60);
-      const diffDays = Math.floor(diffHours / 24);
 
-      if (diffSec < 60) return 'Hace un momento';
-      if (diffMin < 60) return `Hace ${diffMin} min`;
-      if (diffHours < 24) return `Hace ${diffHours} h`;
-      if (diffDays === 1) return 'Ayer';
-      if (diffDays < 7) return `Hace ${diffDays} d`;
-      return date.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
+      const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+      // Si es del día presente (hoy)
+      if (getLocalDateStr(date) === todayStr) {
+        if (diffSec < 60) return 'Hace un momento';
+        if (diffMin < 60) return `Hace ${diffMin} min`;
+        return `Hoy, ${timeStr}`;
+      }
+
+      // Si fue del día anterior (ayer)
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      if (getLocalDateStr(date) === getLocalDateStr(yesterday)) {
+        return `Ayer, ${timeStr}`;
+      }
+
+      return `${date.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}, ${timeStr}`;
     } catch {
       return '';
     }
@@ -323,7 +348,13 @@ const DashboardOverview = () => {
     };
   }, [todayRecords, employeesList, activeEvents, todayStr]);
 
-  const unreadAlertsBadge = notifications.filter(n => !n.isRead).length || unreadCount || 0;
+  // Notificaciones filtradas exclusivamente del día presente (hoy)
+  const todayNotifications = useMemo(() => {
+    return notifications.filter(n => getLocalDateStr(n.createdAt) === todayStr);
+  }, [notifications, todayStr]);
+
+  const todayUnreadAlerts = todayNotifications.filter(n => !n.isRead).length;
+  const unreadAlertsBadge = todayUnreadAlerts;
   const totalTodayIncidents = (todayIncidents.retardosCount || 0) + (todayIncidents.totalPending || 0);
 
   // Tendencia Semanal (Dinámica según registros reales)
@@ -1308,7 +1339,7 @@ const DashboardOverview = () => {
           <div style={{ marginBottom: '0.75rem' }}>
             <p className="text-xs text-muted" style={{ margin: 0 }}>
               {activeAlertTab === 'alerts' 
-                ? 'Notificaciones del sistema y eventos en vivo' 
+                ? 'Alertas y eventos registrados hoy en vivo' 
                 : 'Retardos y colaboradores sin checar hoy'}
             </p>
           </div>
@@ -1326,13 +1357,13 @@ const DashboardOverview = () => {
             className="custom-scrollbar"
           >
             {activeAlertTab === 'alerts' ? (
-              /* TAB 1: Alertas reales del sistema */
-              notificationsLoading && notifications.length === 0 ? (
+              /* TAB 1: Alertas reales del sistema (del día presente) */
+              notificationsLoading && todayNotifications.length === 0 ? (
                 <div style={{ padding: '2rem 1rem', textAlign: 'center', color: 'var(--text-muted)' }}>
                   <RefreshCw size={24} className="animate-spin" style={{ margin: '0 auto 0.5rem auto', opacity: 0.6 }} />
-                  <p style={{ fontSize: '0.8rem' }}>Cargando alertas del sistema...</p>
+                  <p style={{ fontSize: '0.8rem' }}>Cargando alertas del día...</p>
                 </div>
-              ) : notifications.length === 0 ? (
+              ) : todayNotifications.length === 0 ? (
                 <div style={{ 
                   padding: '2.5rem 1rem', 
                   textAlign: 'center', 
@@ -1343,11 +1374,11 @@ const DashboardOverview = () => {
                   <CheckCircle2 size={32} style={{ color: '#10b981', margin: '0 auto 0.5rem auto' }} />
                   <h4 style={{ color: '#f4f4f5', fontSize: '0.85rem', fontWeight: 600, margin: '0 0 0.25rem 0' }}>Bandeja al día</h4>
                   <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', margin: 0 }}>
-                    No hay alertas pendientes en el sistema.
+                    No hay alertas registradas el día de hoy.
                   </p>
                 </div>
               ) : (
-                notifications.map(notif => {
+                todayNotifications.map(notif => {
                   const style = getNotificationStyle(notif.type);
                   const IconComp = style.Icon;
 
@@ -1426,11 +1457,11 @@ const DashboardOverview = () => {
                               color: style.iconColor, 
                               fontWeight: 700 
                             }}>
-                              {notif.category}
+                              {getCategoryLabel(notif.category)}
                             </span>
                           ) : <span />}
-                          <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
-                            {getRelativeTime(notif.createdAt)}
+                          <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
+                            {formatNotificationTime(notif.createdAt)}
                           </span>
                         </div>
                       </div>

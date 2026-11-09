@@ -47,17 +47,32 @@ const NotificationDropdown = ({ onClose }) => {
   };
 
   const formatTime = (dateString) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffMs = now - date;
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMins / 60);
-    const diffDays = Math.floor(diffHours / 24);
+    if (!dateString) return '';
+    try {
+      const date = new Date(dateString);
+      const now = new Date();
+      const diffMs = Math.max(0, now - date);
+      const diffMins = Math.floor(diffMs / 60000);
+      const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-    if (diffMins < 1) return 'Justo ahora';
-    if (diffMins < 60) return `Hace ${diffMins} min`;
-    if (diffHours < 24) return `Hace ${diffHours} h`;
-    return `Hace ${diffDays} d`;
+      // Mismo día calendario
+      if (date.toDateString() === now.toDateString()) {
+        if (diffMins < 1) return 'Justo ahora';
+        if (diffMins < 60) return `Hace ${diffMins} min`;
+        return `Hoy, ${timeStr}`;
+      }
+
+      // Día anterior
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      if (date.toDateString() === yesterday.toDateString()) {
+        return `Ayer, ${timeStr}`;
+      }
+
+      return `${date.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}, ${timeStr}`;
+    } catch {
+      return '';
+    }
   };
 
   const handleNotificationClick = async (notif) => {
