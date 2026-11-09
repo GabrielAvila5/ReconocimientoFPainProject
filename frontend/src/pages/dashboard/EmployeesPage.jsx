@@ -283,6 +283,7 @@ const EmployeesPage = () => {
   // Computed stats
   const totalEmployees = employees.length;
   const enrolledProfiles = employees.filter(emp => emp.faceDescriptor && emp.faceDescriptor !== '[]' && emp.faceDescriptor.length > 10).length;
+  const pendingProfiles = Math.max(0, totalEmployees - enrolledProfiles);
   const coverage = totalEmployees > 0 ? Math.round((enrolledProfiles / totalEmployees) * 100) : 0;
 
   const staffInside = useMemo(() => {
@@ -493,7 +494,7 @@ const EmployeesPage = () => {
           </div>
         </div>
 
-        {/* Card 2: Perfiles Biométricos Enrolados */}
+        {/* Card 2: Perfiles Sin Enrolar */}
         <div 
           className="card card-glow-yellow" 
           onClick={() => {
@@ -512,10 +513,10 @@ const EmployeesPage = () => {
             transition: 'all 0.2s ease',
             position: 'relative'
           }}
-          title="Clic para ver empleados pendientes de enrolamiento"
+          title="Clic para ver empleados pendientes de enrolamiento facial"
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span className="text-muted text-sm font-semibold">Perfiles Biométricos Enrolados</span>
+            <span className="text-muted text-sm font-semibold">Perfiles Sin Enrolar</span>
             <div className="icon-box" style={{ backgroundColor: 'rgba(234, 179, 8, 0.1)' }}>
               <Fingerprint size={18} style={{ color: '#eab308' }} />
             </div>
@@ -526,7 +527,7 @@ const EmployeesPage = () => {
             ) : (
               <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem' }}>
                 <h2 style={{ fontSize: '2.5rem', color: '#eab308', lineHeight: '1', margin: '0', fontWeight: 700 }}>
-                  {enrolledProfiles || '—'}
+                  {pendingProfiles}
                 </h2>
                 {biometricFilter === 'pending' && (
                   <span style={{ 
@@ -538,7 +539,7 @@ const EmployeesPage = () => {
                     borderRadius: '4px',
                     fontWeight: 700
                   }}>
-                    FILTRO: PENDIENTES
+                    FILTRO: SIN ENROLAR
                   </span>
                 )}
               </div>
@@ -547,7 +548,7 @@ const EmployeesPage = () => {
               <Skeleton height="1rem" width="100px" style={{ marginTop: '0.75rem' }} />
             ) : (
               <p className="text-xs text-muted mt-2" style={{ margin: '0.75rem 0 0 0' }}>
-                {coverage}% de cobertura • <span style={{ color: totalEmployees - enrolledProfiles > 0 ? '#facc15' : '#a1a1aa' }}>{totalEmployees - enrolledProfiles} sin enrolar</span>
+                {enrolledProfiles} de {totalEmployees} enrolados ({coverage}% cobertura)
               </p>
             )}
           </div>
@@ -787,7 +788,7 @@ const EmployeesPage = () => {
           }}
         >
           <Fingerprint size={12} />
-          Sin biometría ({totalEmployees - enrolledProfiles})
+          Sin enrolar ({pendingProfiles})
         </button>
 
         {(presenceFilter !== 'all' || biometricFilter !== 'all' || selectedDepartment || searchTerm) && (
