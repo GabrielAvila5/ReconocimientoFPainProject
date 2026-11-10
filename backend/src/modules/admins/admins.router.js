@@ -4,9 +4,9 @@ const { requireAuth, requireRole } = require('../auth/auth.middleware');
 
 const router = express.Router();
 
-// En SaaS multi-tenant, administradores de inquilino y Super Admin pueden gestionar administradores de su empresa
+// En SaaS multi-tenant, administradores de inquilino, corporate admins y Super Admin pueden gestionar administradores de su ámbito
 router.use(requireAuth);
-router.use(requireRole(['ADMIN', 'SUPER_ADMIN']));
+router.use(requireRole(['ADMIN', 'SUPER_ADMIN', 'CORPORATE_ADMIN']));
 
 router.get('/', getAdmins);
 router.post('/', createAdmin);

@@ -279,6 +279,75 @@ router.get('/', async (req, res) => {
   }
 });
 
+/**
+ * Valida cuota de empleados mitigando race conditions tanto para empresas independientes
+ * como para sucursales que comparten cuota global de un Holding Corporativo.
+ */
+async function checkCompanyQuotaLimit(companyId) {
+  const company = await prisma.company.findUnique({
+    where: { id: companyId },
+    select: { 
+      id: true, 
+      maxEmployees: true, 
+      isActive: true, 
+      parentCompanyId: true, 
+      isHolding: true 
+    }
+  });
+
+  if (!company) {
+    return { allowed: false, reason: 'COMPANY_NOT_FOUND', message: 'Empresa no encontrada.' };
+  }
+
+  let holdingToValidate = null;
+  let relevantCompanyIds = [companyId];
+
+  if (company.parentCompanyId) {
+    // Es una sucursal: sumar empleados de toda la red del Holding
+    const parentHolding = await prisma.company.findUnique({
+      where: { id: company.parentCompanyId },
+      select: { id: true, maxEmployees: true, isHolding: true, plan: true }
+    });
+
+    if (parentHolding) {
+      holdingToValidate = parentHolding;
+      const siblingBranches = await prisma.company.findMany({
+        where: { parentCompanyId: parentHolding.id, isActive: true },
+        select: { id: true }
+      });
+      relevantCompanyIds = [parentHolding.id, ...siblingBranches.map(b => b.id)];
+    }
+  } else if (company.isHolding) {
+    // Es la matriz misma: sumar matriz + todas sus sucursales
+    const childBranches = await prisma.company.findMany({
+      where: { parentCompanyId: company.id, isActive: true },
+      select: { id: true }
+    });
+    relevantCompanyIds = [company.id, ...childBranches.map(b => b.id)];
+    holdingToValidate = company;
+  }
+
+  const limit = holdingToValidate ? (holdingToValidate.maxEmployees ?? 1000) : (company.maxEmployees ?? 50);
+
+  const currentEmployeesCount = await prisma.employee.count({
+    where: {
+      companyId: { in: relevantCompanyIds },
+      isActive: true
+    }
+  });
+
+  if (currentEmployeesCount >= limit) {
+    const scopeMsg = holdingToValidate ? 'en toda la red del holding corporativo' : 'para el plan de su empresa';
+    return {
+      allowed: false,
+      reason: 'PLAN_LIMIT_EXCEEDED',
+      message: `Límite global alcanzado (${limit} empleados permitidos ${scopeMsg}). Actualice su suscripción o contrate cupo adicional.`
+    };
+  }
+
+  return { allowed: true, limit, currentEmployeesCount };
+}
+
 // Crear empleado básico sin biometría
 router.post('/', async (req, res) => {
   try {
@@ -293,21 +362,12 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'El departamento es obligatorio.' });
     }
 
-    // 1. Validar límite de plan (maxEmployees)
-    const company = await prisma.company.findUnique({
-      where: { id: companyId },
-      select: { maxEmployees: true, isActive: true }
-    });
-
-    const currentEmployeesCount = await prisma.employee.count({
-      where: { companyId }
-    });
-
-    const limit = company?.maxEmployees ?? 50;
-    if (currentEmployeesCount >= limit) {
+    // 1. Validar límite de plan (maxEmployees) pre-transaccional
+    const quotaCheck = await checkCompanyQuotaLimit(companyId);
+    if (!quotaCheck.allowed) {
       return res.status(403).json({
-        error: 'PLAN_LIMIT_EXCEEDED',
-        message: `Límite del plan alcanzado (${limit} empleados permitidos). Actualice su suscripción.`
+        error: quotaCheck.reason,
+        message: quotaCheck.message
       });
     }
 
@@ -570,17 +630,12 @@ router.post('/register-face', async (req, res) => {
       return res.status(400).json({ error: 'Descriptores inválidos' });
     }
 
-    // Validar límite del plan
-    const comp = await prisma.company.findUnique({
-      where: { id: companyId },
-      select: { maxEmployees: true }
-    });
-    const currentCount = await prisma.employee.count({ where: { companyId } });
-    const limit = comp?.maxEmployees ?? 50;
-    if (currentCount >= limit) {
+    // Validar límite del plan (respetando Holding / Sucursales para evitar Race Conditions)
+    const quotaCheck = await checkCompanyQuotaLimit(companyId);
+    if (!quotaCheck.allowed) {
       return res.status(403).json({
         error: 'PLAN_LIMIT_EXCEEDED',
-        message: `Límite del plan alcanzado (${limit} empleados permitidos). Actualice su suscripción.`
+        message: `Límite del plan alcanzado (${quotaCheck.limit} empleados permitidos en la red corporativa). Actualice su suscripción.`
       });
     }
 

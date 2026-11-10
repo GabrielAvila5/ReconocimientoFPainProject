@@ -1,19 +1,20 @@
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcrypt');
-const { requireAuth, requireRole } = require('../auth/auth.middleware');
+const { requireAuth, requireSuperAdmin } = require('../auth/auth.middleware');
 const prisma = require('../../utils/prisma');
 const { runWithTenantContext } = require('../../middlewares/tenantContext');
 const { findAdminByEmailForLogin } = require('../../utils/authHelpers');
 
-// Exclusivo para Super Admin
+// Exclusivo para Super Admin (Regla Zero-Trust: requiere SUPER_ADMIN y DEFAULT_PLATFORM_COMPANY_ID)
 router.use(requireAuth);
-router.use(requireRole(['SUPER_ADMIN']));
+router.use(requireSuperAdmin);
 
 const PLAN_DEFAULTS = {
-  STARTER: { maxEmployees: 50, maxDevices: 3 },
-  PRO: { maxEmployees: 200, maxDevices: 10 },
-  ENTERPRISE: { maxEmployees: 1000, maxDevices: 50 }
+  STARTER: { maxEmployees: 50, maxDevices: 3, maxBranches: 1 },
+  PRO: { maxEmployees: 200, maxDevices: 10, maxBranches: 1 },
+  ENTERPRISE: { maxEmployees: 1000, maxDevices: 50, maxBranches: 1 },
+  CUSTOM: { maxEmployees: 1000, maxDevices: 50, maxBranches: 150 }
 };
 
 /**
@@ -106,7 +107,8 @@ router.get('/', async (req, res) => {
             departments: true,
             shifts: true,
             attendances: true,
-            adminUsers: true
+            adminUsers: true,
+            branches: true
           }
         }
       }
@@ -181,6 +183,17 @@ router.get('/:id', async (req, res) => {
         devices: {
           select: { id: true, name: true, type: true, status: true, ipAddress: true, isActive: true, createdAt: true, lastSeenAt: true }
         },
+        branches: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            isActive: true,
+            timezone: true,
+            createdAt: true,
+            _count: { select: { employees: true, devices: true } }
+          }
+        },
         _count: {
           select: {
             employees: true,
@@ -188,7 +201,8 @@ router.get('/:id', async (req, res) => {
             departments: true,
             shifts: true,
             attendances: true,
-            adminUsers: true
+            adminUsers: true,
+            branches: true
           }
         }
       }
@@ -244,6 +258,9 @@ router.post('/', async (req, res) => {
     plan = 'STARTER',
     maxEmployees,
     maxDevices,
+    maxBranches,
+    isHolding,
+    customPrice,
     timezone = 'America/Mexico_City',
     customDomain,
     adminName,
@@ -269,8 +286,8 @@ router.post('/', async (req, res) => {
   }
 
   const normalizedPlan = (plan || 'STARTER').toUpperCase();
-  if (!['STARTER', 'PRO', 'ENTERPRISE'].includes(normalizedPlan)) {
-    return res.status(400).json({ error: 'Plan inválido. Opciones permitidas: STARTER, PRO, ENTERPRISE.' });
+  if (!['STARTER', 'PRO', 'ENTERPRISE', 'CUSTOM'].includes(normalizedPlan)) {
+    return res.status(400).json({ error: 'Plan inválido. Opciones permitidas: STARTER, PRO, ENTERPRISE, CUSTOM.' });
   }
 
   if (!adminName || typeof adminName !== 'string' || adminName.trim().length < 2) {
@@ -299,6 +316,15 @@ router.post('/', async (req, res) => {
   const parsedMaxDevices = Number.isInteger(Number(maxDevices)) && Number(maxDevices) > 0
     ? Number(maxDevices)
     : defaults.maxDevices;
+  const parsedMaxBranches = Number.isInteger(Number(maxBranches)) && Number(maxBranches) > 0
+    ? Number(maxBranches)
+    : (defaults.maxBranches || 1);
+  const parsedIsHolding = typeof isHolding === 'boolean'
+    ? isHolding
+    : (normalizedPlan === 'CUSTOM');
+  const parsedCustomPrice = customPrice !== undefined && customPrice !== null && !isNaN(Number(customPrice))
+    ? Number(customPrice)
+    : null;
 
   let createdCompany = null;
 
@@ -342,6 +368,9 @@ router.post('/', async (req, res) => {
         plan: normalizedPlan,
         maxEmployees: parsedMaxEmployees,
         maxDevices: parsedMaxDevices,
+        maxBranches: parsedMaxBranches,
+        isHolding: parsedIsHolding,
+        customPrice: parsedCustomPrice,
         timezone: timezone || 'America/Mexico_City',
         customDomain: customDomain ? customDomain.trim().toLowerCase() : null,
         isActive: true
@@ -361,14 +390,15 @@ router.post('/', async (req, res) => {
         }
       });
 
-      // 5.2 Usuario Administrador de la empresa (sin ficha de empleado, syncEmployee: false)
+      // 5.2 Usuario Administrador de la empresa (si es Holding, CORPORATE_ADMIN; si es estándar, ADMIN)
+      const initialAdminRole = (createdCompany.isHolding || normalizedPlan === 'CUSTOM') ? 'CORPORATE_ADMIN' : 'ADMIN';
       const adminUser = await prisma.adminUser.create({
         data: {
           companyId: createdCompany.id,
           name: adminName.trim(),
           email: normalizedEmail,
           password: hashedPassword,
-          role: 'ADMIN',
+          role: initialAdminRole,
           createdBy: req.user.id
         }
       });
@@ -431,7 +461,7 @@ router.post('/', async (req, res) => {
 router.patch('/:id', async (req, res) => {
   try {
     const companyId = req.params.id;
-    const { name, plan, maxEmployees, maxDevices, timezone, customDomain } = req.body;
+    const { name, plan, maxEmployees, maxDevices, maxBranches, isHolding, customPrice, timezone, customDomain } = req.body;
 
     if (!companyId) {
       return res.status(400).json({ error: 'ID de empresa inválido' });
@@ -448,7 +478,7 @@ router.patch('/:id', async (req, res) => {
     if (name && typeof name === 'string' && name.trim().length >= 2) {
       dataToUpdate.name = name.trim();
     }
-    if (plan && ['STARTER', 'PRO', 'ENTERPRISE'].includes(plan.toUpperCase())) {
+    if (plan && ['STARTER', 'PRO', 'ENTERPRISE', 'CUSTOM'].includes(plan.toUpperCase())) {
       dataToUpdate.plan = plan.toUpperCase();
     }
     if (maxEmployees !== undefined && Number.isInteger(Number(maxEmployees)) && Number(maxEmployees) > 0) {
@@ -456,6 +486,15 @@ router.patch('/:id', async (req, res) => {
     }
     if (maxDevices !== undefined && Number.isInteger(Number(maxDevices)) && Number(maxDevices) > 0) {
       dataToUpdate.maxDevices = Number(maxDevices);
+    }
+    if (maxBranches !== undefined && Number.isInteger(Number(maxBranches)) && Number(maxBranches) > 0) {
+      dataToUpdate.maxBranches = Number(maxBranches);
+    }
+    if (typeof isHolding === 'boolean') {
+      dataToUpdate.isHolding = isHolding;
+    }
+    if (customPrice !== undefined) {
+      dataToUpdate.customPrice = customPrice === null ? null : Number(customPrice);
     }
     if (timezone && typeof timezone === 'string') {
       dataToUpdate.timezone = timezone.trim();

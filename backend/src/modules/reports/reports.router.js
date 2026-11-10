@@ -249,17 +249,18 @@ router.get('/kpis', async (req, res) => {
       attendanceMap[key] = true;
 
       const dayEvents = eventMap[key] || [];
+      const hasDisability = dayEvents.some(e => e.type === 'DISABILITY');
       const hasVacation = dayEvents.some(e => e.type === 'VACATION');
       const hasJustifiedAbsence = dayEvents.some(e => e.type === 'JUSTIFIED_ABSENCE');
       const hasLateArrival = dayEvents.some(e => e.type === 'LATE_ARRIVAL');
 
       if (!trendMap[dateStr]) trendMap[dateStr] = { aTiempo: 0, tardanzas: 0, ausencias: 0, justificados: 0 };
 
-      if (hasVacation) {
-        vacaciones++;
-        trendMap[dateStr].justificados++;
-      } else if (hasJustifiedAbsence) {
+      if (hasDisability || hasJustifiedAbsence) {
         faltasJustificadas++;
+        trendMap[dateStr].justificados++;
+      } else if (hasVacation) {
+        vacaciones++;
         trendMap[dateStr].justificados++;
       } else if (att.isLate) {
         let minsLate = att.lateMinutes;
@@ -353,7 +354,7 @@ router.get('/kpis', async (req, res) => {
       }
 
       // Break KPIs calculation
-      if (!hasVacation && !hasJustifiedAbsence) {
+      if (!hasVacation && !hasJustifiedAbsence && !hasDisability) {
         const shift = shiftMap[att.employeeId] || globalShift;
         const breakStart = shift.breakStartTime || globalShift.breakStartTime || '13:00';
         const breakEnd = shift.breakEndTime || globalShift.breakEndTime || '14:00';
@@ -623,7 +624,8 @@ router.get('/attendance-consolidated', async (req, res) => {
       const dayEvents = eventMap[key] || [];
       
       let estadoAsistencia = att.isLate ? 'Tardanza' : 'A tiempo';
-      if (dayEvents.some(e => e.type === 'VACATION')) estadoAsistencia = 'Vacaciones';
+      if (dayEvents.some(e => e.type === 'DISABILITY')) estadoAsistencia = 'Incapacidad';
+      else if (dayEvents.some(e => e.type === 'VACATION')) estadoAsistencia = 'Vacaciones';
       else if (dayEvents.some(e => e.type === 'JUSTIFIED_ABSENCE')) estadoAsistencia = 'Falta Justificada';
       else if (dayEvents.some(e => e.type === 'LATE_ARRIVAL')) estadoAsistencia = 'Tardanza Justificada';
       else if (dayEvents.some(e => e.type === 'EARLY_EXIT')) estadoAsistencia = 'Salida Anticipada Justificada';
@@ -699,7 +701,8 @@ router.get('/attendance-consolidated', async (req, res) => {
         
         let estadoAsistencia = 'Ausencia';
         const dayEvents = eventMap[key] || [];
-        if (dayEvents.some(e => e.type === 'VACATION')) estadoAsistencia = 'Vacaciones';
+        if (dayEvents.some(e => e.type === 'DISABILITY')) estadoAsistencia = 'Incapacidad';
+        else if (dayEvents.some(e => e.type === 'VACATION')) estadoAsistencia = 'Vacaciones';
         else if (dayEvents.some(e => e.type === 'JUSTIFIED_ABSENCE')) estadoAsistencia = 'Falta Justificada';
 
         const overtimeEventsVirt = dayEvents.filter(e => e.type === 'OVERTIME');

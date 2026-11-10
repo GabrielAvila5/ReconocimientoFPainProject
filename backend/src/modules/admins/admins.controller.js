@@ -68,14 +68,66 @@ const getAdmins = async (req, res) => {
   }
 };
 
+const { DEFAULT_PLATFORM_COMPANY_ID } = require('../../middlewares/rbac');
+
 const createAdmin = async (req, res) => {
   try {
-    const { name, email, password, identifier, departmentId, position, syncEmployee, role } = req.body;
+    const { name, email, password, identifier, departmentId, position, syncEmployee, role, companyId } = req.body;
     const isSyncOptIn = syncEmployee === true || syncEmployee === 'true';
 
-    // Prohibir escalamiento o creación de SUPER_ADMIN por parte de administradores de inquilino
-    if (role === 'SUPER_ADMIN' && req.user?.role !== 'SUPER_ADMIN') {
-      return res.status(403).json({ error: 'Solo un Super Admin puede asignar o crear usuarios con rol SUPER_ADMIN.' });
+    const isPlatformSuperAdmin = 
+      req.user?.role === 'SUPER_ADMIN' && 
+      req.user?.companyId === DEFAULT_PLATFORM_COMPANY_ID;
+
+    // Regla Zero-Trust y Mitigación de Mass Assignment de Roles y Tenant
+    let finalRole = 'ADMIN';
+    let targetCompanyId = req.user.companyId;
+
+    if (isPlatformSuperAdmin) {
+      // Super Admin de la plataforma puede asignar cualquier rol y destinar a cualquier empresa
+      if (role && ['SUPER_ADMIN', 'CORPORATE_ADMIN', 'ADMIN', 'VIEWER'].includes(role)) {
+        finalRole = role;
+      }
+      if (companyId) {
+        targetCompanyId = companyId;
+      }
+    } else if (req.user?.role === 'CORPORATE_ADMIN') {
+      // Corporate Admin solo puede crear administradores locales de sus sucursales o visores
+      if (role === 'SUPER_ADMIN' || role === 'CORPORATE_ADMIN') {
+        return res.status(403).json({
+          error: 'ACCESO_DENEGADO',
+          message: 'Solo el Super Administrador de la plataforma puede otorgar roles de SUPER_ADMIN o CORPORATE_ADMIN.'
+        });
+      }
+      if (role && ['ADMIN', 'VIEWER'].includes(role)) {
+        finalRole = role;
+      }
+      // Si especifica sucursal, validar que sea hija de su matriz
+      if (companyId && companyId !== req.user.companyId) {
+        const branch = await prisma.company.findUnique({
+          where: { id: companyId },
+          select: { id: true, parentCompanyId: true }
+        });
+        if (!branch || branch.parentCompanyId !== req.user.companyId) {
+          return res.status(403).json({
+            error: 'TENANT_SPOOFING_DETECTED',
+            message: 'No puede asignar administradores a una sucursal que no pertenece a su holding.'
+          });
+        }
+        targetCompanyId = companyId;
+      }
+    } else {
+      // Administrador regular: estrictamente restringido a su propia empresa y roles locales
+      if (role === 'SUPER_ADMIN' || role === 'CORPORATE_ADMIN') {
+        return res.status(403).json({
+          error: 'ACCESO_DENEGADO',
+          message: 'Privilegios insuficientes para asignar roles de nivel plataforma o corporativo.'
+        });
+      }
+      if (role && ['ADMIN', 'VIEWER'].includes(role)) {
+        finalRole = role;
+      }
+      targetCompanyId = req.user.companyId;
     }
 
     if (!name || !email || !password) {
@@ -99,13 +151,14 @@ const createAdmin = async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // Create user (force role to ADMIN)
+    // Create user with sanitized role and companyId
     const newAdmin = await prisma.adminUser.create({
       data: {
         name,
         email,
         password: hashedPassword,
-        role: 'ADMIN',
+        role: finalRole,
+        companyId: targetCompanyId,
         createdBy: req.user.id
       },
       select: {
@@ -185,9 +238,23 @@ const deleteAdmin = async (req, res) => {
       return res.status(404).json({ error: 'Administrador no encontrado.' });
     }
 
-    // NEVER allow deletion of a SUPER_ADMIN
+    // Regla Zero-Trust: Jamás permitir la eliminación de un SUPER_ADMIN
     if (targetAdmin.role === 'SUPER_ADMIN') {
       return res.status(403).json({ error: 'No se puede eliminar a un Super Administrador.' });
+    }
+
+    // Un CORPORATE_ADMIN no puede eliminar a otro CORPORATE_ADMIN ni administradores fuera de su red
+    if (req.user.role === 'CORPORATE_ADMIN') {
+      if (targetAdmin.role === 'CORPORATE_ADMIN') {
+        return res.status(403).json({ error: 'No autorizado para eliminar a un Administrador Corporativo.' });
+      }
+      const allowedCompanyIds = [
+        req.user.companyId,
+        ...(await prisma.company.findMany({ where: { parentCompanyId: req.user.companyId }, select: { id: true } })).map((b) => b.id)
+      ];
+      if (!allowedCompanyIds.includes(targetAdmin.companyId)) {
+        return res.status(403).json({ error: 'ACCESO_DENEGADO', message: 'No puede eliminar administradores de otra organización.' });
+      }
     }
 
     // Audit log before deleting to capture targetName and targetEmail

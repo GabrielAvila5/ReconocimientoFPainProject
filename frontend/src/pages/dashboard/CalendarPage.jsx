@@ -47,13 +47,13 @@ const processDates = (dateList, employees, allRecords, allEvents = []) => {
       const empRecord = dateRecords.find(r => r.employeeId === emp.id);
       
       if (!empRecord) {
-        // Verificar si tiene permiso justificado o vacaciones activas
+        // Verificar si tiene permiso justificado, vacaciones o incapacidad médica activa
         const event = allEvents.find(evt => {
           if (evt.employeeId !== emp.id) return false;
-          if (evt.type !== 'VACATION' && evt.type !== 'JUSTIFIED_ABSENCE') return false;
+          if (evt.type !== 'VACATION' && evt.type !== 'JUSTIFIED_ABSENCE' && evt.type !== 'DISABILITY') return false;
           
           const evtStart = new Date(evt.date);
-          if (evt.type === 'VACATION' && evt.dateTo) {
+          if ((evt.type === 'VACATION' || evt.type === 'DISABILITY') && evt.dateTo) {
             const evtEnd = new Date(evt.dateTo);
             return dateObj >= evtStart && dateObj <= evtEnd;
           }
@@ -62,13 +62,14 @@ const processDates = (dateList, employees, allRecords, allEvents = []) => {
         });
 
         if (event) {
+          const statusText = event.type === 'DISABILITY' ? 'Incapacidad' : (event.type === 'VACATION' ? 'Vacaciones' : 'Permiso');
           records.push({
             id: `perm-${currentDateStr}-${emp.id}`,
             date: currentDateStr,
             employee: emp,
             type: 'permission',
             time: '—',
-            status: 'Permiso'
+            status: statusText
           });
         } else {
           // Solo marcar falta si el día ya pasó o es hoy

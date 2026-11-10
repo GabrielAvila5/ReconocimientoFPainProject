@@ -39,16 +39,17 @@ const requireAuth = async (req, res, next) => {
   }
 };
 
-const requireRole = (roles) => {
-  return (req, res, next) => {
-    if (!req.user || !roles.includes(req.user.role)) {
-      return res.status(403).json({ error: 'Acceso denegado. Rol insuficiente.' });
-    }
-    next();
-  };
-};
+const { 
+  requireSuperAdmin, 
+  requireCorporateOrSuperAdmin, 
+  requireRole: rbacRequireRole 
+} = require('../../middlewares/rbac');
+
+const requireRole = rbacRequireRole;
 
 module.exports = {
   requireAuth,
-  requireRole
+  requireRole,
+  requireSuperAdmin,
+  requireCorporateOrSuperAdmin
 };

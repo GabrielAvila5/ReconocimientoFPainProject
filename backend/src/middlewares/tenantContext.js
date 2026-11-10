@@ -60,7 +60,12 @@ async function tenantContextMiddleware(req, res, next) {
     let companyId = null;
     let isSuperAdmin = false;
     let isImpersonating = false;
+    let isCorporateAdmin = false;
+    let isCorporateHolding = false;
+    let holdingCompanyIds = null;
+    let impersonatingBranchId = null;
 
+    const DEFAULT_PLATFORM_COMPANY_ID = process.env.DEFAULT_COMPANY_ID || 'default-company-pain';
     const headerTenantId = req.headers['x-tenant-id'] || req.headers['x-company-id'];
 
     // Rutas públicas y de superadmin
@@ -70,7 +75,13 @@ async function tenantContextMiddleware(req, res, next) {
                              req.originalUrl?.startsWith('/api/v1/devices/auth-request');
 
     if (req.user) {
-      if (req.user.role === 'SUPER_ADMIN') {
+      // Regla Zero-Trust: Solo usuarios con rol SUPER_ADMIN de la empresa 'default-company-pain' son Super Admin globales
+      const effectiveCompanyId = req.user.companyId || DEFAULT_PLATFORM_COMPANY_ID;
+      const isZeroTrustSuperAdmin = 
+        req.user.role === 'SUPER_ADMIN' && 
+        effectiveCompanyId === DEFAULT_PLATFORM_COMPANY_ID;
+
+      if (isZeroTrustSuperAdmin) {
         isSuperAdmin = true;
         if (isSuperAdminRoute) {
           // En rutas de superadmin (gestión global de empresas y plataforma), operar sin filtro de inquilino
@@ -83,10 +94,55 @@ async function tenantContextMiddleware(req, res, next) {
           // Si el Super Admin tiene una empresa base asociada en su usuario, usarla por defecto
           companyId = req.user.companyId;
         }
+      } else if (req.user.role === 'CORPORATE_ADMIN') {
+        // Administrador de Holding Corporativo (Plan Personalizado Multi-Sucursal)
+        isCorporateAdmin = true;
+        const headerBranchId = req.headers['x-branch-id'] || req.headers['x-branch'];
+
+        if (headerBranchId) {
+          const targetBranchId = Array.isArray(headerBranchId) ? headerBranchId[0] : headerBranchId;
+          const prisma = require('../utils/prisma');
+
+          // Validar en la BD que la sucursal solicitada tenga como parentCompanyId el companyId del usuario
+          const branch = await prisma.company.findUnique({
+            where: { id: targetBranchId },
+            select: { id: true, parentCompanyId: true, isActive: true }
+          });
+
+          if (!branch || branch.parentCompanyId !== req.user.companyId) {
+            return res.status(403).json({
+              error: 'TENANT_SPOOFING_DETECTED',
+              message: 'Acceso denegado: La sucursal solicitada no pertenece a su holding corporativo.'
+            });
+          }
+
+          if (!branch.isActive) {
+            return res.status(403).json({
+              error: 'BRANCH_SUSPENDED',
+              message: 'La sucursal solicitada se encuentra suspendida.'
+            });
+          }
+
+          // Impersonación segura de sucursal: inyectar el x-branch-id en el contexto
+          companyId = branch.id;
+          isImpersonating = true;
+          impersonatingBranchId = branch.id;
+        } else {
+          // Vista de Dashboard Nacional / Consolidada (sin x-branch-id)
+          const prisma = require('../utils/prisma');
+          const childBranches = await prisma.company.findMany({
+            where: { parentCompanyId: req.user.companyId, isActive: true },
+            select: { id: true }
+          });
+
+          companyId = req.user.companyId;
+          isCorporateHolding = true;
+          holdingCompanyIds = [req.user.companyId, ...childBranches.map(b => b.id)];
+        }
       } else {
-        // Administrador de empresa: su companyId es fijo desde el token JWT
+        // Administrador regular de sucursal o de empresa estándar: companyId fijo desde token
         companyId = req.user.companyId || null;
-        // Se ignora deliberadamente x-tenant-id enviado por un no-superadmin para evitar spoofing
+        // Se ignora deliberadamente x-tenant-id y x-branch-id para evitar spoofing
       }
     } else if (req.device) {
       companyId = req.device.companyId || null;
@@ -146,6 +202,10 @@ async function tenantContextMiddleware(req, res, next) {
       companyId,
       isSuperAdmin,
       isImpersonating,
+      isCorporateAdmin,
+      isCorporateHolding,
+      holdingCompanyIds,
+      impersonatingBranchId,
       userId: req.user?.id || null
     };
 

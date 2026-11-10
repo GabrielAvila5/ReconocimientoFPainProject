@@ -49,7 +49,19 @@ const getEvents = async (req, res) => {
 
 const createEvent = async (req, res) => {
   try {
-    const { employeeId, departmentId, type, date, dateTo, startTime, endTime, minutes, reason } = req.body;
+    const { 
+      employeeId, 
+      departmentId, 
+      type, 
+      date, 
+      dateTo, 
+      startTime, 
+      endTime, 
+      minutes, 
+      reason,
+      disabilityType,
+      certificateNumber
+    } = req.body;
 
     if ((!employeeId && !departmentId) || !type || !date || !reason) {
       return res.status(400).json({ error: 'Faltan campos obligatorios.' });
@@ -156,6 +168,8 @@ const createEvent = async (req, res) => {
           endTime: endTime ? new Date(endTime) : null,
           minutes: minutes ? parseInt(minutes) : null,
           reason,
+          disabilityType: disabilityType || null,
+          certificateNumber: certificateNumber ? certificateNumber.trim() : null,
           batchId,
           registeredById: req.user.id
         },
@@ -188,7 +202,7 @@ const createEvent = async (req, res) => {
 const updateEvent = async (req, res) => {
   try {
     const { id } = req.params;
-    const { date, dateTo, startTime, endTime, minutes, reason, status } = req.body;
+    const { date, dateTo, startTime, endTime, minutes, reason, status, disabilityType, certificateNumber } = req.body;
 
     const existingEvent = await prisma.eventRequest.findFirst({ where: { id } });
     if (!existingEvent) {
@@ -204,7 +218,9 @@ const updateEvent = async (req, res) => {
         endTime: endTime ? new Date(endTime) : undefined,
         minutes: minutes !== undefined ? parseInt(minutes) : undefined,
         reason,
-        status: status || undefined
+        status: status || undefined,
+        disabilityType: disabilityType !== undefined ? (disabilityType || null) : undefined,
+        certificateNumber: certificateNumber !== undefined ? (certificateNumber ? certificateNumber.trim() : null) : undefined
       }
     });
 

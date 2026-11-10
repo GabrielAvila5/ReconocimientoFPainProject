@@ -143,6 +143,8 @@ app.use('/api/v1/devices', devicesRouter);
 const companiesRouter = require('./modules/companies/companies.router');
 app.use('/api/v1/superadmin/companies', companiesRouter);
 app.use('/api/v1/companies', companiesRouter); // Alias de compatibilidad
+const branchesRouter = require('./modules/branches/branches.router');
+app.use('/api/v1/branches', branchesRouter);
 
 // Manejo de errores de CORS y seguridad
 app.use((err, req, res, next) => {

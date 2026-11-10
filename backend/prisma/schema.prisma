@@ -30,6 +30,15 @@ model Company {
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt
 
+  // Jerarquía Holding Multi-Sucursal (Plan Personalizado)
+  parentCompanyId    String?
+  parentCompany      Company?         @relation("CompanyBranches", fields: [parentCompanyId], references: [id], onDelete: Restrict)
+  branches           Company[]        @relation("CompanyBranches")
+  isHolding          Boolean          @default(false)
+  maxBranches        Int?             @default(1)
+  customPrice        Decimal?         @db.Decimal(10, 2)
+  branchAccesses     EmployeeBranchAccess[] @relation("BranchEmployees")
+
   employees          Employee[]
   departments        Department[]
   shifts             Shift[]
@@ -46,6 +55,7 @@ model Company {
 
   @@index([isActive])
   @@index([slug])
+  @@index([parentCompanyId])
 }
 
 model Department {
@@ -81,6 +91,7 @@ model Employee {
   shifts         EmployeeShift[]
   notifications  Notification[]
   eventRequests  EventRequest[]
+  branchAccesses EmployeeBranchAccess[]
   createdAt      DateTime           @default(now())
   updatedAt      DateTime           @updatedAt
 
@@ -182,6 +193,7 @@ model EmployeeShift {
 
 enum AdminRole {
   SUPER_ADMIN
+  CORPORATE_ADMIN
   ADMIN
   VIEWER
 }
@@ -252,6 +264,7 @@ enum EventType {
   JUSTIFIED_ABSENCE
   VACATION
   LATE_ARRIVAL
+  DISABILITY
 }
 
 enum EventStatus {
@@ -260,24 +273,26 @@ enum EventStatus {
 }
 
 model EventRequest {
-  id             String      @id @default(uuid())
-  companyId      String
-  company        Company     @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  employeeId     String
-  employee       Employee    @relation(fields: [employeeId, companyId], references: [id, companyId], onDelete: Restrict)
-  type           EventType   
-  status         EventStatus @default(ACTIVE) 
-  date           DateTime    @db.Date
-  dateTo         DateTime?   @db.Date // Para VACATION
-  startTime      DateTime?   // Para OVERTIME / EARLY_EXIT
-  endTime        DateTime?   // Para OVERTIME
-  minutes        Int?        
-  reason         String      @db.Text
-  batchId        String?     @db.VarChar(50) // Para asignaciones masivas
-  registeredById String
-  registeredBy   AdminUser   @relation(fields: [registeredById], references: [id], onDelete: Restrict)
-  createdAt      DateTime    @default(now())
-  updatedAt      DateTime    @updatedAt
+  id                String      @id @default(uuid())
+  companyId         String
+  company           Company     @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  employeeId        String
+  employee          Employee    @relation(fields: [employeeId, companyId], references: [id, companyId], onDelete: Restrict)
+  type              EventType   
+  status            EventStatus @default(ACTIVE) 
+  date              DateTime    @db.Date
+  dateTo            DateTime?   @db.Date // Para VACATION / DISABILITY
+  startTime         DateTime?   // Para OVERTIME / EARLY_EXIT
+  endTime           DateTime?   // Para OVERTIME
+  minutes           Int?        
+  reason            String      @db.Text
+  disabilityType    String?     // Razón médica (MATERNITY, SURGERY, WORK_ACCIDENT, GENERAL_ILLNESS, OTHER)
+  certificateNumber String?     // Folio o certificado médico (ej. Folio IMSS)
+  batchId           String?     @db.VarChar(50) // Para asignaciones masivas
+  registeredById    String
+  registeredBy      AdminUser   @relation(fields: [registeredById], references: [id], onDelete: Restrict)
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
 
   @@unique([id, companyId])
   @@index([companyId, date, status])
@@ -321,6 +336,7 @@ model SystemSettings {
 
   // Privacidad
   showConsentOnKiosk Boolean @default(true)
+  photoRetentionDays Int?    @default(30)
 
   // Sistema
   maintenanceMode     Boolean @default(false)
@@ -394,4 +410,17 @@ model DeviceAuthRequest {
   @@index([deviceId])
   @@index([companyId, status])
   @@index([status, expiresAt])
+}
+
+model EmployeeBranchAccess {
+  id         String    @id @default(uuid())
+  employeeId String
+  branchId   String
+  employee   Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  branch     Company   @relation("BranchEmployees", fields: [branchId], references: [id], onDelete: Cascade)
+  createdAt  DateTime  @default(now())
+
+  @@unique([employeeId, branchId])
+  @@index([branchId])
+  @@index([employeeId])
 }

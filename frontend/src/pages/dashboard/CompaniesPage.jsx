@@ -9,9 +9,10 @@ import {
 import { toast } from 'sonner';
 
 const PLAN_PRESETS = {
-  STARTER: { maxEmployees: 50, maxDevices: 3, label: 'Starter', badgeColor: '#3b82f6', bgBadge: 'rgba(59, 130, 246, 0.15)' },
-  PRO: { maxEmployees: 200, maxDevices: 10, label: 'Pro', badgeColor: '#f97316', bgBadge: 'rgba(249, 115, 22, 0.15)' },
-  ENTERPRISE: { maxEmployees: 1000, maxDevices: 50, label: 'Enterprise', badgeColor: '#a855f7', bgBadge: 'rgba(168, 85, 247, 0.15)' }
+  STARTER: { maxEmployees: 50, maxDevices: 3, maxBranches: 1, label: 'Starter', badgeColor: '#3b82f6', bgBadge: 'rgba(59, 130, 246, 0.15)' },
+  PRO: { maxEmployees: 200, maxDevices: 10, maxBranches: 1, label: 'Pro', badgeColor: '#f97316', bgBadge: 'rgba(249, 115, 22, 0.15)' },
+  ENTERPRISE: { maxEmployees: 1000, maxDevices: 50, maxBranches: 1, label: 'Enterprise', badgeColor: '#a855f7', bgBadge: 'rgba(168, 85, 247, 0.15)' },
+  CUSTOM: { maxEmployees: 1000, maxDevices: 50, maxBranches: 150, label: 'Personalizado', badgeColor: '#10b981', bgBadge: 'rgba(16, 185, 129, 0.15)' }
 };
 
 const TIMEZONES = [
@@ -26,6 +27,151 @@ const TIMEZONES = [
   'America/Los_Angeles',
   'Europe/Madrid'
 ];
+
+const FIELD_EXPLANATIONS = {
+  name: {
+    title: '¿Qué es el Nombre Comercial?',
+    text: 'Es la marca o nombre público de la empresa cliente (ej: "Grupo Industrial Acme", "Hospital San Javier"). Aparecerá en el encabezado de los paneles, en los reportes de nómina y en la pantalla principal de los kioscos biométricos.'
+  },
+  slug: {
+    title: '¿Para qué sirve el Identificador Slug?',
+    text: 'El "slug" es la clave técnica única en minúsculas y sin espacios de la empresa (ej: "grupo-acme"). Se utiliza internamente para: 1) URLs y subdominios personalizados, 2) Emparejamiento instantáneo de kioscos y cámaras, 3) Segmentación estricta de base de datos multi-tenant, y 4) Prefijo automático de todas las sucursales si adquiere el plan Holding.'
+  },
+  plan: {
+    title: '¿Cómo funcionan los Planes y Cuotas?',
+    text: 'Define el paquete contratado: Starter (hasta 50 empleados / 3 kioscos), Pro (200 / 10), Enterprise (1,000 / 50) o Personalizado (Holding multi-sucursal a la medida). Si la empresa supera su límite de empleados, el sistema bloqueará nuevos enrolamientos hasta ampliar el plan.'
+  },
+  maxEmployees: {
+    title: '¿Qué es el Límite de Empleados?',
+    text: 'Tope máximo de colaboradores que la empresa puede tener registrados. Al llegar al 100%, el sistema impedirá nuevos registros o enrolamientos de rostros.'
+  },
+  maxDevices: {
+    title: '¿Qué es el Límite de Kioscos?',
+    text: 'Cantidad de tabletas, pantallas o cámaras físicas que la empresa puede tener enlazadas simultáneamente para el registro de asistencia en sus accesos.'
+  },
+  maxBranches: {
+    title: '¿Qué es el Límite de Sucursales (Holding)?',
+    text: 'Aplica en el Plan Personalizado. Define cuántas sucursales o plantas independientes podrá crear esta empresa matriz en el país, cada una con su propio personal y kioscos.'
+  },
+  customPrice: {
+    title: '¿Para qué sirve el Precio Personalizado?',
+    text: 'Importe mensual acordado con clientes corporativos o holding que no se rigen por la tarifa estándar. Queda asentado en la ficha para control y seguimiento de facturación.'
+  },
+  timezone: {
+    title: '¿Por qué es indispensable la Zona Horaria?',
+    text: 'Garantiza que el cálculo de retardos, asistencias a tiempo, horas extra y corte nocturno se efectúe según la hora legal de la ciudad donde opera el cliente.'
+  },
+  adminName: {
+    title: '¿Quién es el Administrador Inicial?',
+    text: 'Nombre de la persona responsable del cliente (RRHH o TI). Se le asignarán las credenciales maestras para configurar la cuenta, turnos y personal.'
+  },
+  adminEmail: {
+    title: '¿Para qué se usa este Correo?',
+    text: 'Es el usuario oficial con el que el administrador iniciará sesión. También recibirá las alertas urgentes del sistema (como kioscos desconectados o avisos de suspensión).'
+  },
+  adminPassword: {
+    title: '¿Cómo se maneja la Contraseña Inicial?',
+    text: 'Contraseña de primer acceso almacenada bajo algoritmo hash bcrypt con salting. Podrás copiarla y compartirla con el cliente al finalizar el registro.'
+  }
+};
+
+const formatTimeAgo = (dateString) => {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return '';
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  
+  if (diffDays === 0) return 'Hoy';
+  if (diffDays === 1) return 'Ayer';
+  if (diffDays < 7) return `Hace ${diffDays} días`;
+  if (diffDays < 30) {
+    const weeks = Math.floor(diffDays / 7);
+    return `Hace ${weeks} ${weeks === 1 ? 'semana' : 'semanas'}`;
+  }
+  if (diffDays < 365) {
+    const months = Math.floor(diffDays / 30);
+    return `Hace ${months} ${months === 1 ? 'mes' : 'meses'}`;
+  }
+  const years = Math.floor(diffDays / 365);
+  return `Hace ${years} ${years === 1 ? 'año' : 'años'}`;
+};
+
+const formatFullDate = (dateString) => {
+  if (!dateString) return 'No registrada';
+  const d = new Date(dateString);
+  if (isNaN(d.getTime())) return 'Fecha inválida';
+  const dayName = d.toLocaleDateString('es-MX', { weekday: 'long' });
+  const capitalizedDay = dayName.charAt(0).toUpperCase() + dayName.slice(1);
+  const fullDate = d.toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' });
+  const time = d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', hour12: true });
+  return `${capitalizedDay}, ${fullDate} a las ${time}`;
+};
+
+const FieldHelpButton = ({ fieldKey, activeHelp, setActiveHelp }) => {
+  const info = FIELD_EXPLANATIONS[fieldKey];
+  if (!info) return null;
+  const isOpen = activeHelp === fieldKey;
+
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', position: 'relative' }}>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setActiveHelp(isOpen ? null : fieldKey);
+        }}
+        title={`Lupita de ayuda: Click para saber qué significa y para qué sirve "${info.title}"`}
+        style={{
+          background: isOpen ? 'rgba(249, 115, 22, 0.25)' : 'rgba(255, 255, 255, 0.08)',
+          border: `1px solid ${isOpen ? '#f97316' : 'rgba(255, 255, 255, 0.2)'}`,
+          color: isOpen ? '#f97316' : '#d4d4d8',
+          borderRadius: '50%',
+          width: '18px',
+          height: '18px',
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+          padding: 0,
+          marginLeft: '0.4rem',
+          verticalAlign: 'middle',
+          transition: 'all 0.15s ease'
+        }}
+      >
+        <Search size={10} />
+      </button>
+    </span>
+  );
+};
+
+const FieldHelpCallout = ({ fieldKey, activeHelp }) => {
+  if (activeHelp !== fieldKey) return null;
+  const info = FIELD_EXPLANATIONS[fieldKey];
+  if (!info) return null;
+
+  return (
+    <div style={{
+      background: 'rgba(249, 115, 22, 0.08)',
+      border: '1px solid rgba(249, 115, 22, 0.35)',
+      borderRadius: '8px',
+      padding: '0.65rem 0.85rem',
+      marginTop: '0.35rem',
+      marginBottom: '0.6rem',
+      fontSize: '0.78rem',
+      color: '#ffedd5',
+      lineHeight: 1.45,
+      boxShadow: '0 4px 14px rgba(0,0,0,0.25)'
+    }}>
+      <div style={{ fontWeight: 700, color: '#f97316', marginBottom: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+        <Info size={12} /> {info.title}
+      </div>
+      <div>{info.text}</div>
+    </div>
+  );
+};
 
 const formatSuspensionDetails = (dateString) => {
   if (!dateString) return null;
@@ -147,12 +293,17 @@ const CompaniesPage = () => {
     plan: 'STARTER',
     maxEmployees: 50,
     maxDevices: 3,
+    maxBranches: 1,
+    isHolding: false,
+    customPrice: '',
     timezone: 'America/Mexico_City',
     customDomain: '',
     adminName: '',
     adminEmail: '',
     adminPassword: ''
   });
+
+  const [activeHelpField, setActiveHelpField] = useState(null);
 
   // Modal Edición de Cuotas
   const [editingCompany, setEditingCompany] = useState(null);
@@ -261,7 +412,9 @@ const CompaniesPage = () => {
       ...prev,
       plan,
       maxEmployees: preset.maxEmployees,
-      maxDevices: preset.maxDevices
+      maxDevices: preset.maxDevices,
+      maxBranches: preset.maxBranches || 1,
+      isHolding: plan === 'CUSTOM'
     }));
   };
 
@@ -541,6 +694,9 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
       plan: company.plan,
       maxEmployees: company.maxEmployees,
       maxDevices: company.maxDevices,
+      maxBranches: company.maxBranches || 1,
+      isHolding: company.isHolding || false,
+      customPrice: company.customPrice || '',
       timezone: company.timezone,
       customDomain: company.customDomain || ''
     });
@@ -993,6 +1149,25 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
                             }}>
                               {comp.plan}
                             </span>
+                            {comp.isHolding && (
+                              <span style={{ 
+                                padding: '0.1rem 0.45rem', 
+                                borderRadius: '4px', 
+                                fontSize: '0.68rem', 
+                                fontWeight: 700, 
+                                color: '#10b981', 
+                                background: 'rgba(16, 185, 129, 0.15)',
+                                border: '1px solid rgba(16, 185, 129, 0.3)'
+                              }}>
+                                Holding ({comp._count?.branches || 0} sucursales)
+                              </span>
+                            )}
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.25rem', fontSize: '0.72rem', color: '#a1a1aa' }}>
+                            <Calendar size={11} style={{ color: '#f97316' }} />
+                            <span>Alta: <strong style={{ color: '#d4d4d8' }}>{new Date(comp.createdAt).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })}</strong></span>
+                            <span>·</span>
+                            <span style={{ color: '#71717a' }}>{formatTimeAgo(comp.createdAt)}</span>
                           </div>
                         </div>
                       </div>
@@ -1251,7 +1426,20 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
                           {comp.name}
                           <Eye size={13} style={{ color: '#71717a' }} />
                         </h3>
-                        <code style={{ fontSize: '0.75rem', color: '#f97316' }}>{comp.slug}</code>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.15rem' }}>
+                          <code style={{ fontSize: '0.75rem', color: '#f97316' }}>{comp.slug}</code>
+                          {comp.isHolding && (
+                            <span style={{ fontSize: '0.68rem', color: '#10b981', background: 'rgba(16, 185, 129, 0.15)', padding: '0.05rem 0.35rem', borderRadius: '4px', fontWeight: 600 }}>
+                              Holding ({comp._count?.branches || 0} sucursales)
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.3rem', fontSize: '0.72rem', color: '#a1a1aa' }}>
+                          <Calendar size={11} style={{ color: '#f97316' }} />
+                          <span>Alta: <strong style={{ color: '#d4d4d8' }}>{new Date(comp.createdAt).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })}</strong></span>
+                          <span>·</span>
+                          <span style={{ color: '#71717a' }}>{formatTimeAgo(comp.createdAt)}</span>
+                        </div>
                       </div>
                     </div>
 
@@ -1568,7 +1756,11 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
                     </h3>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                       <div>
-                        <label style={labelStyle}>Nombre Comercial *</label>
+                        <label style={labelStyle}>
+                          Nombre Comercial *
+                          <FieldHelpButton fieldKey="name" activeHelp={activeHelpField} setActiveHelp={setActiveHelpField} />
+                        </label>
+                        <FieldHelpCallout fieldKey="name" activeHelp={activeHelpField} />
                         <input 
                           type="text" 
                           required
@@ -1579,7 +1771,11 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
                         />
                       </div>
                       <div>
-                        <label style={labelStyle}>Identificador Slug *</label>
+                        <label style={labelStyle}>
+                          Identificador Slug *
+                          <FieldHelpButton fieldKey="slug" activeHelp={activeHelpField} setActiveHelp={setActiveHelpField} />
+                        </label>
+                        <FieldHelpCallout fieldKey="slug" activeHelp={activeHelpField} />
                         <input 
                           type="text" 
                           required
@@ -1593,10 +1789,15 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
                   </div>
 
                   <div>
-                    <h3 style={{ fontSize: '0.85rem', textTransform: 'uppercase', color: '#3b82f6', margin: '0 0 0.75rem', letterSpacing: '0.05em' }}>
-                      2. Plan Comercial y Cuotas
-                    </h3>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem', marginBottom: '1rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', marginBottom: '0.75rem' }}>
+                      <h3 style={{ fontSize: '0.85rem', textTransform: 'uppercase', color: '#3b82f6', margin: 0, letterSpacing: '0.05em' }}>
+                        2. Plan Comercial y Cuotas
+                      </h3>
+                      <FieldHelpButton fieldKey="plan" activeHelp={activeHelpField} setActiveHelp={setActiveHelpField} />
+                    </div>
+                    <FieldHelpCallout fieldKey="plan" activeHelp={activeHelpField} />
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.75rem', marginBottom: '1rem' }}>
                       {Object.keys(PLAN_PRESETS).map(planKey => {
                         const isSelected = formData.plan === planKey;
                         const p = PLAN_PRESETS[planKey];
@@ -1613,10 +1814,24 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
                               transition: 'all 0.15s'
                             }}
                           >
-                            <div style={{ fontWeight: 700, color: isSelected ? p.badgeColor : '#fff', fontSize: '0.9rem' }}>{p.label}</div>
-                            <div style={{ fontSize: '0.75rem', color: '#a1a1aa', marginTop: '0.25rem' }}>
-                              {p.maxEmployees} empleados<br/>{p.maxDevices} kioscos
-                            </div>
+                            <div style={{ fontWeight: 700, color: isSelected ? p.badgeColor : '#fff', fontSize: '0.88rem' }}>{p.label}</div>
+                            {planKey === 'CUSTOM' ? (
+                              <div style={{ fontSize: '0.74rem', color: '#a1a1aa', marginTop: '0.25rem', lineHeight: 1.45 }}>
+                                +1,000 empleados<br/>
+                                +50 kioscos<br/>
+                                <span style={{ color: '#10b981', fontWeight: 600 }}>Sucursales</span>
+                              </div>
+                            ) : planKey === 'ENTERPRISE' ? (
+                              <div style={{ fontSize: '0.74rem', color: '#a1a1aa', marginTop: '0.25rem', lineHeight: 1.45 }}>
+                                1,000 empleados<br/>
+                                50 kioscos
+                              </div>
+                            ) : (
+                              <div style={{ fontSize: '0.74rem', color: '#a1a1aa', marginTop: '0.25rem', lineHeight: 1.45 }}>
+                                {p.maxEmployees} empleados<br/>
+                                {p.maxDevices} kioscos
+                              </div>
+                            )}
                           </div>
                         );
                       })}
@@ -1624,7 +1839,11 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
 
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                       <div>
-                        <label style={labelStyle}>Máx. Empleados Permitidos</label>
+                        <label style={labelStyle}>
+                          Máx. Empleados Permitidos
+                          <FieldHelpButton fieldKey="maxEmployees" activeHelp={activeHelpField} setActiveHelp={setActiveHelpField} />
+                        </label>
+                        <FieldHelpCallout fieldKey="maxEmployees" activeHelp={activeHelpField} />
                         <input 
                           type="number" 
                           min="1"
@@ -1635,7 +1854,11 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
                         />
                       </div>
                       <div>
-                        <label style={labelStyle}>Máx. Kioscos Físicos</label>
+                        <label style={labelStyle}>
+                          Máx. Kioscos Físicos
+                          <FieldHelpButton fieldKey="maxDevices" activeHelp={activeHelpField} setActiveHelp={setActiveHelpField} />
+                        </label>
+                        <FieldHelpCallout fieldKey="maxDevices" activeHelp={activeHelpField} />
                         <input 
                           type="number" 
                           min="1"
@@ -1646,6 +1869,40 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
                         />
                       </div>
                     </div>
+
+                    {formData.plan === 'CUSTOM' && (
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1rem', padding: '0.85rem', background: 'rgba(16, 185, 129, 0.07)', borderRadius: '10px', border: '1px solid rgba(16, 185, 129, 0.25)' }}>
+                        <div>
+                          <label style={{ ...labelStyle, color: '#10b981' }}>
+                            Máx. Sucursales (Holding)
+                            <FieldHelpButton fieldKey="maxBranches" activeHelp={activeHelpField} setActiveHelp={setActiveHelpField} />
+                          </label>
+                          <FieldHelpCallout fieldKey="maxBranches" activeHelp={activeHelpField} />
+                          <input 
+                            type="number" 
+                            min="1"
+                            placeholder="ej. 150"
+                            value={formData.maxBranches || 150}
+                            onChange={(e) => setFormData(prev => ({ ...prev, maxBranches: parseInt(e.target.value, 10) || 1 }))}
+                            style={inputStyle}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ ...labelStyle, color: '#10b981' }}>
+                            Precio Negociado (MXN/mes)
+                            <FieldHelpButton fieldKey="customPrice" activeHelp={activeHelpField} setActiveHelp={setActiveHelpField} />
+                          </label>
+                          <FieldHelpCallout fieldKey="customPrice" activeHelp={activeHelpField} />
+                          <input 
+                            type="number" 
+                            placeholder="ej. 18500"
+                            value={formData.customPrice || ''}
+                            onChange={(e) => setFormData(prev => ({ ...prev, customPrice: e.target.value }))}
+                            style={inputStyle}
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <div>
@@ -1654,7 +1911,11 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
                     </h3>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
                       <div>
-                        <label style={labelStyle}>Nombre Completo *</label>
+                        <label style={labelStyle}>
+                          Nombre Completo *
+                          <FieldHelpButton fieldKey="adminName" activeHelp={activeHelpField} setActiveHelp={setActiveHelpField} />
+                        </label>
+                        <FieldHelpCallout fieldKey="adminName" activeHelp={activeHelpField} />
                         <input 
                           type="text" 
                           required
@@ -1665,7 +1926,11 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
                         />
                       </div>
                       <div>
-                        <label style={labelStyle}>Correo Electrónico (Login) *</label>
+                        <label style={labelStyle}>
+                          Correo Electrónico (Login) *
+                          <FieldHelpButton fieldKey="adminEmail" activeHelp={activeHelpField} setActiveHelp={setActiveHelpField} />
+                        </label>
+                        <FieldHelpCallout fieldKey="adminEmail" activeHelp={activeHelpField} />
                         <input 
                           type="email" 
                           required
@@ -1679,7 +1944,10 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
 
                     <div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
-                        <label style={{ ...labelStyle, margin: 0 }}>Contraseña Inicial *</label>
+                        <label style={{ ...labelStyle, margin: 0 }}>
+                          Contraseña Inicial *
+                          <FieldHelpButton fieldKey="adminPassword" activeHelp={activeHelpField} setActiveHelp={setActiveHelpField} />
+                        </label>
                         <button 
                           type="button" 
                           onClick={generateRandomPassword}
@@ -1688,6 +1956,7 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
                           <Sparkles size={12} /> Generar Segura
                         </button>
                       </div>
+                      <FieldHelpCallout fieldKey="adminPassword" activeHelp={activeHelpField} />
                       <input 
                         type="text" 
                         required
@@ -1745,12 +2014,30 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
                       {detailCompany.isActive ? 'Activa' : 'Suspendida'}
                     </span>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginTop: '0.25rem', fontSize: '0.82rem', color: '#a1a1aa' }}>
-                    <code>slug: {detailCompany.slug}</code>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginTop: '0.35rem', fontSize: '0.82rem', color: '#a1a1aa', flexWrap: 'wrap' }}>
+                    <code style={{ color: '#f97316', background: 'rgba(249, 115, 22, 0.1)', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>
+                      slug: {detailCompany.slug}
+                    </code>
                     <span>·</span>
                     <span>Zona: {detailCompany.timezone}</span>
                     <span>·</span>
-                    <span>Alta: {new Date(detailCompany.createdAt).toLocaleDateString('es-MX')}</span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', color: '#d4d4d8' }}>
+                      <Calendar size={13} style={{ color: '#f97316' }} />
+                      Alta: <strong style={{ color: '#fff' }}>{formatFullDate(detailCompany.createdAt)}</strong> ({formatTimeAgo(detailCompany.createdAt)})
+                    </span>
+                    {detailCompany.isHolding && (
+                      <span style={{ 
+                        padding: '0.1rem 0.45rem', 
+                        borderRadius: '4px', 
+                        fontSize: '0.72rem', 
+                        fontWeight: 700, 
+                        color: '#10b981', 
+                        background: 'rgba(16, 185, 129, 0.15)',
+                        border: '1px solid rgba(16, 185, 129, 0.3)'
+                      }}>
+                        Modalidad Holding
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -2074,6 +2361,51 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
                       <span style={{ color: '#a1a1aa' }}>Versión Descriptores:</span>
                       <span style={{ color: '#eab308' }}>v{detailCompany.descriptorsVersion || 1} (128 floats)</span>
                     </div>
+                  </div>
+                </div>
+
+                {/* Tarjeta de Registro y Trazabilidad Oficial */}
+                <div style={{ background: '#18181b', border: '1px solid #27272a', borderRadius: '10px', padding: '1.25rem', gridColumn: '1 / -1' }}>
+                  <h4 style={{ margin: '0 0 1rem', color: '#f97316', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <Calendar size={16} /> Registro y Trazabilidad Oficial
+                  </h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
+                    <div>
+                      <span style={{ color: '#a1a1aa', fontSize: '0.8rem', display: 'block', marginBottom: '0.2rem' }}>Fecha de Alta Oficial:</span>
+                      <strong style={{ color: '#fff', fontSize: '0.92rem' }}>{formatFullDate(detailCompany.createdAt)}</strong>
+                    </div>
+                    <div>
+                      <span style={{ color: '#a1a1aa', fontSize: '0.8rem', display: 'block', marginBottom: '0.2rem' }}>Antigüedad en la Plataforma:</span>
+                      <strong style={{ color: '#10b981', fontSize: '0.92rem' }}>{formatTimeAgo(detailCompany.createdAt)}</strong>
+                    </div>
+                    <div>
+                      <span style={{ color: '#a1a1aa', fontSize: '0.8rem', display: 'block', marginBottom: '0.2rem' }}>Identificador Técnico (Slug):</span>
+                      <code style={{ color: '#f97316', fontSize: '0.82rem', background: 'rgba(249, 115, 22, 0.1)', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>
+                        {detailCompany.slug}
+                      </code>
+                    </div>
+                    <div>
+                      <span style={{ color: '#a1a1aa', fontSize: '0.8rem', display: 'block', marginBottom: '0.2rem' }}>Modalidad Operativa:</span>
+                      <span style={{ color: detailCompany.isHolding ? '#10b981' : '#38bdf8', fontWeight: 600 }}>
+                        {detailCompany.isHolding ? 'Holding Matriz (Multi-Sucursal)' : 'Empresa Estándar'}
+                      </span>
+                    </div>
+                    {detailCompany.isHolding && (
+                      <div>
+                        <span style={{ color: '#a1a1aa', fontSize: '0.8rem', display: 'block', marginBottom: '0.2rem' }}>Red de Sucursales:</span>
+                        <strong style={{ color: '#fff' }}>
+                          {detailCompany._count?.branches || detailData?.branches?.length || 0} de {detailCompany.maxBranches || 1} sucursales activas
+                        </strong>
+                      </div>
+                    )}
+                    {detailCompany.customPrice && (
+                      <div>
+                        <span style={{ color: '#a1a1aa', fontSize: '0.8rem', display: 'block', marginBottom: '0.2rem' }}>Tarifa Negociada:</span>
+                        <strong style={{ color: '#10b981' }}>
+                          ${Number(detailCompany.customPrice).toLocaleString('es-MX')} MXN/mes
+                        </strong>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -2699,7 +3031,11 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', marginBottom: '1.5rem' }}>
                 <div>
-                  <label style={labelStyle}>Nombre Comercial</label>
+                  <label style={labelStyle}>
+                    Nombre Comercial
+                    <FieldHelpButton fieldKey="name" activeHelp={activeHelpField} setActiveHelp={setActiveHelpField} />
+                  </label>
+                  <FieldHelpCallout fieldKey="name" activeHelp={activeHelpField} />
                   <input 
                     type="text" 
                     required
@@ -2710,7 +3046,11 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
                 </div>
 
                 <div>
-                  <label style={labelStyle}>Plan Comercial</label>
+                  <label style={labelStyle}>
+                    Plan Comercial
+                    <FieldHelpButton fieldKey="plan" activeHelp={activeHelpField} setActiveHelp={setActiveHelpField} />
+                  </label>
+                  <FieldHelpCallout fieldKey="plan" activeHelp={activeHelpField} />
                   <select 
                     value={editFormData.plan}
                     onChange={(e) => {
@@ -2720,20 +3060,27 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
                         ...prev,
                         plan: newPlan,
                         maxEmployees: preset.maxEmployees,
-                        maxDevices: preset.maxDevices
+                        maxDevices: preset.maxDevices,
+                        maxBranches: preset.maxBranches || 1,
+                        isHolding: newPlan === 'CUSTOM'
                       }));
                     }}
                     style={selectFilterStyle}
                   >
-                    <option value="STARTER">Starter</option>
-                    <option value="PRO">Pro</option>
-                    <option value="ENTERPRISE">Enterprise</option>
+                    <option value="STARTER">Starter (50 empleados / 3 kioscos)</option>
+                    <option value="PRO">Pro (200 empleados / 10 kioscos)</option>
+                    <option value="ENTERPRISE">Enterprise (1,000 empleados / 50 kioscos)</option>
+                    <option value="CUSTOM">Personalizado (Holding Multi-Sucursal)</option>
                   </select>
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                   <div>
-                    <label style={labelStyle}>Máx. Empleados</label>
+                    <label style={labelStyle}>
+                      Máx. Empleados
+                      <FieldHelpButton fieldKey="maxEmployees" activeHelp={activeHelpField} setActiveHelp={setActiveHelpField} />
+                    </label>
+                    <FieldHelpCallout fieldKey="maxEmployees" activeHelp={activeHelpField} />
                     <input 
                       type="number" 
                       min="1"
@@ -2745,7 +3092,11 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
                   </div>
 
                   <div>
-                    <label style={labelStyle}>Máx. Kioscos</label>
+                    <label style={labelStyle}>
+                      Máx. Kioscos
+                      <FieldHelpButton fieldKey="maxDevices" activeHelp={activeHelpField} setActiveHelp={setActiveHelpField} />
+                    </label>
+                    <FieldHelpCallout fieldKey="maxDevices" activeHelp={activeHelpField} />
                     <input 
                       type="number" 
                       min="1"
@@ -2756,6 +3107,40 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
                     />
                   </div>
                 </div>
+
+                {editFormData.plan === 'CUSTOM' && (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', padding: '0.85rem', background: 'rgba(16, 185, 129, 0.07)', borderRadius: '10px', border: '1px solid rgba(16, 185, 129, 0.25)' }}>
+                    <div>
+                      <label style={{ ...labelStyle, color: '#10b981' }}>
+                        Máx. Sucursales (Holding)
+                        <FieldHelpButton fieldKey="maxBranches" activeHelp={activeHelpField} setActiveHelp={setActiveHelpField} />
+                      </label>
+                      <FieldHelpCallout fieldKey="maxBranches" activeHelp={activeHelpField} />
+                      <input 
+                        type="number" 
+                        min="1"
+                        placeholder="ej. 150"
+                        value={editFormData.maxBranches || 150}
+                        onChange={(e) => setEditFormData(prev => ({ ...prev, maxBranches: parseInt(e.target.value, 10) || 1 }))}
+                        style={inputStyle}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ ...labelStyle, color: '#10b981' }}>
+                        Precio Negociado (MXN/mes)
+                        <FieldHelpButton fieldKey="customPrice" activeHelp={activeHelpField} setActiveHelp={setActiveHelpField} />
+                      </label>
+                      <FieldHelpCallout fieldKey="customPrice" activeHelp={activeHelpField} />
+                      <input 
+                        type="number" 
+                        placeholder="ej. 18500"
+                        value={editFormData.customPrice || ''}
+                        onChange={(e) => setEditFormData(prev => ({ ...prev, customPrice: e.target.value }))}
+                        style={inputStyle}
+                      />
+                    </div>
+                  </div>
+                )}
 
                 <div>
                   <label style={labelStyle}>Zona Horaria</label>

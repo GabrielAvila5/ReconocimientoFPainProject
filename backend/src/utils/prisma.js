@@ -181,17 +181,38 @@ function buildTenantPrisma(client) {
           // 3. Inyección estricta de companyId por operación
           switch (operation) {
             case 'findMany':
-            case 'findFirst':
-            case 'findFirstOrThrow':
             case 'count':
             case 'aggregate':
             case 'groupBy': {
-              args.where = { ...(args.where || {}), companyId: cid };
+              if (ctx.isCorporateHolding && Array.isArray(ctx.holdingCompanyIds) && ctx.holdingCompanyIds.length > 0) {
+                // Vista Nacional / Consolidada de Holding: consultar a través de la matriz y todas sus sucursales hijas
+                args.where = { ...(args.where || {}), companyId: { in: ctx.holdingCompanyIds } };
+              } else {
+                args.where = { ...(args.where || {}), companyId: cid };
+              }
+              return query(args);
+            }
+
+            case 'findFirst':
+            case 'findFirstOrThrow': {
+              if (ctx.isCorporateHolding && Array.isArray(ctx.holdingCompanyIds) && ctx.holdingCompanyIds.length > 0) {
+                args.where = { ...(args.where || {}), companyId: { in: ctx.holdingCompanyIds } };
+              } else {
+                args.where = { ...(args.where || {}), companyId: cid };
+              }
               return query(args);
             }
 
             case 'findUnique':
             case 'findUniqueOrThrow': {
+              if (ctx.isCorporateHolding && Array.isArray(ctx.holdingCompanyIds) && ctx.holdingCompanyIds.length > 0) {
+                // En vista consolidada de Holding, si busca por id simple, resolver mediante findFirst en toda la red
+                if (args.where && args.where.id !== undefined && !args.where.id_companyId) {
+                  const targetWhere = { ...args.where, companyId: { in: ctx.holdingCompanyIds } };
+                  delete targetWhere.id_companyId;
+                  return client[model].findFirst({ ...args, where: targetWhere });
+                }
+              }
               if (MODELS_WITH_ID_COMPANY_ID.includes(model) && args.where && args.where.id !== undefined && !args.where.id_companyId) {
                 args.where = { id_companyId: { id: args.where.id, companyId: cid } };
               } else if (model === 'SystemSettings') {

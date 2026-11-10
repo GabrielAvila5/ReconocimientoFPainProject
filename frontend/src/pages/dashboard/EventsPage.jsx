@@ -1,9 +1,47 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Calendar, Search, Filter, Plus, Trash2, AlertCircle, RefreshCw, X, ClipboardList, CheckCircle2, AlertTriangle, Users, Building, Clock, ChevronLeft, ChevronRight, ExternalLink, Info, Check, CalendarDays, RotateCcw } from 'lucide-react';
+import { Calendar, Search, Filter, Plus, Trash2, AlertCircle, RefreshCw, X, ClipboardList, CheckCircle2, AlertTriangle, Users, Building, Clock, ChevronLeft, ChevronRight, ExternalLink, Info, Check, CalendarDays, RotateCcw, HeartPulse } from 'lucide-react';
 import { Toaster, toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import api from '../../utils/api';
 import EmployeeSearchSelect from '../../components/EmployeeSearchSelect';
+
+export const DISABILITY_LABELS = {
+  MATERNITY: { 
+    label: 'Maternidad / Embarazo', 
+    shortLabel: 'Maternidad',
+    color: '#ec4899', 
+    bg: 'rgba(236, 72, 153, 0.12)', 
+    border: 'rgba(236, 72, 153, 0.3)' 
+  },
+  SURGERY: { 
+    label: 'Cirugía / Postoperatorio', 
+    shortLabel: 'Cirugía',
+    color: '#a855f7', 
+    bg: 'rgba(168, 85, 247, 0.12)', 
+    border: 'rgba(168, 85, 247, 0.3)' 
+  },
+  WORK_ACCIDENT: { 
+    label: 'Riesgo / Accidente de Trabajo', 
+    shortLabel: 'Riesgo de Trabajo',
+    color: '#f97316', 
+    bg: 'rgba(249, 115, 22, 0.12)', 
+    border: 'rgba(249, 115, 22, 0.3)' 
+  },
+  GENERAL_ILLNESS: { 
+    label: 'Enfermedad General', 
+    shortLabel: 'Enf. General',
+    color: '#38bdf8', 
+    bg: 'rgba(56, 189, 248, 0.12)', 
+    border: 'rgba(56, 189, 248, 0.3)' 
+  },
+  OTHER: { 
+    label: 'Otra Causa Médica', 
+    shortLabel: 'Otra Causa',
+    color: '#94a3b8', 
+    bg: 'rgba(148, 163, 184, 0.12)', 
+    border: 'rgba(148, 163, 184, 0.3)' 
+  }
+};
 
 const getTodayLocalString = () => {
   const d = new Date();
@@ -231,6 +269,10 @@ const EventsPage = () => {
     let incidentsCount = 0;
     let incidentsToday = 0;
 
+    let disabilityDaysTotal = 0;
+    let disabilityToday = 0;
+    let disabilityEventsCount = 0;
+
     let currentTodayCount = 0;
     let completedCount = 0;
     let globalEventsCount = 0;
@@ -253,6 +295,13 @@ const EventsPage = () => {
         const days = Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1;
         vacationDaysTotal += Math.max(1, days);
         if (temporal.key === 'CURRENT') vacationToday++;
+      } else if (evt.type === 'DISABILITY') {
+        disabilityEventsCount++;
+        const start = new Date(evt.date);
+        const end = evt.dateTo ? new Date(evt.dateTo) : start;
+        const days = Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1;
+        disabilityDaysTotal += Math.max(1, days);
+        if (temporal.key === 'CURRENT') disabilityToday++;
       } else if (evt.type === 'OVERTIME') {
         overtimeCount++;
         overtimeHoursTotal += (evt.minutes || 0) / 60;
@@ -277,6 +326,9 @@ const EventsPage = () => {
       justifiedToday,
       incidentsCount,
       incidentsToday,
+      disabilityDaysTotal,
+      disabilityToday,
+      disabilityEventsCount,
       currentTodayCount,
       completedCount,
       globalEventsCount,
@@ -323,7 +375,7 @@ const EventsPage = () => {
         if (m1 !== targetM && m2 !== targetM) return false;
       }
 
-      // 7. Búsqueda por texto (nombre, DNI, depto, motivo, aprobador)
+      // 7. Búsqueda por texto (nombre, DNI, depto, motivo, aprobador, causa médica o folio)
       if (searchTerm.trim()) {
         const q = searchTerm.toLowerCase();
         const fullName = `${evt.employee?.firstName || ''} ${evt.employee?.lastName || ''}`.toLowerCase();
@@ -331,13 +383,19 @@ const EventsPage = () => {
         const dept = (evt.employee?.department?.name || '').toLowerCase();
         const reason = (evt.reason || '').toLowerCase();
         const approvedBy = (evt.registeredBy?.name || '').toLowerCase();
+        const disType = (evt.disabilityType || '').toLowerCase();
+        const disLabel = (DISABILITY_LABELS[evt.disabilityType]?.label || '').toLowerCase();
+        const certNumber = (evt.certificateNumber || '').toLowerCase();
 
         if (
           !fullName.includes(q) &&
           !identifier.includes(q) &&
           !dept.includes(q) &&
           !reason.includes(q) &&
-          !approvedBy.includes(q)
+          !approvedBy.includes(q) &&
+          !disType.includes(q) &&
+          !disLabel.includes(q) &&
+          !certNumber.includes(q)
         ) {
           return false;
         }
@@ -537,6 +595,38 @@ const EventsPage = () => {
             </p>
           </div>
         </div>
+
+        {/* Card 5: Incapacidades */}
+        <div 
+          className="card" 
+          onClick={() => setSelectedType(prev => prev === 'DISABILITY' ? 'ALL' : 'DISABILITY')}
+          style={{ 
+            padding: '1.5rem', 
+            cursor: 'pointer',
+            border: selectedType === 'DISABILITY' ? '2px solid #ec4899' : '1px solid #27272a',
+            boxShadow: selectedType === 'DISABILITY' ? '0 0 16px rgba(236, 72, 153, 0.25)' : 'none',
+            transition: 'all 0.2s ease',
+            position: 'relative'
+          }}
+          title="Clic para filtrar únicamente Incapacidades Médicas"
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '0.82rem', color: '#a1a1aa', fontWeight: 600 }}>Incapacidades</span>
+            <div className="icon-box" style={{ backgroundColor: 'rgba(236, 72, 153, 0.1)' }}>
+              <HeartPulse size={18} style={{ color: '#ec4899' }} />
+            </div>
+          </div>
+          <div style={{ margin: '0.75rem 0 0' }}>
+            <h3 style={{ color: '#f472b6', fontSize: '2.2rem', margin: 0, fontWeight: 700, lineHeight: 1 }}>
+              {kpis.disabilityDaysTotal} <span style={{ fontSize: '0.9rem', color: '#a1a1aa', fontWeight: 400 }}>días</span>
+            </h3>
+            <p style={{ color: '#a1a1aa', margin: '0.5rem 0 0', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+              <span style={{ color: kpis.disabilityToday > 0 ? '#ec4899' : '#a1a1aa', fontWeight: 600 }}>● {kpis.disabilityToday} en curso hoy</span>
+              <span>•</span>
+              <span>{kpis.disabilityEventsCount} licencias</span>
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* Pestañas Operativas de Navegación */}
@@ -670,6 +760,7 @@ const EventsPage = () => {
             >
               <option value="ALL">Todos los tipos</option>
               <option value="VACATION">Vacaciones</option>
+              <option value="DISABILITY">Incapacidad Médica</option>
               <option value="OVERTIME">Horas Extra</option>
               <option value="JUSTIFIED_ABSENCE">Falta Justificada</option>
               <option value="EARLY_EXIT">Salida Anticipada</option>
@@ -914,7 +1005,29 @@ const EventsPage = () => {
 
                         {/* Detalles de la Jornada */}
                         <td style={{ ...tdStyle, whiteSpace: 'nowrap' }}>
-                          {evt.type === 'OVERTIME' && evt.minutes ? (
+                          {evt.type === 'DISABILITY' ? (
+                            <div>
+                              <span style={{ 
+                                display: 'inline-flex', 
+                                alignItems: 'center', 
+                                gap: '0.3rem', 
+                                color: DISABILITY_LABELS[evt.disabilityType]?.color || '#ec4899', 
+                                background: DISABILITY_LABELS[evt.disabilityType]?.bg || 'rgba(236, 72, 153, 0.12)',
+                                border: `1px solid ${DISABILITY_LABELS[evt.disabilityType]?.border || 'rgba(236, 72, 153, 0.3)'}`,
+                                padding: '0.2rem 0.55rem', 
+                                borderRadius: '6px', 
+                                fontSize: '0.74rem', 
+                                fontWeight: 600 
+                              }}>
+                                {DISABILITY_LABELS[evt.disabilityType]?.label || evt.disabilityType || 'Incapacidad Médica'}
+                              </span>
+                              {evt.certificateNumber && (
+                                <div style={{ color: '#71717a', fontSize: '0.7rem', marginTop: '3px', fontFamily: 'monospace' }}>
+                                  Folio: {evt.certificateNumber}
+                                </div>
+                              )}
+                            </div>
+                          ) : evt.type === 'OVERTIME' && evt.minutes ? (
                             <div>
                               <span style={{ color: '#60a5fa', fontWeight: 600, fontSize: '0.82rem' }}>
                                 {evt.minutes / 60} hrs extra
@@ -1234,6 +1347,26 @@ const CancelEventModal = ({ event, isCanceling, onClose, onConfirm }) => {
             </span>
           </div>
 
+          {event.type === 'DISABILITY' && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '0.75rem', color: '#71717a', fontWeight: 600 }}>CAUSA MÉDICA</span>
+              <div style={{ textAlign: 'right' }}>
+                <span style={{ 
+                  fontSize: '0.82rem', 
+                  color: DISABILITY_LABELS[event.disabilityType]?.color || '#ec4899',
+                  fontWeight: 600
+                }}>
+                  {DISABILITY_LABELS[event.disabilityType]?.label || 'Incapacidad Médica'}
+                </span>
+                {event.certificateNumber && (
+                  <div style={{ fontSize: '0.72rem', color: '#a1a1aa', fontFamily: 'monospace' }}>
+                    Folio: {event.certificateNumber}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {(event.startTime || event.endTime || event.minutes) && (
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontSize: '0.75rem', color: '#71717a', fontWeight: 600 }}>DETALLE</span>
@@ -1331,7 +1464,8 @@ const EventTypeBadge = ({ type }) => {
     EARLY_EXIT: { label: 'Salida Anticipada', color: '#eab308', bg: 'rgba(234, 179, 8, 0.12)' },
     JUSTIFIED_ABSENCE: { label: 'Falta Justificada', color: '#10b981', bg: 'rgba(16, 185, 129, 0.12)' },
     VACATION: { label: 'Vacaciones', color: '#8b5cf6', bg: 'rgba(139, 92, 246, 0.12)' },
-    LATE_ARRIVAL: { label: 'Llegada Tardía', color: '#f97316', bg: 'rgba(249, 115, 22, 0.12)' }
+    LATE_ARRIVAL: { label: 'Llegada Tardía', color: '#f97316', bg: 'rgba(249, 115, 22, 0.12)' },
+    DISABILITY: { label: 'Incapacidad', color: '#ec4899', bg: 'rgba(236, 72, 153, 0.12)' }
   };
   const c = config[type] || { label: type, color: '#fff', bg: '#333' };
   
@@ -1381,6 +1515,8 @@ const CreateEventModal = ({ onClose, onCreated }) => {
     startTime: '',
     endTime: '',
     hours: '',
+    disabilityType: 'MATERNITY',
+    certificateNumber: '',
     reason: ''
   });
   
@@ -1403,11 +1539,16 @@ const CreateEventModal = ({ onClose, onCreated }) => {
       payload.departmentId = selectedDeptId;
     }
     
-    if ((formData.type === 'VACATION' || formData.type === 'OVERTIME') && formData.dateTo) {
+    if ((formData.type === 'VACATION' || formData.type === 'OVERTIME' || formData.type === 'DISABILITY') && formData.dateTo) {
       payload.dateTo = formData.dateTo;
     }
     
-    if (formData.type === 'OVERTIME') {
+    if (formData.type === 'DISABILITY') {
+      payload.disabilityType = formData.disabilityType || 'GENERAL_ILLNESS';
+      if (formData.certificateNumber?.trim()) {
+        payload.certificateNumber = formData.certificateNumber.trim();
+      }
+    } else if (formData.type === 'OVERTIME') {
       if (formData.hours) {
         payload.minutes = parseFloat(formData.hours) * 60;
       }
@@ -1554,11 +1695,14 @@ const CreateEventModal = ({ onClose, onCreated }) => {
                 <option value="EARLY_EXIT">Salida Anticipada</option>
                 <option value="JUSTIFIED_ABSENCE">Falta Justificada</option>
                 <option value="VACATION">Vacaciones</option>
+                <option value="DISABILITY">Incapacidad Médica</option>
                 <option value="LATE_ARRIVAL">Llegada Tardía</option>
               </select>
             </div>
             <div>
-              <label style={labelStyle}>Fecha {formData.type === 'VACATION' ? 'Inicio' : ''}</label>
+              <label style={labelStyle}>
+                Fecha {formData.type === 'VACATION' || formData.type === 'DISABILITY' ? 'Inicio' : ''}
+              </label>
               <input 
                 type="date" 
                 value={formData.date}
@@ -1569,16 +1713,66 @@ const CreateEventModal = ({ onClose, onCreated }) => {
             </div>
           </div>
 
-          {(formData.type === 'VACATION' || formData.type === 'OVERTIME') && (
+          {(formData.type === 'VACATION' || formData.type === 'OVERTIME' || formData.type === 'DISABILITY') && (
             <div>
-              <label style={labelStyle}>Fecha Fin {formData.type === 'OVERTIME' ? '(Opcional)' : ''}</label>
+              <label style={labelStyle}>
+                Fecha Fin {formData.type === 'DISABILITY' ? '(Alta médica estimada)' : formData.type === 'OVERTIME' ? '(Opcional)' : ''}
+              </label>
               <input 
                 type="date" 
                 value={formData.dateTo}
                 onChange={e => setFormData({...formData, dateTo: e.target.value})}
                 style={inputStyle}
-                required={formData.type === 'VACATION'}
+                required={formData.type === 'VACATION' || formData.type === 'DISABILITY'}
               />
+            </div>
+          )}
+
+          {formData.type === 'DISABILITY' && (
+            <div style={{ 
+              display: 'grid', 
+              gridTemplateColumns: '1fr 1fr', 
+              gap: '1rem',
+              background: 'rgba(236, 72, 153, 0.06)',
+              padding: '1rem',
+              borderRadius: '10px',
+              border: '1px solid rgba(236, 72, 153, 0.25)'
+            }}>
+              <div>
+                <label style={labelStyle}>
+                  Razón de Incapacidad <span style={{ color: '#ec4899' }}>*</span>
+                </label>
+                <select 
+                  value={formData.disabilityType}
+                  onChange={e => setFormData({ ...formData, disabilityType: e.target.value })}
+                  style={inputStyle}
+                  required
+                >
+                  <option value="MATERNITY">Maternidad / Embarazo</option>
+                  <option value="SURGERY">Cirugía / Postoperatorio</option>
+                  <option value="WORK_ACCIDENT">Riesgo o Accidente de Trabajo</option>
+                  <option value="GENERAL_ILLNESS">Enfermedad General</option>
+                  <option value="OTHER">Otra Causa Médica</option>
+                </select>
+                <span style={{ fontSize: '0.72rem', color: '#a1a1aa', marginTop: '3px', display: 'block' }}>
+                  Selecciona la causa que justifica la licencia médica
+                </span>
+              </div>
+              <div>
+                <label style={labelStyle}>
+                  Folio de Incapacidad / IMSS <span style={{ color: '#71717a' }}>(Opcional)</span>
+                </label>
+                <input 
+                  type="text" 
+                  value={formData.certificateNumber}
+                  onChange={e => setFormData({ ...formData, certificateNumber: e.target.value })}
+                  style={inputStyle}
+                  placeholder="Ej. IMSS-98234-A"
+                />
+                <span style={{ fontSize: '0.72rem', color: '#a1a1aa', marginTop: '3px', display: 'block' }}>
+                  Folio oficial de la institución médica o comprobante
+                </span>
+              </div>
             </div>
           )}
 
