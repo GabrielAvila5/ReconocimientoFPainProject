@@ -362,6 +362,36 @@ const syncAdminsHandler = async (req, res) => {
   }
 };
 
+const syncSingleAdminHandler = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const admin = await prisma.adminUser.findUnique({ where: { id } });
+    if (!admin) {
+      return res.status(404).json({ error: 'Administrador no encontrado.' });
+    }
+
+    const targetCompanyId = admin.companyId || DEFAULT_PLATFORM_COMPANY_ID;
+    const emp = await syncAdminToEmployee(admin, {
+      companyId: targetCompanyId,
+      syncEmployee: true,
+      position: admin.role === 'SUPER_ADMIN' ? 'Super Administrador' : 'Administrador'
+    }, prisma);
+
+    res.json({
+      success: true,
+      message: `Ficha de personal vinculada exitosamente para ${admin.name}.`,
+      employee: emp ? {
+        id: emp.id,
+        identifier: emp.identifier,
+        isEnrolled: Boolean(emp.faceDescriptor && emp.faceDescriptor !== '[]' && emp.faceDescriptor.length > 10)
+      } : null
+    });
+  } catch (error) {
+    console.error('Error in syncSingleAdminHandler:', error);
+    res.status(500).json({ error: error.message || 'Error al vincular administrador a personal' });
+  }
+};
+
 const promoteToSuperAdmin = async (req, res) => {
   try {
     const { id } = req.params;
@@ -456,10 +486,29 @@ const promoteToSuperAdmin = async (req, res) => {
       }
     });
 
+    // Sincronizar o mantener el registro de empleado para asistencia, nómina y biometría en PAIN
+    let syncedEmployee = null;
+    try {
+      syncedEmployee = await syncAdminToEmployee(updatedAdmin, {
+        companyId: DEFAULT_PLATFORM_COMPANY_ID,
+        position: 'Super Administrador',
+        syncEmployee: true
+      }, prisma);
+    } catch (syncErr) {
+      console.error('[promoteToSuperAdmin] Error al sincronizar empleado para Super Admin promovido:', syncErr);
+    }
+
     res.json({
       success: true,
       message: `El administrador ${updatedAdmin.name} ha sido ascendido a Super Administrador de PAIN exitosamente.`,
-      admin: updatedAdmin
+      admin: {
+        ...updatedAdmin,
+        employee: syncedEmployee ? {
+          id: syncedEmployee.id,
+          identifier: syncedEmployee.identifier,
+          isEnrolled: Boolean(syncedEmployee.faceDescriptor && syncedEmployee.faceDescriptor !== '[]' && syncedEmployee.faceDescriptor.length > 10)
+        } : null
+      }
     });
   } catch (error) {
     console.error('Error promoting admin to super admin:', error);
@@ -473,5 +522,6 @@ module.exports = {
   deleteAdmin,
   getAuditLogs,
   syncAdminsHandler,
+  syncSingleAdminHandler,
   promoteToSuperAdmin
 };

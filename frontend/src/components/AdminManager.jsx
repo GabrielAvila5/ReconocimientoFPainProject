@@ -55,6 +55,7 @@ const AdminManager = () => {
   const [modalMode, setModalMode] = useState('create'); // 'create' | 'promote'
   const [selectedAdminToPromote, setSelectedAdminToPromote] = useState('');
   const [promoteLoading, setPromoteLoading] = useState(false);
+  const [syncSingleLoading, setSyncSingleLoading] = useState(null);
   
   const initialFormData = { 
     name: '', 
@@ -65,7 +66,7 @@ const AdminManager = () => {
     departmentId: '',
     identifier: '',
     position: '',
-    syncEmployee: false
+    syncEmployee: true
   };
 
   const [formData, setFormData] = useState(initialFormData);
@@ -203,6 +204,26 @@ const AdminManager = () => {
       toast.error(err.message);
     } finally {
       setSyncLoading(false);
+    }
+  };
+
+  const handleSyncSingleAdmin = async (adminId) => {
+    try {
+      setSyncSingleLoading(adminId);
+      const authHeader = getAuthHeaders();
+      const res = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/v1/admins/${adminId}/sync-employee`, {
+        method: 'POST',
+        headers: authHeader,
+        credentials: 'include'
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Error al vincular administrador a personal');
+      toast.success(data.message || 'Ficha de personal vinculada exitosamente');
+      fetchData();
+    } catch (err) {
+      toast.error(err.message);
+    } finally {
+      setSyncSingleLoading(null);
     }
   };
 
@@ -441,29 +462,41 @@ const AdminManager = () => {
                           </span>
                         </td>
                         <td style={tdStyle}>
-                          {admin.role === 'SUPER_ADMIN' ? (
-                            <span style={{ color: '#fbbf24', fontSize: '0.8rem', fontWeight: 500 }}>
-                              Exento (Cuenta SaaS Global)
-                            </span>
-                          ) : emp ? (
+                          {emp ? (
                             <div>
                               <div style={{ color: '#fff', fontSize: '0.85rem', fontFamily: 'monospace' }}>
                                 {emp.identifier}
                               </div>
                               <div style={{ color: '#a1a1aa', fontSize: '0.75rem', marginTop: '2px' }}>
-                                {emp.department || 'Administración'} • {emp.position || 'Administrador'}
+                                {emp.department || 'Administración'} • {emp.position || (admin.role === 'SUPER_ADMIN' ? 'Super Administrador' : 'Administrador')}
                               </div>
                             </div>
                           ) : (
-                            <span style={{ color: '#f59e0b', fontSize: '0.8rem' }}>Sin vincular</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                              <span style={{ color: '#f59e0b', fontSize: '0.8rem', fontWeight: 500 }}>Sin vincular</span>
+                              <button
+                                onClick={() => handleSyncSingleAdmin(admin.id)}
+                                disabled={syncSingleLoading === admin.id}
+                                style={{
+                                  fontSize: '0.72rem',
+                                  padding: '0.2rem 0.55rem',
+                                  borderRadius: '6px',
+                                  background: 'rgba(245, 158, 11, 0.15)',
+                                  color: '#fbbf24',
+                                  border: '1px solid rgba(245, 158, 11, 0.35)',
+                                  cursor: 'pointer',
+                                  fontWeight: 600,
+                                  transition: 'all 0.2s ease'
+                                }}
+                                title="Crear ficha de empleado y habilitar control de asistencia y biometría"
+                              >
+                                {syncSingleLoading === admin.id ? 'Vinculando...' : '+ Vincular Personal'}
+                              </button>
+                            </div>
                           )}
                         </td>
                         <td style={tdStyle}>
-                          {admin.role === 'SUPER_ADMIN' ? (
-                            <span style={{ color: '#71717a', fontSize: '0.75rem', fontStyle: 'italic' }}>
-                              No requerida
-                            </span>
-                          ) : emp ? (
+                          {emp ? (
                             isEnrolled ? (
                               <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.25rem 0.6rem', borderRadius: '999px', background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.3)', fontSize: '0.75rem', fontWeight: 500 }}>
                                 <CheckCircle2 size={13} /> Enrolado
@@ -490,7 +523,9 @@ const AdminManager = () => {
                               </button>
                             )
                           ) : (
-                            <span style={{ color: '#71717a', fontSize: '0.75rem' }}>No disponible</span>
+                            <span style={{ color: '#71717a', fontSize: '0.75rem', fontStyle: 'italic' }}>
+                              Requiere vincular personal
+                            </span>
                           )}
                         </td>
                         <td style={tdStyle}>{admin.createdByUser?.name || '-'}</td>
@@ -792,7 +827,7 @@ const AdminManager = () => {
                             </div>
 
                             <div style={{ marginTop: '0.85rem', padding: '0.65rem 0.85rem', borderRadius: '6px', background: 'rgba(245, 158, 11, 0.08)', border: '1px solid rgba(245, 158, 11, 0.2)', fontSize: '0.75rem', color: '#d4d4d8', lineHeight: '1.4' }}>
-                              <span style={{ color: '#fbbf24', fontWeight: 600 }}>Efecto inmediato:</span> Al ascenderlo, este usuario tendrá control completo del sistema, exención del cupo de empleados de asistencia y permisos multi-empresa.
+                              <span style={{ color: '#fbbf24', fontWeight: 600 }}>Efecto inmediato:</span> Al ascenderlo, este usuario mantendrá su registro de empleado para checado de asistencia, bonos y biometría en PAIN, además de obtener control SaaS multi-empresa.
                             </div>
                           </div>
                         );
@@ -838,9 +873,9 @@ const AdminManager = () => {
                   <div style={{ marginBottom: '1rem', padding: '0.75rem 0.9rem', background: 'rgba(245, 158, 11, 0.12)', border: '1px solid rgba(245, 158, 11, 0.35)', borderRadius: '8px', display: 'flex', alignItems: 'flex-start', gap: '0.65rem' }}>
                     <Shield size={18} style={{ color: '#fbbf24', flexShrink: 0, marginTop: '2px' }} />
                     <div style={{ fontSize: '0.78rem', color: '#e4e4e7', lineHeight: '1.35' }}>
-                      <strong style={{ color: '#fbbf24' }}>Privilegios de Super Administrador (PAIN):</strong>
+                      <strong style={{ color: '#fbbf24' }}>Super Administrador (PAIN):</strong>
                       <div style={{ color: '#d4d4d8', marginTop: '0.2rem' }}>
-                        Acceso total SaaS y gestión de empresas. Exento de cupo de personal y enrolamiento facial.
+                        Acceso global SaaS. Se registrará como trabajador de PAIN para control de asistencia, nómina y biometría facial.
                       </div>
                     </div>
                   </div>
@@ -848,7 +883,7 @@ const AdminManager = () => {
                   <div style={{ marginBottom: '1rem', padding: '0.75rem 0.9rem', background: 'rgba(249, 115, 22, 0.1)', border: '1px solid rgba(249, 115, 22, 0.25)', borderRadius: '8px', display: 'flex', alignItems: 'flex-start', gap: '0.65rem' }}>
                     <UserCheck size={18} style={{ color: 'var(--primary-orange)', flexShrink: 0, marginTop: '2px' }} />
                     <div style={{ fontSize: '0.78rem', color: '#e4e4e7', lineHeight: '1.35' }}>
-                      <strong style={{ color: '#fff' }}>Registro en Personal:</strong> Puede sincronizarse como empleado para checar asistencia y enrolar su rostro.
+                      <strong style={{ color: '#fff' }}>Registro en Personal:</strong> Se vinculará como empleado para checar asistencia y enrolar su rostro.
                     </div>
                   </div>
                 )}
@@ -880,8 +915,7 @@ const AdminManager = () => {
                       const newRole = e.target.value;
                       setFormData(prev => ({
                         ...prev,
-                        role: newRole,
-                        syncEmployee: newRole === 'SUPER_ADMIN' ? false : prev.syncEmployee
+                        role: newRole
                       }));
                     }}
                   >
@@ -929,36 +963,34 @@ const AdminManager = () => {
                   </div>
                 </div>
 
-                {/* Grid: Departamento & Identificador (solo para administradores estándar) */}
-                {formData.role !== 'SUPER_ADMIN' && (
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '0.85rem' }}>
-                    <div className="form-group">
-                      <label className="form-label" style={{ display: 'block', marginBottom: '0.35rem', color: 'var(--text-muted)', fontSize: '0.82rem' }}>Departamento</label>
-                      <select
-                        className="auth-input"
-                        style={{ width: '100%', padding: '0.65rem 0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)', backgroundColor: 'rgba(30,30,30,0.95)', color: 'var(--text-main)', fontSize: '0.88rem' }}
-                        value={formData.departmentId}
-                        onChange={e => setFormData({...formData, departmentId: e.target.value})}
-                      >
-                        <option value="">ADMINISTRACION (Por defecto)</option>
-                        {Array.isArray(departments) && departments.map(d => (
-                          <option key={d.id} value={d.id}>{d.name}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label" style={{ display: 'block', marginBottom: '0.35rem', color: 'var(--text-muted)', fontSize: '0.82rem' }}>Identificador / DNI</label>
-                      <input 
-                        type="text" 
-                        className="auth-input" 
-                        style={{ width: '100%', padding: '0.65rem 0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)', backgroundColor: 'rgba(255,255,255,0.05)', color: 'var(--text-main)', fontSize: '0.88rem' }}
-                        placeholder="Automático (ADM-...)"
-                        value={formData.identifier}
-                        onChange={e => setFormData({...formData, identifier: e.target.value})}
-                      />
-                    </div>
+                {/* Grid: Departamento & Identificador (para todos los administradores) */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '0.85rem' }}>
+                  <div className="form-group">
+                    <label className="form-label" style={{ display: 'block', marginBottom: '0.35rem', color: 'var(--text-muted)', fontSize: '0.82rem' }}>Departamento</label>
+                    <select
+                      className="auth-input"
+                      style={{ width: '100%', padding: '0.65rem 0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)', backgroundColor: 'rgba(30,30,30,0.95)', color: 'var(--text-main)', fontSize: '0.88rem' }}
+                      value={formData.departmentId}
+                      onChange={e => setFormData({...formData, departmentId: e.target.value})}
+                    >
+                      <option value="">ADMINISTRACION (Por defecto)</option>
+                      {Array.isArray(departments) && departments.map(d => (
+                        <option key={d.id} value={d.id}>{d.name}</option>
+                      ))}
+                    </select>
                   </div>
-                )}
+                  <div className="form-group">
+                    <label className="form-label" style={{ display: 'block', marginBottom: '0.35rem', color: 'var(--text-muted)', fontSize: '0.82rem' }}>Identificador / DNI</label>
+                    <input 
+                      type="text" 
+                      className="auth-input" 
+                      style={{ width: '100%', padding: '0.65rem 0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)', backgroundColor: 'rgba(255,255,255,0.05)', color: 'var(--text-main)', fontSize: '0.88rem' }}
+                      placeholder="Automático (ADM-...)"
+                      value={formData.identifier}
+                      onChange={e => setFormData({...formData, identifier: e.target.value})}
+                    />
+                  </div>
+                </div>
 
                 {/* Grid: Contraseña & Confirmar Contraseña */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '0.85rem' }}>
@@ -1034,26 +1066,19 @@ const AdminManager = () => {
                   </div>
                 </div>
                 
-                {/* Super Admin note or Employee Checkbox */}
-                {formData.role === 'SUPER_ADMIN' ? (
-                  <div style={{ padding: '0.6rem 0.85rem', borderRadius: '8px', background: 'rgba(245, 158, 11, 0.05)', border: '1px solid rgba(245, 158, 11, 0.2)', fontSize: '0.78rem', color: '#d4d4d8', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <Shield size={14} style={{ color: '#fbbf24', flexShrink: 0 }} />
-                    <span>Super Administradores de PAIN exentos de registro y checado de personal.</span>
-                  </div>
-                ) : (
-                  <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', padding: '0.25rem 0' }}>
-                    <input
-                      type="checkbox"
-                      id="syncEmployeeCheckbox"
-                      checked={formData.syncEmployee}
-                      onChange={e => setFormData({ ...formData, syncEmployee: e.target.checked })}
-                      style={{ width: '16px', height: '16px', accentColor: '#f97316', cursor: 'pointer' }}
-                    />
-                    <label htmlFor="syncEmployeeCheckbox" style={{ color: 'var(--text-main)', fontSize: '0.82rem', cursor: 'pointer' }}>
-                      Crear automáticamente registro de empleado (para checar asistencia)
-                    </label>
-                  </div>
-                )}
+                {/* Employee Checkbox */}
+                <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', padding: '0.25rem 0' }}>
+                  <input
+                    type="checkbox"
+                    id="syncEmployeeCheckbox"
+                    checked={formData.syncEmployee}
+                    onChange={e => setFormData({ ...formData, syncEmployee: e.target.checked })}
+                    style={{ width: '16px', height: '16px', accentColor: '#f97316', cursor: 'pointer' }}
+                  />
+                  <label htmlFor="syncEmployeeCheckbox" style={{ color: 'var(--text-main)', fontSize: '0.82rem', cursor: 'pointer' }}>
+                    Crear automáticamente registro de empleado (para checar asistencia, nómina y enrolar rostro)
+                  </label>
+                </div>
               </div>
 
               {/* Fixed Footer with Actions */}

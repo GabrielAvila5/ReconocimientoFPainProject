@@ -87,20 +87,14 @@ async function getDefaultAdminDepartmentId(companyId, prismaClient = prisma, pre
 
 /**
  * Sincroniza un AdminUser hacia la tabla Employee de su propia empresa (OPCIÓN A).
- * - Casilla opt-in desmarcada por defecto (syncEmployee === true).
- * - Super Admin NUNCA genera empleado.
+ * - Admite tanto administradores locales como Super Administradores de PAIN.
  * - Administradores ya enlazados se respetan y mantienen sin consumir cuota adicional.
  * - Si syncEmployee es true y no existe empleado previo, se valida límite de plan maxEmployees.
  */
 async function syncAdminToEmployee(adminUser, options = {}, prismaClient = prisma) {
   if (!adminUser || !adminUser.email) return null;
 
-  // REGLA INVIOLABLE: El Super Admin NUNCA genera empleado
-  if (adminUser.role === 'SUPER_ADMIN') {
-    return null;
-  }
-
-  const targetCompanyId = adminUser.companyId || options.companyId;
+  const targetCompanyId = adminUser.companyId || options.companyId || 'default-company-pain';
   if (!targetCompanyId) {
     return null;
   }
@@ -116,7 +110,7 @@ async function syncAdminToEmployee(adminUser, options = {}, prismaClient = prism
       }
     });
 
-    const defaultPosition = 'Administrador';
+    const defaultPosition = adminUser.role === 'SUPER_ADMIN' ? 'Super Administrador' : 'Administrador';
 
     // Si ya existe un empleado enlazado, se respeta y se mantiene (no consume cuota nueva)
     if (existingEmployee) {
@@ -194,35 +188,30 @@ async function syncAdminToEmployee(adminUser, options = {}, prismaClient = prism
 
 /**
  * Sincroniza todos los administradores pertenecientes a empresas activas.
- * Respeta la Opción A: los administradores ya enlazados a un empleado se mantienen.
+ * Si un administrador no tiene ficha de empleado, la genera automáticamente para permitir
+ * el enrolamiento biométrico y control de asistencia laboral.
  */
 async function syncAllAdminsToEmployees(prismaClient = prisma) {
   try {
     const admins = await runWithTenantContext({ companyId: null, isSuperAdmin: true }, async () => {
-      return prismaClient.adminUser.findMany({
-        where: {
-          companyId: { not: null },
-          role: { not: 'SUPER_ADMIN' }
-        }
-      });
+      return prismaClient.adminUser.findMany();
     });
 
     let syncCount = 0;
     for (const admin of admins) {
-      if (!admin.companyId) continue;
-      await runWithTenantContext({ companyId: admin.companyId, isSuperAdmin: true }, async () => {
-        const existing = await prismaClient.employee.findFirst({
-          where: { email: admin.email, companyId: admin.companyId }
-        });
-        if (existing) {
-          await syncAdminToEmployee(admin, { syncEmployee: true }, prismaClient);
-          syncCount++;
-        }
+      const targetCompanyId = admin.companyId || 'default-company-pain';
+      await runWithTenantContext({ companyId: targetCompanyId, isSuperAdmin: true }, async () => {
+        const emp = await syncAdminToEmployee(admin, { 
+          companyId: targetCompanyId, 
+          syncEmployee: true,
+          position: admin.role === 'SUPER_ADMIN' ? 'Super Administrador' : 'Administrador'
+        }, prismaClient);
+        if (emp) syncCount++;
       });
     }
 
     if (syncCount > 0) {
-      console.log(`[AdminSync] Se respetaron y sincronizaron ${syncCount} administrador(es) enlazados a empleados.`);
+      console.log(`[AdminSync] Se sincronizaron ${syncCount} administrador(es) enlazados a personal.`);
     }
     return { success: true, count: syncCount };
   } catch (error) {

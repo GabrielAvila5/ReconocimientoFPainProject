@@ -1,5 +1,5 @@
 const express = require('express');
-const { getAdmins, createAdmin, deleteAdmin, getAuditLogs, syncAdminsHandler, promoteToSuperAdmin } = require('./admins.controller');
+const { getAdmins, createAdmin, deleteAdmin, getAuditLogs, syncAdminsHandler, syncSingleAdminHandler, promoteToSuperAdmin } = require('./admins.controller');
 const { requireAuth, requireRole } = require('../auth/auth.middleware');
 
 const router = express.Router();
@@ -13,6 +13,7 @@ router.post('/', createAdmin);
 router.patch('/:id/promote', requireRole(['SUPER_ADMIN']), promoteToSuperAdmin);
 router.get('/audit-log', getAuditLogs);
 router.post('/sync-users', requireRole(['SUPER_ADMIN']), syncAdminsHandler);
+router.post('/:id/sync-employee', syncSingleAdminHandler);
 router.delete('/:id', deleteAdmin);
 
 // ENDPOINT MANUAL DE DESARROLLO/DEBUG
