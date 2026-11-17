@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const bcrypt = require('bcrypt');
 const prisma = require('../../utils/prisma');
 const { requireAuth, requireCorporateOrSuperAdmin } = require('../auth/auth.middleware');
 const { runWithTenantContext } = require('../../middlewares/tenantContext');
@@ -66,6 +67,9 @@ router.get('/', async (req, res) => {
         parentCompanyId: true,
         createdAt: true,
         updatedAt: true,
+        adminUsers: {
+          select: { id: true, name: true, email: true, role: true }
+        },
         _count: {
           select: {
             employees: true,
@@ -95,6 +99,7 @@ router.get('/', async (req, res) => {
       holdingMetrics = {
         holdingId: holding.id,
         holdingName: holding.name,
+        holdingSlug: holding.slug,
         maxBranches,
         currentBranches,
         remainingBranches,
@@ -129,6 +134,9 @@ router.get('/:id', async (req, res) => {
       where: { id: branchId },
       include: {
         settings: true,
+        adminUsers: {
+          select: { id: true, name: true, email: true, role: true, createdAt: true }
+        },
         devices: {
           select: { id: true, name: true, type: true, status: true, ipAddress: true, isActive: true, lastSeenAt: true }
         },
@@ -179,10 +187,22 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'Se requiere especificar la empresa matriz (parentCompanyId).' });
     }
 
-    const { name, slug, timezone } = req.body;
+    const { name, slug, timezone, adminName, adminEmail, adminPassword, adminRole } = req.body;
 
     if (!name || typeof name !== 'string' || name.trim().length < 2) {
       return res.status(400).json({ error: 'El nombre de la sucursal es obligatorio (mínimo 2 caracteres).' });
+    }
+
+    if (adminEmail && adminPassword) {
+      const existingUser = await prisma.adminUser.findUnique({
+        where: { email: adminEmail.trim().toLowerCase() }
+      });
+      if (existingUser) {
+        return res.status(400).json({ error: 'El correo electrónico del administrador ya está registrado en el sistema.' });
+      }
+      if (adminPassword.length < 8) {
+        return res.status(400).json({ error: 'La contraseña del administrador debe tener al menos 8 caracteres.' });
+      }
     }
 
     // 1. Obtener la matriz Holding y validar cuotas
@@ -241,7 +261,8 @@ router.post('/', async (req, res) => {
       }
     });
 
-    // 4. Inicializar SystemSettings para la nueva sucursal
+    // 4. Inicializar SystemSettings y Administrador inicial para la nueva sucursal
+    let initialAdmin = null;
     await runWithTenantContext({ companyId: newBranch.id, isSuperAdmin: true }, async () => {
       await prisma.systemSettings.create({
         data: {
@@ -250,6 +271,21 @@ router.post('/', async (req, res) => {
           timezone: newBranch.timezone
         }
       });
+
+      if (adminEmail && adminPassword) {
+        const hashedPassword = await bcrypt.hash(adminPassword.trim(), 10);
+        const assignedRole = (adminRole && ['ADMIN', 'SUPERVISOR', 'VIEWER'].includes(adminRole)) ? adminRole : 'ADMIN';
+        initialAdmin = await prisma.adminUser.create({
+          data: {
+            companyId: newBranch.id,
+            name: adminName ? adminName.trim() : `Admin ${newBranch.name}`,
+            email: adminEmail.trim().toLowerCase(),
+            password: hashedPassword,
+            role: assignedRole,
+            createdBy: req.user.id
+          }
+        });
+      }
 
       // Registro de Auditoría
       await prisma.adminAuditLog.create({
@@ -267,11 +303,92 @@ router.post('/', async (req, res) => {
     return res.status(201).json({
       success: true,
       message: `Sucursal "${newBranch.name}" creada con éxito.`,
-      branch: newBranch
+      branch: newBranch,
+      admin: initialAdmin ? {
+        id: initialAdmin.id,
+        name: initialAdmin.name,
+        email: initialAdmin.email,
+        role: initialAdmin.role
+      } : null
     });
   } catch (error) {
     console.error('Error al crear sucursal:', error);
     return res.status(500).json({ error: 'Error interno al crear sucursal', message: error.message });
+  }
+});
+
+/**
+ * POST /api/v1/branches/:id/reset-admin-password
+ * Permite al CORPORATE_ADMIN restablecer o generar una nueva contraseña para el administrador/supervisor de la sucursal.
+ */
+router.post('/:id/reset-admin-password', async (req, res) => {
+  try {
+    const branchId = req.params.id;
+    const isSuperAdmin = req.user.role === 'SUPER_ADMIN';
+    const { password: customPassword } = req.body || {};
+
+    const branch = await prisma.company.findUnique({
+      where: { id: branchId },
+      include: {
+        adminUsers: {
+          where: { role: { in: ['ADMIN', 'SUPERVISOR'] } },
+          orderBy: { createdAt: 'asc' },
+          take: 1
+        }
+      }
+    });
+
+    if (!branch || !branch.parentCompanyId) {
+      return res.status(404).json({ error: 'Sucursal no encontrada.' });
+    }
+
+    if (!isSuperAdmin && branch.parentCompanyId !== req.user.companyId) {
+      return res.status(403).json({ error: 'FORBIDDEN', message: 'No tiene acceso a esta sucursal.' });
+    }
+
+    const admin = branch.adminUsers[0];
+    if (!admin) {
+      return res.status(404).json({ error: 'No se encontró ningún administrador asignado a esta sucursal.' });
+    }
+
+    let rawPassword;
+    if (customPassword && typeof customPassword === 'string' && customPassword.trim().length >= 8) {
+      rawPassword = customPassword.trim();
+    } else {
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%';
+      rawPassword = Array.from({ length: 12 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+    }
+
+    const hashedPassword = await bcrypt.hash(rawPassword, 10);
+    await prisma.adminUser.update({
+      where: { id: admin.id },
+      data: { password: hashedPassword }
+    });
+
+    // Auditoría
+    await runWithTenantContext({ companyId: branch.parentCompanyId, isSuperAdmin: true }, async () => {
+      await prisma.adminAuditLog.create({
+        data: {
+          action: 'RESET_BRANCH_ADMIN_PASSWORD',
+          performedById: req.user.id,
+          performedByName: req.user.name || req.user.email || 'Admin',
+          targetName: admin.name,
+          targetEmail: admin.email,
+          companyId: branch.parentCompanyId
+        }
+      });
+    });
+
+    return res.json({
+      success: true,
+      message: 'Contraseña actualizada con éxito.',
+      email: admin.email,
+      role: admin.role,
+      newPassword: rawPassword
+    });
+  } catch (error) {
+    console.error('Error al restablecer contraseña de sucursal:', error);
+    return res.status(500).json({ error: 'Error al restablecer contraseña', message: error.message });
   }
 });
 

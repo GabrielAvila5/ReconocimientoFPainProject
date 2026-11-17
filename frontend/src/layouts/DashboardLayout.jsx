@@ -39,6 +39,15 @@ const DashboardLayout = () => {
   }, [showNotifications]);
 
   const [reportsCount, setReportsCount] = useState(0);
+  const [activeBranchName, setActiveBranchName] = useState(() => localStorage.getItem('activeBranchName'));
+
+  useEffect(() => {
+    const handleBranchChange = () => {
+      setActiveBranchName(localStorage.getItem('activeBranchName'));
+    };
+    window.addEventListener('branch:changed', handleBranchChange);
+    return () => window.removeEventListener('branch:changed', handleBranchChange);
+  }, []);
 
   useEffect(() => {
     const fetchReportsCount = async () => {
@@ -81,6 +90,7 @@ const DashboardLayout = () => {
   const navItemsSistema = [
     { name: 'Dispositivos', path: '/dashboard/devices', icon: <Monitor size={18} /> },
     ...(user?.role === 'SUPER_ADMIN' ? [{ name: 'Empresas SaaS', path: '/dashboard/companies', icon: <Building2 size={18} /> }] : []),
+    ...(user?.role === 'CORPORATE_ADMIN' ? [{ name: 'Mis Sucursales', path: '/dashboard/branches', icon: <Building2 size={18} /> }] : []),
     { name: 'Notificaciones', path: '/dashboard/notifications', icon: <Bell size={18} />, badge: unreadCount > 0 ? unreadCount : undefined },
     { name: 'Configuración', path: '/dashboard/settings', icon: <Settings size={18} /> },
   ];
@@ -193,7 +203,7 @@ const DashboardLayout = () => {
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <h4 style={{ fontSize: '0.9rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user?.name || 'Usuario'}</h4>
-            <p className="text-xs text-muted">{user?.role === 'SUPER_ADMIN' ? 'Super Administrador' : 'Administrador'}</p>
+            <p className="text-xs text-muted">{user?.role === 'SUPER_ADMIN' ? 'Super Administrador' : user?.role === 'CORPORATE_ADMIN' ? 'Admin Corporativo' : 'Administrador'}</p>
           </div>
           <button 
             onClick={async () => {
@@ -238,6 +248,43 @@ const DashboardLayout = () => {
               <span>/</span>
               <span style={{ color: 'var(--text-main)' }}>Dashboard</span>
             </div>
+            {user?.role === 'CORPORATE_ADMIN' && (
+              <div 
+                style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '0.4rem', 
+                  backgroundColor: 'rgba(255, 255, 255, 0.04)', 
+                  border: '1px solid var(--border-color)', 
+                  borderRadius: '8px', 
+                  padding: '0.3rem 0.65rem', 
+                  fontSize: '0.8rem',
+                  marginLeft: '0.5rem'
+                }}
+                className="hidden-mobile"
+              >
+                <Building2 size={14} style={{ color: 'var(--primary-orange)' }} />
+                <span style={{ color: 'var(--text-muted)' }}>Ámbito:</span>
+                <span style={{ color: 'var(--text-main)', fontWeight: '600' }}>
+                  {activeBranchName || 'Toda la Red (Consolidado)'}
+                </span>
+                {activeBranchName && (
+                  <button
+                    onClick={() => {
+                      localStorage.removeItem('activeBranchId');
+                      localStorage.removeItem('activeBranchName');
+                      setActiveBranchName(null);
+                      window.dispatchEvent(new Event('branch:changed'));
+                      window.location.reload();
+                    }}
+                    title="Restablecer a vista nacional consolidada"
+                    style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '0 0.1rem', display: 'flex', alignItems: 'center' }}
+                  >
+                    <X size={13} />
+                  </button>
+                )}
+              </div>
+            )}
           </div>
           
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
@@ -289,7 +336,7 @@ const DashboardLayout = () => {
         `}</style>
 
         {/* Page Content */}
-        <div className="page-content" style={{ position: 'relative', zIndex: 1, flex: 1, overflowY: 'auto', padding: '2rem' }}>
+        <div className="page-content" style={{ flex: 1, overflowY: 'auto', padding: '2rem' }}>
           <Outlet />
         </div>
       </main>

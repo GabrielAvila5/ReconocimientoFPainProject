@@ -1,5 +1,5 @@
 const express = require('express');
-const { getAdmins, createAdmin, deleteAdmin, getAuditLogs, syncAdminsHandler } = require('./admins.controller');
+const { getAdmins, createAdmin, deleteAdmin, getAuditLogs, syncAdminsHandler, promoteToSuperAdmin } = require('./admins.controller');
 const { requireAuth, requireRole } = require('../auth/auth.middleware');
 
 const router = express.Router();
@@ -10,6 +10,7 @@ router.use(requireRole(['ADMIN', 'SUPER_ADMIN', 'CORPORATE_ADMIN']));
 
 router.get('/', getAdmins);
 router.post('/', createAdmin);
+router.patch('/:id/promote', requireRole(['SUPER_ADMIN']), promoteToSuperAdmin);
 router.get('/audit-log', getAuditLogs);
 router.post('/sync-users', requireRole(['SUPER_ADMIN']), syncAdminsHandler);
 router.delete('/:id', deleteAdmin);

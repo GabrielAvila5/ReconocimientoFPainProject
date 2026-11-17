@@ -71,7 +71,13 @@ const login = async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role,
-        companyId: user.companyId
+        companyId: user.companyId,
+        company: user.company ? {
+          id: user.company.id,
+          name: user.company.name,
+          slug: user.company.slug,
+          isActive: user.company.isActive
+        } : null
       }
     });
 

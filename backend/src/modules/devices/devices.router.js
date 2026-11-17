@@ -20,8 +20,8 @@ const router = express.Router();
 router.post('/auth-request', requestDeviceAuth);
 router.post('/verify', verifyDeviceToken);
 
-// --- Rutas de Emparejamiento (SUPER_ADMIN y ADMIN de empresa) ---
-const requireAdmin = [requireAuth, requireRole(['SUPER_ADMIN', 'ADMIN'])];
+// --- Rutas de Emparejamiento (SUPER_ADMIN, CORPORATE_ADMIN y ADMIN de empresa) ---
+const requireAdmin = [requireAuth, requireRole(['SUPER_ADMIN', 'ADMIN', 'CORPORATE_ADMIN'])];
 
 // Paso 1: Administrador consulta el código y ve IP y User-Agent del kiosco
 router.post('/auth-requests/lookup', ...requireAdmin, lookupAuthRequestByCode);

@@ -25,6 +25,7 @@ import ReportsPage from './pages/dashboard/ReportsPage';
 import EventsPage from './pages/dashboard/EventsPage';
 import DevicesPage from './pages/dashboard/DevicesPage';
 import CompaniesPage from './pages/dashboard/CompaniesPage';
+import BranchesPage from './pages/dashboard/BranchesPage';
 import NotificationsPage from './pages/dashboard/NotificationsPage';
 import SettingsPage from './pages/dashboard/SettingsPage';
 
@@ -42,6 +43,13 @@ const SuperAdminRoute = ({ children }) => {
   const { user, isAuthenticated } = useAuth();
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   if (user?.role !== 'SUPER_ADMIN') return <Navigate to="/dashboard" replace />;
+  return children;
+};
+
+const CorporateOrSuperAdminRoute = ({ children }) => {
+  const { user, isAuthenticated } = useAuth();
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (user?.role !== 'CORPORATE_ADMIN' && user?.role !== 'SUPER_ADMIN') return <Navigate to="/dashboard" replace />;
   return children;
 };
 
@@ -131,6 +139,11 @@ function App() {
               <SuperAdminRoute>
                 <CompaniesPage />
               </SuperAdminRoute>
+            } />
+            <Route path="branches" element={
+              <CorporateOrSuperAdminRoute>
+                <BranchesPage />
+              </CorporateOrSuperAdminRoute>
             } />
             <Route path="notifications" element={<NotificationsPage />} />
             <Route path="settings" element={<SettingsPage />} />

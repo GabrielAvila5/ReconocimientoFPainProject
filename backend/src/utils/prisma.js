@@ -240,27 +240,51 @@ function buildTenantPrisma(client) {
 
             case 'updateMany':
             case 'deleteMany': {
-              args.where = { ...(args.where || {}), companyId: cid };
+              if (ctx.isCorporateHolding && Array.isArray(ctx.holdingCompanyIds) && ctx.holdingCompanyIds.length > 0) {
+                args.where = { ...(args.where || {}), companyId: { in: ctx.holdingCompanyIds } };
+              } else {
+                args.where = { ...(args.where || {}), companyId: cid };
+              }
               return query(args);
             }
 
             case 'update': {
               if (MODELS_WITH_ID_COMPANY_ID.includes(model) && args.where && args.where.id !== undefined && !args.where.id_companyId) {
-                args.where = { id_companyId: { id: args.where.id, companyId: cid } };
+                let targetCid = cid;
+                if (ctx.isCorporateHolding && Array.isArray(ctx.holdingCompanyIds) && ctx.holdingCompanyIds.length > 0) {
+                  const existingRecord = await client[model].findFirst({
+                    where: { id: args.where.id, companyId: { in: ctx.holdingCompanyIds } },
+                    select: { companyId: true }
+                  });
+                  if (existingRecord) {
+                    targetCid = existingRecord.companyId;
+                  }
+                }
+                args.where = { id_companyId: { id: args.where.id, companyId: targetCid } };
               } else if (model === 'SystemSettings') {
                 args.where = { companyId: cid };
               } else {
                 args.where = { ...(args.where || {}), companyId: cid };
               }
               if (args.data) {
-                args.data = sanitizeNestedWrites(args.data, cid);
+                args.data = sanitizeNestedWrites(args.data, args.where?.id_companyId?.companyId || cid);
               }
               return query(args);
             }
 
             case 'delete': {
               if (MODELS_WITH_ID_COMPANY_ID.includes(model) && args.where && args.where.id !== undefined && !args.where.id_companyId) {
-                args.where = { id_companyId: { id: args.where.id, companyId: cid } };
+                let targetCid = cid;
+                if (ctx.isCorporateHolding && Array.isArray(ctx.holdingCompanyIds) && ctx.holdingCompanyIds.length > 0) {
+                  const existingRecord = await client[model].findFirst({
+                    where: { id: args.where.id, companyId: { in: ctx.holdingCompanyIds } },
+                    select: { companyId: true }
+                  });
+                  if (existingRecord) {
+                    targetCid = existingRecord.companyId;
+                  }
+                }
+                args.where = { id_companyId: { id: args.where.id, companyId: targetCid } };
               } else if (model === 'SystemSettings') {
                 args.where = { companyId: cid };
               } else {

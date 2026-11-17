@@ -194,7 +194,19 @@ const lookupAuthRequestByCode = async (req, res) => {
 
     // Validación Cross-Tenant en el Paso 1: Si ya estaba asignada a otra empresa
     if (authRequest.companyId && req.user?.companyId && authRequest.companyId !== req.user.companyId && req.user.role !== 'SUPER_ADMIN') {
-      return res.status(404).json({ error: 'Código de emparejamiento inválido, expirado o ya procesado.' });
+      let isAllowed = false;
+      if (req.user?.role === 'CORPORATE_ADMIN') {
+        const branch = await prisma.company.findUnique({
+          where: { id: authRequest.companyId },
+          select: { parentCompanyId: true }
+        });
+        if (branch && branch.parentCompanyId === req.user.companyId) {
+          isAllowed = true;
+        }
+      }
+      if (!isAllowed) {
+        return res.status(404).json({ error: 'Código de emparejamiento inválido, expirado o ya procesado.' });
+      }
     }
 
     // Retorna datos de auditoría para verificación visual previa del admin
@@ -239,9 +251,17 @@ const approveDeviceAuth = async (req, res) => {
     }
 
     // Determinar la empresa a la que pertenecerá el dispositivo
-    let targetCompanyId = req.user?.companyId;
+    let targetCompanyId = req.companyId || req.user?.companyId;
     if (req.user?.role === 'SUPER_ADMIN') {
       targetCompanyId = requestedCompanyId || authRequest.companyId || 'default-company-pain';
+    } else if (req.user?.role === 'CORPORATE_ADMIN' && requestedCompanyId) {
+      const branch = await prisma.company.findUnique({
+        where: { id: requestedCompanyId },
+        select: { id: true, parentCompanyId: true }
+      });
+      if (branch && (branch.parentCompanyId === req.user.companyId || branch.id === req.user.companyId)) {
+        targetCompanyId = requestedCompanyId;
+      }
     }
 
     if (!targetCompanyId) {
@@ -250,8 +270,20 @@ const approveDeviceAuth = async (req, res) => {
 
     // Validación Cross-Tenant Estricta: Un admin no puede ver ni aprobar solicitudes de otra empresa (404 indistinguible)
     if (authRequest.companyId && authRequest.companyId !== targetCompanyId && req.user?.role !== 'SUPER_ADMIN') {
-      recordFailedApproval(adminId);
-      return res.status(404).json({ error: 'Solicitud no encontrada' });
+      let isHoldingChild = false;
+      if (req.user?.role === 'CORPORATE_ADMIN') {
+        const branch = await prisma.company.findUnique({
+          where: { id: authRequest.companyId },
+          select: { parentCompanyId: true }
+        });
+        if (branch && branch.parentCompanyId === req.user.companyId) {
+          isHoldingChild = true;
+        }
+      }
+      if (!isHoldingChild) {
+        recordFailedApproval(adminId);
+        return res.status(404).json({ error: 'Solicitud no encontrada' });
+      }
     }
 
     if (authRequest.status !== 'PENDING') {

@@ -5,7 +5,7 @@ const eventsController = require('./events.controller');
 
 // Todas las rutas protegidas para admin
 router.use(requireAuth);
-router.use(requireRole(['SUPER_ADMIN', 'ADMIN']));
+router.use(requireRole(['SUPER_ADMIN', 'ADMIN', 'CORPORATE_ADMIN']));
 
 router.get('/', eventsController.getEvents);
 router.post('/', eventsController.createEvent);

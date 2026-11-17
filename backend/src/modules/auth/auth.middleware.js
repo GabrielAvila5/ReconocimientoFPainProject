@@ -23,7 +23,16 @@ const requireAuth = async (req, res, next) => {
     // 3. Verificar que el usuario aún exista en la BD
     const user = await prisma.adminUser.findUnique({
       where: { id: decoded.id },
-      select: { id: true, companyId: true, email: true, name: true, role: true }
+      select: { 
+        id: true, 
+        companyId: true, 
+        email: true, 
+        name: true, 
+        role: true,
+        company: {
+          select: { id: true, name: true, slug: true, isActive: true, isHolding: true }
+        }
+      }
     });
 
     if (!user) {

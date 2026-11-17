@@ -749,7 +749,9 @@ router.post('/:id/reset-admin-password', async (req, res) => {
       where: { id: companyId },
       include: {
         adminUsers: {
-          where: { role: 'ADMIN' },
+          where: {
+            role: { in: ['ADMIN', 'CORPORATE_ADMIN', 'SUPER_ADMIN'] }
+          },
           orderBy: { createdAt: 'asc' },
           take: 1
         }
@@ -816,8 +818,12 @@ router.post('/:id/reset-admin-password', async (req, res) => {
       admin: {
         id: admin.id,
         name: admin.name,
-        email: admin.email
+        email: admin.email,
+        role: admin.role
       },
+      adminEmail: admin.email,
+      adminName: admin.name,
+      adminRole: admin.role,
       newPassword: finalPassword
     });
   } catch (error) {

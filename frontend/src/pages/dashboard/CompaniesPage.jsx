@@ -326,6 +326,7 @@ const CompaniesPage = () => {
   const [credentialCompany, setCredentialCompany] = useState(null);
   const [credResetLoading, setCredResetLoading] = useState(false);
   const [credGeneratedPassword, setCredGeneratedPassword] = useState('');
+  const [credCustomInput, setCredCustomInput] = useState('');
   const [credCopied, setCredCopied] = useState(false);
 
   // Modal de Suspensión / Reactivación con Estilos y Timer
@@ -493,6 +494,7 @@ const CompaniesPage = () => {
   const openCredentialModal = (company) => {
     setCredentialCompany(company);
     setCredGeneratedPassword('');
+    setCredCustomInput('');
     setCredCopied(false);
   };
 
@@ -502,6 +504,7 @@ const CompaniesPage = () => {
     try {
       setCredResetLoading(true);
       const baseUrl = import.meta.env.VITE_API_URL || '';
+      const payload = credCustomInput.trim() ? { newPassword: credCustomInput.trim() } : {};
       const res = await fetch(`${baseUrl}/api/v1/superadmin/companies/${credentialCompany.id}/reset-admin-password`, {
         method: 'POST',
         headers: {
@@ -509,7 +512,7 @@ const CompaniesPage = () => {
           ...getAuthHeaders()
         },
         credentials: 'include',
-        body: JSON.stringify({})
+        body: JSON.stringify(payload)
       });
 
       const data = await res.json();
@@ -518,7 +521,14 @@ const CompaniesPage = () => {
       }
 
       setCredGeneratedPassword(data.newPassword);
-      toast.success('Nueva contraseña generada y actualizada en base de datos.');
+      if (data.adminEmail) {
+        setCredentialCompany(prev => ({
+          ...prev,
+          adminEmail: data.adminEmail,
+          adminUsers: [{ email: data.adminEmail, name: data.adminName, role: data.adminRole }]
+        }));
+      }
+      toast.success('Contraseña generada y actualizada exitosamente en base de datos.');
     } catch (err) {
       toast.error(err.message);
     } finally {
@@ -2581,37 +2591,81 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
                 <span style={{ color: '#a1a1aa' }}>Portal Web:</span>
                 <span style={{ color: '#fff' }}>{window.location.origin}/login</span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ color: '#a1a1aa' }}>Usuario Admin:</span>
-                <strong style={{ color: '#10b981' }}>{credentialCompany.adminUsers?.[0]?.email || 'Sin admin asignado'}</strong>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                  <strong style={{ color: '#10b981' }}>
+                    {credentialCompany.adminUsers?.[0]?.email || credentialCompany.adminEmail || 'Sin admin asignado'}
+                  </strong>
+                  {(credentialCompany.adminUsers?.[0]?.role || credentialCompany.plan === 'CUSTOM') && (
+                    <span style={{
+                      padding: '0.1rem 0.45rem',
+                      background: 'rgba(59, 130, 246, 0.15)',
+                      color: '#60a5fa',
+                      borderRadius: '4px',
+                      fontSize: '0.72rem',
+                      fontWeight: 600,
+                      border: '1px solid rgba(59, 130, 246, 0.3)'
+                    }}>
+                      {credentialCompany.adminUsers?.[0]?.role || (credentialCompany.plan === 'CUSTOM' ? 'CORPORATE_ADMIN' : 'ADMIN')}
+                    </span>
+                  )}
+                </div>
               </div>
 
               {credGeneratedPassword && (
-                <div style={{ borderTop: '1px solid #27272a', paddingTop: '0.75rem', marginTop: '0.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ color: '#eab308', fontWeight: 600 }}>Nueva Clave Temporal:</span>
-                  <code style={{ fontSize: '1rem', color: '#eab308', background: 'rgba(234, 179, 8, 0.1)', padding: '0.2rem 0.5rem', borderRadius: '4px' }}>
+                <div style={{ borderTop: '1px solid #27272a', paddingTop: '0.75rem', marginTop: '0.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+                  <div>
+                    <span style={{ color: '#eab308', fontWeight: 600, display: 'block' }}>Contraseña Activa en BD:</span>
+                    <span style={{ fontSize: '0.72rem', color: '#10b981' }}>● Guardada y lista para iniciar sesión en /login</span>
+                  </div>
+                  <code style={{ fontSize: '1rem', color: '#eab308', background: 'rgba(234, 179, 8, 0.12)', padding: '0.25rem 0.6rem', borderRadius: '6px', border: '1px solid rgba(234, 179, 8, 0.3)', fontWeight: 700 }}>
                     {credGeneratedPassword}
                   </code>
                 </div>
               )}
             </div>
 
-            {/* Restablecer Contraseña */}
-            <div style={{ background: 'rgba(234, 179, 8, 0.05)', border: '1px solid rgba(234, 179, 8, 0.15)', borderRadius: '10px', padding: '1rem', marginBottom: '1.5rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <div style={{ color: '#eab308', fontWeight: 600, fontSize: '0.85rem' }}>¿El cliente olvidó su contraseña?</div>
-                  <div style={{ color: '#a1a1aa', fontSize: '0.75rem', marginTop: '0.15rem' }}>
-                    Genera una contraseña nueva y segura en 1 clic directamente en la base de datos.
-                  </div>
-                </div>
+            {/* Restablecer / Generar Contraseña */}
+            <div style={{ background: 'rgba(234, 179, 8, 0.05)', border: '1px solid rgba(234, 179, 8, 0.2)', borderRadius: '12px', padding: '1.25rem', marginBottom: '1.5rem' }}>
+              <div style={{ color: '#eab308', fontWeight: 600, fontSize: '0.9rem', marginBottom: '0.25rem' }}>
+                Generar o Restablecer Contraseña
+              </div>
+              <p style={{ color: '#a1a1aa', fontSize: '0.8rem', margin: '0 0 0.85rem' }}>
+                Ingresa una contraseña específica o déjala vacía para generar una aleatoria segura en la base de datos.
+              </p>
+
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                <input
+                  type="text"
+                  placeholder="Contraseña manual (o vacío para aleatoria)"
+                  value={credCustomInput}
+                  onChange={(e) => setCredCustomInput(e.target.value)}
+                  style={{
+                    flex: 1,
+                    minWidth: '220px',
+                    padding: '0.55rem 0.75rem',
+                    background: '#18181b',
+                    border: '1px solid #3f3f46',
+                    borderRadius: '8px',
+                    color: '#fff',
+                    fontSize: '0.85rem',
+                    fontFamily: 'monospace'
+                  }}
+                />
                 <button
                   type="button"
                   onClick={handleResetAdminPassword}
                   disabled={credResetLoading}
-                  style={{ ...btnSecondary, padding: '0.45rem 0.85rem', fontSize: '0.8rem', color: '#eab308', borderColor: 'rgba(234, 179, 8, 0.3)', whiteSpace: 'nowrap' }}
+                  style={{
+                    ...btnPrimary,
+                    padding: '0.55rem 1rem',
+                    fontSize: '0.82rem',
+                    whiteSpace: 'nowrap',
+                    background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)'
+                  }}
                 >
-                  {credResetLoading ? 'Generando...' : 'Generar Nueva Clave'}
+                  {credResetLoading ? 'Guardando en BD...' : credCustomInput.trim() ? 'Guardar Contraseña' : 'Generar Nueva Clave'}
                 </button>
               </div>
             </div>

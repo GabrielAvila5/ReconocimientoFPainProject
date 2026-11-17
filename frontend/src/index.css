@@ -593,7 +593,8 @@ h1, h2, h3, h4 {
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  padding: 1rem;
+  padding: 1.5rem 1rem;
+  overflow-y: auto;
 }
 
 .modal-content {
@@ -603,6 +604,8 @@ h1, h2, h3, h4 {
   padding: 1.5rem;
   width: 100%;
   max-width: 500px;
+  max-height: 90vh;
+  overflow-y: auto;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
   position: relative;
 }
