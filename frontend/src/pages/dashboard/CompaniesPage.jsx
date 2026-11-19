@@ -2202,22 +2202,22 @@ PAIN - Sistema de Control y Asistencia Facial`;
           />
         </div>
 
-        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center', flexWrap: 'wrap' }}>
           <select 
             value={selectedType} 
             onChange={(e) => setSelectedType(e.target.value)}
-            style={{ ...selectFilterStyle, borderColor: selectedType !== 'MAIN_ONLY' ? '#f97316' : '#27272a' }}
+            style={{ ...selectFilterStyle, width: 'auto', minWidth: '175px', flex: '0 0 auto', borderColor: selectedType !== 'MAIN_ONLY' ? '#f97316' : '#27272a' }}
             title="Filtrar por tipo de cuenta (Matriz o Sucursal)"
           >
             <option value="MAIN_ONLY">Solo Clientes / Matrices</option>
-            <option value="ALL">Todas (con Sucursales Hijas)</option>
+            <option value="ALL">Todas (con Sucursales)</option>
             <option value="BRANCHES_ONLY">Solo Sucursales Hijas</option>
           </select>
 
           <select 
             value={selectedPlan} 
             onChange={(e) => setSelectedPlan(e.target.value)}
-            style={selectFilterStyle}
+            style={{ ...selectFilterStyle, width: 'auto', minWidth: '140px', flex: '0 0 auto' }}
           >
             <option value="ALL">Todos los Planes</option>
             <option value="STARTER">Starter</option>
@@ -2229,7 +2229,7 @@ PAIN - Sistema de Control y Asistencia Facial`;
           <select 
             value={selectedBillingCycle} 
             onChange={(e) => setSelectedBillingCycle(e.target.value)}
-            style={selectFilterStyle}
+            style={{ ...selectFilterStyle, width: 'auto', minWidth: '140px', flex: '0 0 auto' }}
           >
             <option value="ALL">Todos los Ciclos</option>
             <option value="MENSUAL">Mensual (1m)</option>
@@ -2241,7 +2241,7 @@ PAIN - Sistema de Control y Asistencia Facial`;
           <select 
             value={selectedStatus} 
             onChange={(e) => setSelectedStatus(e.target.value)}
-            style={selectFilterStyle}
+            style={{ ...selectFilterStyle, width: 'auto', minWidth: '135px', flex: '0 0 auto' }}
           >
             <option value="ALL">Todos los Estados</option>
             <option value="ACTIVE">Activas</option>
