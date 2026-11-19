@@ -520,6 +520,7 @@ const CompaniesPage = () => {
   const [selectedPlan, setSelectedPlan] = useState('ALL');
   const [selectedStatus, setSelectedStatus] = useState('ALL');
   const [selectedBillingCycle, setSelectedBillingCycle] = useState('ALL');
+  const [selectedType, setSelectedType] = useState('MAIN_ONLY'); // 'MAIN_ONLY' | 'ALL' | 'BRANCHES_ONLY'
 
   // Modal Alta de Empresa
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -1204,7 +1205,8 @@ PAIN - Sistema de Control y Asistencia Facial`;
         c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         c.slug.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (c.customDomain || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (c.adminUsers?.[0]?.email || '').toLowerCase().includes(searchTerm.toLowerCase());
+        (c.adminUsers?.[0]?.email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (c.parentCompany?.name || '').toLowerCase().includes(searchTerm.toLowerCase());
       
       const matchPlan = selectedPlan === 'ALL' || c.plan === selectedPlan;
       const matchStatus = selectedStatus === 'ALL' || 
@@ -1212,9 +1214,14 @@ PAIN - Sistema de Control y Asistencia Facial`;
         (selectedStatus === 'SUSPENDED' && !c.isActive);
       const matchBillingCycle = selectedBillingCycle === 'ALL' || (c.billingCycle || 'MENSUAL') === selectedBillingCycle;
 
-      return matchSearch && matchPlan && matchStatus && matchBillingCycle;
+      const matchType = 
+        selectedType === 'ALL' ? true :
+        selectedType === 'BRANCHES_ONLY' ? Boolean(c.parentCompanyId) :
+        !c.parentCompanyId; // 'MAIN_ONLY' (por defecto: muestra empresas clientes y matrices principales)
+
+      return matchSearch && matchPlan && matchStatus && matchBillingCycle && matchType;
     });
-  }, [companies, searchTerm, selectedPlan, selectedStatus, selectedBillingCycle]);
+  }, [companies, searchTerm, selectedPlan, selectedStatus, selectedBillingCycle, selectedType]);
 
   // Empresas con Plazo de Gracia Vencido (Alerta de Prioridad Alta)
   const expiredCompanies = useMemo(() => {
@@ -2195,7 +2202,18 @@ PAIN - Sistema de Control y Asistencia Facial`;
           />
         </div>
 
-        <div style={{ display: 'flex', gap: '0.75rem' }}>
+        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <select 
+            value={selectedType} 
+            onChange={(e) => setSelectedType(e.target.value)}
+            style={{ ...selectFilterStyle, borderColor: selectedType !== 'MAIN_ONLY' ? '#f97316' : '#27272a' }}
+            title="Filtrar por tipo de cuenta (Matriz o Sucursal)"
+          >
+            <option value="MAIN_ONLY">Solo Clientes / Matrices</option>
+            <option value="ALL">Todas (con Sucursales Hijas)</option>
+            <option value="BRANCHES_ONLY">Solo Sucursales Hijas</option>
+          </select>
+
           <select 
             value={selectedPlan} 
             onChange={(e) => setSelectedPlan(e.target.value)}
@@ -2339,6 +2357,19 @@ PAIN - Sistema de Control y Asistencia Facial`;
                                 border: '1px solid rgba(16, 185, 129, 0.3)'
                               }}>
                                 Holding ({comp._count?.branches || 0} sucursales)
+                              </span>
+                            )}
+                            {comp.parentCompanyId && (
+                              <span style={{ 
+                                padding: '0.1rem 0.45rem', 
+                                borderRadius: '4px', 
+                                fontSize: '0.68rem', 
+                                fontWeight: 700, 
+                                color: '#38bdf8', 
+                                background: 'rgba(56, 189, 248, 0.15)',
+                                border: '1px solid rgba(56, 189, 248, 0.3)'
+                              }}>
+                                Sucursal de: {comp.parentCompany?.name || 'Holding'}
                               </span>
                             )}
                           </div>
@@ -2659,6 +2690,11 @@ PAIN - Sistema de Control y Asistencia Facial`;
                           {comp.isHolding && (
                             <span style={{ fontSize: '0.68rem', color: '#10b981', background: 'rgba(16, 185, 129, 0.15)', padding: '0.05rem 0.35rem', borderRadius: '4px', fontWeight: 600 }}>
                               Holding ({comp._count?.branches || 0} sucursales)
+                            </span>
+                          )}
+                          {comp.parentCompanyId && (
+                            <span style={{ fontSize: '0.68rem', color: '#38bdf8', background: 'rgba(56, 189, 248, 0.15)', border: '1px solid rgba(56, 189, 248, 0.3)', padding: '0.05rem 0.35rem', borderRadius: '4px', fontWeight: 600 }}>
+                              Sucursal de: {comp.parentCompany?.name || 'Holding'}
                             </span>
                           )}
                         </div>
@@ -3877,6 +3913,25 @@ PAIN - Sistema de Control y Asistencia Facial`;
               >
                 Departamentos y Turnos
               </button>
+              <button
+                onClick={() => setDetailTab('branches')}
+                style={{
+                  padding: '0.5rem 1rem',
+                  background: 'none',
+                  border: 'none',
+                  borderBottom: detailTab === 'branches' ? '2px solid #f97316' : '2px solid transparent',
+                  color: detailTab === 'branches' ? '#fff' : '#a1a1aa',
+                  fontWeight: 600,
+                  fontSize: '0.88rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.35rem'
+                }}
+              >
+                <Building2 size={15} />
+                Sucursales ({detailData?.branches?.length ?? detailCompany._count?.branches ?? 0})
+              </button>
             </div>
 
             {/* Contenido según pestaña */}
@@ -4234,7 +4289,7 @@ PAIN - Sistema de Control y Asistencia Facial`;
                   ))
                 )}
               </div>
-            ) : (
+            ) : detailTab === 'structure' ? (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                 <div style={{ background: '#18181b', border: '1px solid #27272a', borderRadius: '10px', padding: '1.25rem' }}>
                   <h4 style={{ margin: '0 0 1rem', color: '#fff', fontSize: '0.9rem' }}>
@@ -4272,7 +4327,250 @@ PAIN - Sistema de Control y Asistencia Facial`;
                   )}
                 </div>
               </div>
-            )}
+            ) : detailTab === 'branches' ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                {/* Banner de Estado / Jerarquía */}
+                {detailCompany.parentCompanyId ? (
+                  <div style={{
+                    padding: '0.9rem 1.25rem',
+                    background: 'rgba(56, 189, 248, 0.08)',
+                    border: '1px solid rgba(56, 189, 248, 0.25)',
+                    borderRadius: '10px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '1rem'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                      <Building2 size={20} style={{ color: '#38bdf8', flexShrink: 0 }} />
+                      <div>
+                        <div style={{ color: '#38bdf8', fontWeight: 600, fontSize: '0.88rem' }}>
+                          Sucursal Dependiente de Holding
+                        </div>
+                        <div style={{ color: '#94a3b8', fontSize: '0.8rem', marginTop: '0.15rem' }}>
+                          Esta sucursal pertenece a la empresa matriz <strong>{detailCompany.parentCompany?.name || 'Holding'}</strong>.
+                        </div>
+                      </div>
+                    </div>
+                    {detailCompany.parentCompany && (
+                      <button
+                        type="button"
+                        onClick={() => openCompanyDetails(detailCompany.parentCompany)}
+                        style={{
+                          background: 'rgba(56, 189, 248, 0.15)',
+                          border: '1px solid rgba(56, 189, 248, 0.35)',
+                          color: '#38bdf8',
+                          padding: '0.4rem 0.8rem',
+                          borderRadius: '6px',
+                          fontSize: '0.8rem',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        Ver Empresa Matriz <ArrowUpRight size={14} />
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div style={{
+                    padding: '0.9rem 1.25rem',
+                    background: 'rgba(16, 185, 129, 0.08)',
+                    border: '1px solid rgba(16, 185, 129, 0.25)',
+                    borderRadius: '10px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: '0.75rem'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                      <Building2 size={20} style={{ color: '#10b981', flexShrink: 0 }} />
+                      <div>
+                        <div style={{ color: '#10b981', fontWeight: 600, fontSize: '0.88rem' }}>
+                          Red de Sucursales de {detailCompany.name}
+                        </div>
+                        <div style={{ color: '#94a3b8', fontSize: '0.8rem', marginTop: '0.15rem' }}>
+                          {detailData?.branches?.length || 0} sucursal(es) registrada(s) de un cupo contratado de {detailCompany.maxBranches || 1} sucursales.
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                      <span style={{
+                        padding: '0.25rem 0.65rem',
+                        borderRadius: '99px',
+                        fontSize: '0.75rem',
+                        fontWeight: 700,
+                        background: 'rgba(16, 185, 129, 0.15)',
+                        color: '#10b981',
+                        border: '1px solid rgba(16, 185, 129, 0.3)'
+                      }}>
+                        Cupo: {detailData?.branches?.length || 0} / {detailCompany.maxBranches || 1}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Listado de Sucursales */}
+                {(!detailData?.branches || detailData.branches.length === 0) ? (
+                  <div style={{
+                    textAlign: 'center',
+                    padding: '3rem 2rem',
+                    background: '#18181b',
+                    border: '1px solid #27272a',
+                    borderRadius: '10px',
+                    color: '#71717a'
+                  }}>
+                    <Building2 size={36} style={{ margin: '0 auto 0.75rem', opacity: 0.3, color: '#f97316' }} />
+                    <h4 style={{ margin: '0 0 0.4rem', color: '#d4d4d8', fontSize: '0.95rem' }}>
+                      Sin sucursales registradas
+                    </h4>
+                    <p style={{ margin: 0, fontSize: '0.82rem', maxWidth: '460px', marginLeft: 'auto', marginRight: 'auto', lineHeight: '1.4' }}>
+                      {detailCompany.isHolding || detailCompany.plan === 'CUSTOM'
+                        ? 'Esta empresa matriz aún no ha dado de alta sucursales hijas. Su administrador corporativo puede crearlas desde el panel "Mis Sucursales".'
+                        : `Esta empresa opera en modalidad mono-sucursal (Plan ${detailCompany.plan}). Las empresas con Plan Personalizado (CUSTOM) tienen habilitada la gestión multi-sucursal.`}
+                    </p>
+                  </div>
+                ) : (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(310px, 1fr))', gap: '1rem' }}>
+                    {detailData.branches.map(branch => {
+                      const branchAdmin = branch.adminUsers?.[0];
+                      return (
+                        <div
+                          key={branch.id}
+                          style={{
+                            background: '#18181b',
+                            border: '1px solid #27272a',
+                            borderRadius: '10px',
+                            padding: '1.25rem',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            justifyContent: 'space-between',
+                            gap: '1rem'
+                          }}
+                        >
+                          <div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem', marginBottom: '0.4rem' }}>
+                              <strong style={{ color: '#fff', fontSize: '0.95rem', wordBreak: 'break-word' }}>
+                                {branch.name}
+                              </strong>
+                              <span style={{
+                                padding: '0.15rem 0.5rem',
+                                borderRadius: '99px',
+                                fontSize: '0.72rem',
+                                fontWeight: 700,
+                                color: branch.isActive ? '#10b981' : '#ef4444',
+                                background: branch.isActive ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)',
+                                border: branch.isActive ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid rgba(239, 68, 68, 0.3)',
+                                flexShrink: 0
+                              }}>
+                                {branch.isActive ? 'Activa' : 'Inactiva'}
+                              </span>
+                            </div>
+
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.75rem' }}>
+                              <code style={{ fontSize: '0.75rem', color: '#f97316' }}>{branch.slug}</code>
+                              <span style={{ color: '#52525b', fontSize: '0.75rem' }}>·</span>
+                              <span style={{ color: '#71717a', fontSize: '0.72rem' }}>{branch.timezone || 'America/Mexico_City'}</span>
+                            </div>
+
+                            {/* Administrador Local */}
+                            <div style={{
+                              background: '#121214',
+                              border: '1px solid #27272a',
+                              borderRadius: '6px',
+                              padding: '0.6rem 0.75rem',
+                              marginBottom: '0.85rem'
+                            }}>
+                              <div style={{ color: '#71717a', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.2rem' }}>
+                                Admin Local Asignado
+                              </div>
+                              {branchAdmin ? (
+                                <div>
+                                  <div style={{ color: '#fff', fontSize: '0.82rem', fontWeight: 600 }}>{branchAdmin.name}</div>
+                                  <div style={{ color: '#38bdf8', fontSize: '0.75rem' }}>{branchAdmin.email}</div>
+                                </div>
+                              ) : (
+                                <span style={{ color: '#52525b', fontSize: '0.78rem', fontStyle: 'italic' }}>
+                                  Sin administrador local registrado
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Métricas de Sucursal */}
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', fontSize: '0.78rem' }}>
+                              <div style={{ background: '#27272a33', padding: '0.4rem 0.6rem', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#d4d4d8' }}>
+                                <Users size={14} style={{ color: '#f97316' }} />
+                                <span><strong>{branch._count?.employees || 0}</strong> emp</span>
+                              </div>
+                              <div style={{ background: '#27272a33', padding: '0.4rem 0.6rem', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#a855f7' }}>
+                                <Monitor size={14} style={{ color: '#a855f7' }} />
+                                <span><strong>{branch._count?.devices || 0}</strong> kioscos</span>
+                              </div>
+                              <div style={{ background: '#27272a33', padding: '0.4rem 0.6rem', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#d4d4d8' }}>
+                                <span style={{ color: '#10b981', fontWeight: 700 }}>D</span>
+                                <span><strong>{branch._count?.departments || 0}</strong> depts</span>
+                              </div>
+                              <div style={{ background: '#27272a33', padding: '0.4rem 0.6rem', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#d4d4d8' }}>
+                                <Clock size={14} style={{ color: '#38bdf8' }} />
+                                <span><strong>{branch._count?.shifts || 0}</strong> turnos</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Acciones de la sucursal */}
+                          <div style={{ display: 'flex', gap: '0.5rem', borderTop: '1px solid #27272a', paddingTop: '0.75rem', marginTop: '0.25rem' }}>
+                            <button
+                              type="button"
+                              onClick={() => openCompanyDetails(branch)}
+                              style={{
+                                flex: 1,
+                                padding: '0.45rem',
+                                background: 'rgba(249, 115, 22, 0.1)',
+                                border: '1px solid rgba(249, 115, 22, 0.3)',
+                                color: '#f97316',
+                                borderRadius: '6px',
+                                fontSize: '0.78rem',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '0.35rem'
+                              }}
+                            >
+                              <Eye size={13} /> Ver Ficha
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => openCredentialModal(branch)}
+                              style={{
+                                padding: '0.45rem 0.65rem',
+                                background: 'rgba(16, 185, 129, 0.1)',
+                                border: '1px solid rgba(16, 185, 129, 0.3)',
+                                color: '#10b981',
+                                borderRadius: '6px',
+                                fontSize: '0.78rem',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.3rem'
+                              }}
+                              title="Credenciales de esta sucursal"
+                            >
+                              <Key size={13} />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            ) : null}
 
             {/* Barra de Acciones de la Ficha */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid rgba(255, 255, 255, 0.08)', paddingTop: '1.5rem', marginTop: '1.75rem', flexWrap: 'wrap', gap: '0.75rem' }}>

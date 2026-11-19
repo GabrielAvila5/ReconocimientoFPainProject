@@ -97,6 +97,9 @@ router.get('/', async (req, res) => {
     const companies = await prisma.company.findMany({
       orderBy: { createdAt: 'desc' },
       include: {
+        parentCompany: {
+          select: { id: true, name: true, slug: true }
+        },
         adminUsers: {
           select: { id: true, name: true, email: true, role: true, createdAt: true },
           take: 3
@@ -358,6 +361,9 @@ router.get('/:id', async (req, res) => {
         devices: {
           select: { id: true, name: true, type: true, status: true, ipAddress: true, isActive: true, createdAt: true, lastSeenAt: true }
         },
+        parentCompany: {
+          select: { id: true, name: true, slug: true }
+        },
         branches: {
           select: {
             id: true,
@@ -366,8 +372,15 @@ router.get('/:id', async (req, res) => {
             isActive: true,
             timezone: true,
             createdAt: true,
-            _count: { select: { employees: true, devices: true } }
-          }
+            maxEmployees: true,
+            maxDevices: true,
+            adminUsers: {
+              select: { id: true, name: true, email: true, role: true },
+              take: 2
+            },
+            _count: { select: { employees: true, devices: true, departments: true, shifts: true } }
+          },
+          orderBy: { createdAt: 'desc' }
         },
         _count: {
           select: {
