@@ -5,6 +5,7 @@ const { requireAuth, requireSuperAdmin } = require('../auth/auth.middleware');
 const prisma = require('../../utils/prisma');
 const { runWithTenantContext } = require('../../middlewares/tenantContext');
 const { findAdminByEmailForLogin } = require('../../utils/authHelpers');
+const { calculateNextBillingDate } = require('../../utils/dbMigrations');
 
 // Exclusivo para Super Admin (Regla Zero-Trust: requiere SUPER_ADMIN y DEFAULT_PLATFORM_COMPANY_ID)
 router.use(requireAuth);
@@ -52,7 +53,7 @@ async function checkAndTriggerSuspensionAlerts() {
           await prisma.notification.create({
             data: {
               companyId: comp.id,
-              title: `🚨 PRIORIDAD ALTA: Plazo de gracia vencido (${comp.name})`,
+              title: `[PRIORIDAD ALTA] Plazo de gracia vencido (${comp.name})`,
               message: `El plazo de baja temporal de ${comp.suspensionGraceDays || 30} días por falta de pago ha concluido. Requiere acción manual del administrador para baja definitiva bajo protocolo ARCO.`,
               type: 'ERROR',
               category: 'security',
@@ -136,8 +137,49 @@ router.get('/', async (req, res) => {
           ? Math.ceil(msRemaining / (1000 * 60 * 60 * 24)) 
           : null;
 
+        const isExempt = Boolean(
+          comp.isExempt || 
+          comp.id === 'default-company-pain' || 
+          comp.slug === 'pain' || 
+          (comp.billingCycle || '').toUpperCase() === 'EXENTO'
+        );
+
+        const billingNoticeDays = comp.billingNoticeDays || 15;
+        let diffDaysBilling = null;
+        let isBillingDueSoon = false;
+        let isBillingPastDue = false;
+        let nextBilling = null;
+
+        if (!isExempt) {
+          const billingCycle = comp.billingCycle || 'MENSUAL';
+          nextBilling = comp.nextBillingDate 
+            ? new Date(comp.nextBillingDate) 
+            : calculateNextBillingDate(comp.createdAt, billingCycle);
+          
+          diffDaysBilling = Math.ceil((nextBilling.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+          isBillingDueSoon = diffDaysBilling <= billingNoticeDays && diffDaysBilling >= 0;
+          isBillingPastDue = diffDaysBilling < 0;
+        }
+
+        const billingEmail = comp.billingEmail || comp.adminUsers?.[0]?.email || null;
+        const billingPhone = comp.billingPhone || null;
+        const billingContactName = comp.billingContactName || null;
+        const lastReminderSentAt = comp.lastReminderSentAt || null;
+
         return {
           ...comp,
+          isExempt,
+          billingCycle: isExempt ? 'EXENTO' : (comp.billingCycle || 'MENSUAL'),
+          nextBillingDate: isExempt ? null : nextBilling,
+          licenseStartDate: comp.licenseStartDate || comp.createdAt,
+          billingEmail,
+          billingPhone,
+          billingContactName,
+          billingNoticeDays,
+          lastReminderSentAt,
+          diffDaysBilling,
+          isBillingDueSoon,
+          isBillingPastDue,
           isGraceExpired: !!isGraceExpired,
           daysRemaining,
           msRemaining,
@@ -153,6 +195,139 @@ router.get('/', async (req, res) => {
   } catch (error) {
     console.error('Error al listar empresas:', error);
     res.status(500).json({ error: 'Error al listar empresas' });
+  }
+});
+
+/**
+ * GET /api/v1/companies/upcoming-payments
+ * Listado consolidado de cobranza, licencias por vencer y métricas de ingresos proyectados (Super Admin)
+ */
+router.get('/upcoming-payments', async (req, res) => {
+  try {
+    const companies = await prisma.company.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: {
+        adminUsers: {
+          select: { id: true, name: true, email: true, role: true },
+          take: 2
+        },
+        _count: {
+          select: { employees: true, devices: true }
+        }
+      }
+    });
+
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12, 0, 0);
+
+    const PRICING_ESTIMATES = {
+      STARTER: 990,
+      PRO: 2490,
+      ENTERPRISE: 5990,
+      CUSTOM: 9990
+    };
+
+    let totalProjectedMonthly = 0;
+    let countPastDue = 0;
+    let countDueSoon = 0;
+    let countCurrent = 0;
+    let countExempt = 0;
+
+    const list = companies.map(comp => {
+      const isExempt = Boolean(
+        comp.isExempt || 
+        comp.id === 'default-company-pain' || 
+        comp.slug === 'pain' || 
+        (comp.billingCycle || '').toUpperCase() === 'EXENTO'
+      );
+
+      const billingNoticeDays = comp.billingNoticeDays || 15;
+      const billingEmail = comp.billingEmail || comp.adminUsers?.[0]?.email || null;
+      const billingPhone = comp.billingPhone || null;
+      const billingContactName = comp.billingContactName || comp.adminUsers?.[0]?.name || null;
+      const lastReminderSentAt = comp.lastReminderSentAt || null;
+
+      let diffDays = null;
+      let status = 'current'; // 'expired' | 'due_today' | 'due_soon' | 'current' | 'exempt'
+      let nextBilling = null;
+      let monthlyEstimate = 0;
+
+      if (isExempt) {
+        status = 'exempt';
+        countExempt++;
+      } else {
+        const billingCycle = comp.billingCycle || 'MENSUAL';
+        nextBilling = comp.nextBillingDate 
+          ? new Date(comp.nextBillingDate) 
+          : calculateNextBillingDate(comp.createdAt, billingCycle);
+
+        const target = new Date(nextBilling.getFullYear(), nextBilling.getMonth(), nextBilling.getDate(), 12, 0, 0);
+        diffDays = Math.round((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+        const basePrice = comp.customPrice !== null && comp.customPrice !== undefined 
+          ? Number(comp.customPrice) 
+          : (PRICING_ESTIMATES[comp.plan] || 990);
+
+        if (billingCycle === 'ANUAL') monthlyEstimate = Math.round(basePrice / 12);
+        else if (billingCycle === 'SEMESTRAL') monthlyEstimate = Math.round(basePrice / 6);
+        else if (billingCycle === 'TRIMESTRAL') monthlyEstimate = Math.round(basePrice / 3);
+        else monthlyEstimate = basePrice;
+
+        totalProjectedMonthly += monthlyEstimate;
+
+        if (diffDays < 0) {
+          status = 'expired';
+          countPastDue++;
+        } else if (diffDays === 0) {
+          status = 'due_today';
+          countDueSoon++;
+        } else if (diffDays <= billingNoticeDays) {
+          status = 'due_soon';
+          countDueSoon++;
+        } else {
+          status = 'current';
+          countCurrent++;
+        }
+      }
+
+      return {
+        id: comp.id,
+        name: comp.name,
+        slug: comp.slug,
+        plan: comp.plan,
+        isActive: comp.isActive,
+        isExempt,
+        billingCycle: isExempt ? 'EXENTO' : (comp.billingCycle || 'MENSUAL'),
+        licenseStartDate: comp.licenseStartDate || comp.createdAt,
+        nextBillingDate: isExempt ? null : nextBilling,
+        billingEmail,
+        billingPhone,
+        billingContactName,
+        billingNoticeDays,
+        lastReminderSentAt,
+        diffDays,
+        status,
+        monthlyEstimate,
+        customPrice: comp.customPrice,
+        employeesCount: comp._count?.employees || 0,
+        devicesCount: comp._count?.devices || 0
+      };
+    });
+
+    res.json({
+      summary: {
+        total: companies.length,
+        pastDue: countPastDue,
+        dueSoon: countDueSoon,
+        current: countCurrent,
+        exempt: countExempt,
+        totalProjectedMonthly
+      },
+      companies: list
+    });
+  } catch (error) {
+    console.error('Error al obtener próximos pagos:', error);
+    res.status(500).json({ error: 'Error al consultar próximos pagos y cobranza' });
   }
 });
 
@@ -231,8 +406,49 @@ router.get('/:id', async (req, res) => {
       ? Math.ceil(msRemaining / (1000 * 60 * 60 * 24)) 
       : null;
 
+    const isExempt = Boolean(
+      company.isExempt || 
+      company.id === 'default-company-pain' || 
+      company.slug === 'pain' || 
+      (company.billingCycle || '').toUpperCase() === 'EXENTO'
+    );
+
+    const billingNoticeDays = company.billingNoticeDays || 15;
+    let diffDaysBilling = null;
+    let isBillingDueSoon = false;
+    let isBillingPastDue = false;
+    let nextBilling = null;
+
+    if (!isExempt) {
+      const billingCycle = company.billingCycle || 'MENSUAL';
+      nextBilling = company.nextBillingDate 
+        ? new Date(company.nextBillingDate) 
+        : calculateNextBillingDate(company.createdAt, billingCycle);
+      
+      diffDaysBilling = Math.ceil((nextBilling.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+      isBillingDueSoon = diffDaysBilling <= billingNoticeDays && diffDaysBilling >= 0;
+      isBillingPastDue = diffDaysBilling < 0;
+    }
+
+    const billingEmail = company.billingEmail || company.adminUsers?.[0]?.email || null;
+    const billingPhone = company.billingPhone || null;
+    const billingContactName = company.billingContactName || null;
+    const lastReminderSentAt = company.lastReminderSentAt || null;
+
     res.json({
       ...company,
+      isExempt,
+      billingCycle: isExempt ? 'EXENTO' : (company.billingCycle || 'MENSUAL'),
+      nextBillingDate: isExempt ? null : nextBilling,
+      licenseStartDate: company.licenseStartDate || company.createdAt,
+      billingEmail,
+      billingPhone,
+      billingContactName,
+      billingNoticeDays,
+      lastReminderSentAt,
+      diffDaysBilling,
+      isBillingDueSoon,
+      isBillingPastDue,
       isGraceExpired: !!isGraceExpired,
       daysRemaining,
       msRemaining,
@@ -263,6 +479,14 @@ router.post('/', async (req, res) => {
     customPrice,
     timezone = 'America/Mexico_City',
     customDomain,
+    billingCycle = 'MENSUAL',
+    licenseStartDate,
+    nextBillingDate,
+    isExempt = false,
+    billingEmail,
+    billingPhone,
+    billingContactName,
+    billingNoticeDays = 15,
     adminName,
     adminEmail,
     adminPassword
@@ -360,6 +584,24 @@ router.post('/', async (req, res) => {
       }
     }
 
+    const isExemptCompany = Boolean(isExempt);
+    const normalizedBillingCycle = isExemptCompany
+      ? 'EXENTO'
+      : (['MENSUAL', 'TRIMESTRAL', 'SEMESTRAL', 'ANUAL'].includes(String(billingCycle || '').toUpperCase())
+        ? String(billingCycle).toUpperCase()
+        : 'MENSUAL');
+
+    const computedStartDate = licenseStartDate ? new Date(licenseStartDate) : new Date();
+    const computedNextBilling = isExemptCompany 
+      ? null 
+      : (nextBillingDate 
+          ? new Date(nextBillingDate) 
+          : calculateNextBillingDate(computedStartDate, normalizedBillingCycle));
+
+    const parsedNoticeDays = Number.isInteger(Number(billingNoticeDays)) && Number(billingNoticeDays) > 0 
+      ? Number(billingNoticeDays) 
+      : 15;
+
     // 4. Crear registro Company
     createdCompany = await prisma.company.create({
       data: {
@@ -373,6 +615,14 @@ router.post('/', async (req, res) => {
         customPrice: parsedCustomPrice,
         timezone: timezone || 'America/Mexico_City',
         customDomain: customDomain ? customDomain.trim().toLowerCase() : null,
+        isExempt: isExemptCompany,
+        billingCycle: normalizedBillingCycle,
+        licenseStartDate: computedStartDate,
+        nextBillingDate: computedNextBilling,
+        billingEmail: billingEmail && typeof billingEmail === 'string' ? billingEmail.trim().toLowerCase() : null,
+        billingPhone: billingPhone && typeof billingPhone === 'string' ? billingPhone.trim() : null,
+        billingContactName: billingContactName && typeof billingContactName === 'string' ? billingContactName.trim() : null,
+        billingNoticeDays: parsedNoticeDays,
         isActive: true
       }
     });
@@ -461,7 +711,25 @@ router.post('/', async (req, res) => {
 router.patch('/:id', async (req, res) => {
   try {
     const companyId = req.params.id;
-    const { name, plan, maxEmployees, maxDevices, maxBranches, isHolding, customPrice, timezone, customDomain } = req.body;
+    const { 
+      name, 
+      plan, 
+      maxEmployees, 
+      maxDevices, 
+      maxBranches, 
+      isHolding, 
+      customPrice, 
+      timezone, 
+      customDomain, 
+      billingCycle, 
+      nextBillingDate, 
+      licenseStartDate,
+      isExempt,
+      billingEmail,
+      billingPhone,
+      billingContactName,
+      billingNoticeDays
+    } = req.body;
 
     if (!companyId) {
       return res.status(400).json({ error: 'ID de empresa inválido' });
@@ -494,13 +762,69 @@ router.patch('/:id', async (req, res) => {
       dataToUpdate.isHolding = isHolding;
     }
     if (customPrice !== undefined) {
-      dataToUpdate.customPrice = customPrice === null ? null : Number(customPrice);
+      const parsedPrice = (customPrice === null || customPrice === '' || isNaN(Number(customPrice))) ? null : Number(customPrice);
+      dataToUpdate.customPrice = (plan === 'CUSTOM' || currentCompany.plan === 'CUSTOM') ? parsedPrice : null;
     }
     if (timezone && typeof timezone === 'string') {
       dataToUpdate.timezone = timezone.trim();
     }
     if (customDomain !== undefined) {
       dataToUpdate.customDomain = customDomain ? customDomain.trim().toLowerCase() : null;
+    }
+
+    // Manejo de exención de pago
+    if (typeof isExempt === 'boolean') {
+      dataToUpdate.isExempt = isExempt;
+      if (isExempt) {
+        dataToUpdate.billingCycle = 'EXENTO';
+        dataToUpdate.nextBillingDate = null;
+      }
+    }
+
+    // Si no está exenta (o se desactivó la exención)
+    if (!dataToUpdate.isExempt && currentCompany.isExempt !== true) {
+      if (billingCycle && ['MENSUAL', 'TRIMESTRAL', 'SEMESTRAL', 'ANUAL'].includes(billingCycle.toUpperCase())) {
+        dataToUpdate.billingCycle = billingCycle.toUpperCase();
+        if (!nextBillingDate && currentCompany.billingCycle !== billingCycle.toUpperCase()) {
+          dataToUpdate.nextBillingDate = calculateNextBillingDate(currentCompany.nextBillingDate || currentCompany.createdAt, billingCycle.toUpperCase());
+        }
+      }
+      if (nextBillingDate !== undefined) {
+        if (!nextBillingDate) {
+          dataToUpdate.nextBillingDate = null;
+        } else {
+          const d = new Date(nextBillingDate);
+          dataToUpdate.nextBillingDate = isNaN(d.getTime()) ? null : d;
+        }
+      }
+    } else if (dataToUpdate.isExempt === false && currentCompany.isExempt === true) {
+      // Pasó de exenta a con cobro
+      const cycle = billingCycle || 'MENSUAL';
+      dataToUpdate.billingCycle = cycle;
+      dataToUpdate.nextBillingDate = nextBillingDate ? new Date(nextBillingDate) : calculateNextBillingDate(new Date(), cycle);
+    }
+
+    if (billingEmail !== undefined) {
+      dataToUpdate.billingEmail = billingEmail && typeof billingEmail === 'string' ? billingEmail.trim().toLowerCase() : null;
+    }
+    if (billingPhone !== undefined) {
+      dataToUpdate.billingPhone = billingPhone && typeof billingPhone === 'string' ? billingPhone.trim() : null;
+    }
+    if (billingContactName !== undefined) {
+      dataToUpdate.billingContactName = billingContactName && typeof billingContactName === 'string' ? billingContactName.trim() : null;
+    }
+    if (billingNoticeDays !== undefined) {
+      const parsedDays = Number(billingNoticeDays);
+      dataToUpdate.billingNoticeDays = Number.isInteger(parsedDays) && parsedDays > 0 ? parsedDays : 15;
+    }
+
+    if (licenseStartDate !== undefined) {
+      if (!licenseStartDate) {
+        dataToUpdate.licenseStartDate = null;
+      } else {
+        const d = new Date(licenseStartDate);
+        dataToUpdate.licenseStartDate = isNaN(d.getTime()) ? null : d;
+      }
     }
 
     const updated = await prisma.company.update({
@@ -529,7 +853,278 @@ router.patch('/:id', async (req, res) => {
     });
   } catch (error) {
     console.error('Error al actualizar empresa:', error);
-    res.status(500).json({ error: 'Error al actualizar empresa' });
+    res.status(500).json({ error: error.message || 'Error al actualizar empresa' });
+  }
+});
+
+/**
+ * POST /api/v1/companies/:id/renew-license
+ * Registra el pago y renovación de licencia de la empresa, extendiendo nextBillingDate un ciclo completo.
+ */
+router.post('/:id/renew-license', async (req, res) => {
+  try {
+    const companyId = req.params.id;
+    const { customNextBillingDate, notes } = req.body || {};
+
+    const company = await prisma.company.findUnique({
+      where: { id: companyId }
+    });
+
+    if (!company) {
+      return res.status(404).json({ error: 'Empresa no encontrada' });
+    }
+
+    const isExempt = Boolean(
+      company.isExempt || 
+      company.id === 'default-company-pain' || 
+      company.slug === 'pain' || 
+      (company.billingCycle || '').toUpperCase() === 'EXENTO'
+    );
+
+    if (isExempt) {
+      return res.status(400).json({ error: 'Esta empresa cuenta con licencia exenta/propietaria y no requiere renovación de pago.' });
+    }
+
+    const billingCycle = company.billingCycle || 'MENSUAL';
+    const baseDate = (company.nextBillingDate && new Date(company.nextBillingDate) > new Date())
+      ? new Date(company.nextBillingDate)
+      : new Date();
+
+    const newNextBillingDate = customNextBillingDate 
+      ? new Date(customNextBillingDate)
+      : calculateNextBillingDate(baseDate, billingCycle);
+
+    const updated = await prisma.company.update({
+      where: { id: companyId },
+      data: {
+        nextBillingDate: newNextBillingDate,
+        isActive: true // Al renovar licencia, si estaba suspendida por impago, se reactiva
+      }
+    });
+
+    // Auditoría
+    await runWithTenantContext({ companyId: updated.id, isSuperAdmin: true }, async () => {
+      await prisma.adminAuditLog.create({
+        data: {
+          action: 'RENEW_LICENSE',
+          performedById: req.user.id,
+          performedByName: req.user.name || req.user.email || 'Super Admin',
+          targetName: updated.name,
+          targetEmail: `${billingCycle} renovado hasta ${newNextBillingDate.toISOString().slice(0, 10)}${notes ? ` - ${notes}` : ''}`,
+          companyId: updated.id
+        }
+      });
+    });
+
+    res.json({
+      success: true,
+      message: `Licencia de "${updated.name}" renovada con éxito (${billingCycle}) hasta el ${newNextBillingDate.toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' })}.`,
+      company: updated
+    });
+  } catch (error) {
+    console.error('Error al renovar licencia:', error);
+    res.status(500).json({ error: 'Error interno al renovar licencia' });
+  }
+});
+
+/**
+ * POST /api/v1/companies/:id/send-payment-reminder
+ * Dispara un recordatorio de cobranza formal:
+ * 1. Genera Notification in-app de alta prioridad en el tenant del cliente
+ * 2. Actualiza lastReminderSentAt en la base de datos
+ * 3. Registra en AdminAuditLog
+ * 4. Prepara plantilla de correo (subject, bodyMessage, mailtoUrl) y enlace a WhatsApp si cuenta con teléfono
+ */
+router.post('/:id/send-payment-reminder', async (req, res) => {
+  try {
+    const companyId = req.params.id;
+    const { customSubject, customMessage, bankAccountInfo } = req.body || {};
+
+    const company = await prisma.company.findUnique({
+      where: { id: companyId },
+      include: {
+        adminUsers: {
+          select: { id: true, name: true, email: true, role: true },
+          take: 2
+        }
+      }
+    });
+
+    if (!company) {
+      return res.status(404).json({ error: 'Empresa no encontrada' });
+    }
+
+    const isExempt = Boolean(
+      company.isExempt || 
+      company.id === 'default-company-pain' || 
+      company.slug === 'pain' || 
+      (company.billingCycle || '').toUpperCase() === 'EXENTO'
+    );
+
+    if (isExempt) {
+      return res.status(400).json({ error: 'Esta empresa tiene licencia exenta/vitalicia y no genera cobros ni recordatorios.' });
+    }
+
+    const now = new Date();
+    const billingCycle = company.billingCycle || 'MENSUAL';
+    const nextBilling = company.nextBillingDate 
+      ? new Date(company.nextBillingDate) 
+      : calculateNextBillingDate(company.createdAt, billingCycle);
+
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12, 0, 0);
+    const target = new Date(nextBilling.getFullYear(), nextBilling.getMonth(), nextBilling.getDate(), 12, 0, 0);
+    const diffDays = Math.round((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+    const recipientEmail = company.billingEmail || company.adminUsers?.[0]?.email || '';
+    const recipientName = company.billingContactName || company.adminUsers?.[0]?.name || company.name;
+    const phone = company.billingPhone || '';
+
+    const formattedDate = nextBilling.toLocaleDateString('es-MX', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
+    });
+
+    const isExpired = diffDays < 0;
+    const isDueToday = diffDays === 0;
+
+    let defaultSubject = '';
+    let urgencyBadge = '';
+    if (isExpired) {
+      defaultSubject = `[URGENTE] Licencia Vencida - Sistema Biométrico PAIN (${company.name})`;
+      urgencyBadge = `Vencida hace ${Math.abs(diffDays)} ${Math.abs(diffDays) === 1 ? 'día' : 'días'}`;
+    } else if (isDueToday) {
+      defaultSubject = `[PAGO HOY] Aviso de Vencimiento de Licencia - ${company.name}`;
+      urgencyBadge = 'Vence Hoy';
+    } else {
+      defaultSubject = `Aviso de Próximo Pago de Licencia - ${company.name} (${diffDays} días restantes)`;
+      urgencyBadge = `Vence en ${diffDays} días`;
+    }
+
+    const subject = customSubject?.trim() || defaultSubject;
+
+    const bankDetails = bankAccountInfo || `Datos para Transferencia (SPEI):
+Banco: BBVA México
+Beneficiario: PAIN Biometría y Sistemas S.A.P.I. de C.V.
+CLABE: 012180001234567890
+Referencia / Concepto: LIC-${company.slug.toUpperCase()}`;
+
+    const bodyMessage = customMessage?.trim() || (isExpired
+      ? `Estimado(a) ${recipientName}:
+
+Le informamos que la licencia de uso del Sistema de Asistencia Facial PAIN para la empresa "${company.name}" (Plan ${company.plan}) ha vencido el pasado ${formattedDate} (${Math.abs(diffDays)} días de mora).
+
+Para mantener la operatividad ininterrumpida de sus kioscos biométricos y evitar la suspensión temporal del servicio, le solicitamos atentamente realizar la liquidación de su cuota ${billingCycle.toLowerCase()}.
+
+${bankDetails}
+
+Una vez realizado su pago, por favor comparta el comprobante respondiendo a este mensaje para aplicar la renovación inmediata.
+
+Atentamente,
+Departamento de Cobranza y Licenciamiento
+PAIN - Sistema de Control y Asistencia Facial`
+      : `Estimado(a) ${recipientName}:
+
+Esperamos que se encuentre muy bien. Le enviamos un cordial recordatorio de que la licencia de uso del Sistema de Asistencia Facial PAIN para la empresa "${company.name}" (Plan ${company.plan} - ${billingCycle}) tiene programado su próximo pago el día:
+
+📅 ${formattedDate} (${diffDays === 0 ? 'HOY' : `en ${diffDays} días`})
+
+Agradecemos programar su pago con anticipación para asegurar la continuidad de su servicio y sincronización biométrica sin interrupciones.
+
+${bankDetails}
+
+Una vez efectuada la transferencia, favor de enviar su comprobante por este medio.
+
+Agradecemos su confianza.
+Atentamente,
+Departamento de Cobranza y Licenciamiento
+PAIN - Sistema de Control y Asistencia Facial`);
+
+    // 1. Guardar notificación interna en la plataforma para los administradores de la empresa
+    await runWithTenantContext({ companyId: company.id, isSuperAdmin: true }, async () => {
+      await prisma.notification.create({
+        data: {
+          companyId: company.id,
+          title: isExpired ? `[URGENTE] Licencia Vencida (${company.name})` : `Recordatorio de Cuota de Licencia (${company.name})`,
+          message: isExpired
+            ? `Su licencia venció hace ${Math.abs(diffDays)} días. Favor de regularizar su pago para evitar la suspensión temporal de los kioscos biométricos.`
+            : `Su próximo pago de licencia (${billingCycle}) vence el ${formattedDate} (${diffDays === 0 ? 'hoy' : `en ${diffDays} días`}).`,
+          type: isExpired ? 'ERROR' : 'WARNING',
+          category: 'system',
+          entityId: company.id
+        }
+      });
+    });
+
+    // 2. Actualizar fecha de último recordatorio enviado
+    const updatedCompany = await prisma.company.update({
+      where: { id: companyId },
+      data: {
+        lastReminderSentAt: now
+      }
+    });
+
+    // 3. Registrar en Auditoría
+    const adminIdentity = req.user.name ? `${req.user.name} (${req.user.email})` : (req.user.email || 'Super Admin');
+    await runWithTenantContext({ companyId: company.id, isSuperAdmin: true }, async () => {
+      await prisma.adminAuditLog.create({
+        data: {
+          action: 'SEND_PAYMENT_REMINDER',
+          performedById: req.user.id,
+          performedByName: adminIdentity,
+          targetName: company.name,
+          targetEmail: recipientEmail || 'Sin correo',
+          companyId: company.id
+        }
+      });
+    });
+
+    // 4. Preparar URLs directas para webmail (Gmail, Outlook) y cliente de correo local
+    const gmailUrl = recipientEmail 
+      ? `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(recipientEmail)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(bodyMessage)}`
+      : null;
+
+    const outlookUrl = recipientEmail
+      ? `https://outlook.live.com/mail/0/deeplink/compose?to=${encodeURIComponent(recipientEmail)}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(bodyMessage)}`
+      : null;
+
+    const mailtoUrl = recipientEmail 
+      ? `mailto:${encodeURIComponent(recipientEmail)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(bodyMessage)}`
+      : null;
+
+    let whatsappUrl = null;
+    if (phone) {
+      const cleanPhone = phone.replace(/[^0-9]/g, '');
+      if (cleanPhone.length >= 10) {
+        whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(`${subject}\n\n${bodyMessage}`)}`;
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `Recordatorio registrado exitosamente para "${company.name}". Notificación emitida en el sistema.`,
+      company: updatedCompany,
+      reminder: {
+        recipientEmail,
+        recipientName,
+        phone,
+        subject,
+        bodyMessage,
+        diffDays,
+        urgencyBadge,
+        nextBillingDate: nextBilling,
+        formattedDate,
+        sentAt: now,
+        gmailUrl,
+        outlookUrl,
+        mailtoUrl,
+        whatsappUrl
+      }
+    });
+  } catch (error) {
+    console.error('Error al enviar recordatorio de pago:', error);
+    res.status(500).json({ error: error.message || 'Error al enviar recordatorio de pago' });
   }
 });
 
@@ -739,7 +1334,7 @@ router.patch('/:id/grace-period', async (req, res) => {
 router.post('/:id/reset-admin-password', async (req, res) => {
   try {
     const companyId = req.params.id;
-    const { newPassword } = req.body;
+    const { newPassword, adminEmail, adminId } = req.body;
 
     if (!companyId) {
       return res.status(400).json({ error: 'ID de empresa inválido' });
@@ -749,11 +1344,7 @@ router.post('/:id/reset-admin-password', async (req, res) => {
       where: { id: companyId },
       include: {
         adminUsers: {
-          where: {
-            role: { in: ['ADMIN', 'CORPORATE_ADMIN', 'SUPER_ADMIN'] }
-          },
-          orderBy: { createdAt: 'asc' },
-          take: 1
+          orderBy: { createdAt: 'asc' }
         }
       }
     });
@@ -762,14 +1353,26 @@ router.post('/:id/reset-admin-password', async (req, res) => {
       return res.status(404).json({ error: 'Empresa no encontrada' });
     }
 
-    const admin = company.adminUsers[0];
+    if (!company.adminUsers || company.adminUsers.length === 0) {
+      return res.status(404).json({ error: 'La empresa no cuenta con usuarios administradores registrados.' });
+    }
+
+    // Buscar admin específico si fue solicitado, o tomar el primer admin disponible
+    let admin = null;
+    if (adminEmail && typeof adminEmail === 'string') {
+      admin = company.adminUsers.find(a => a.email.toLowerCase().trim() === adminEmail.toLowerCase().trim());
+    }
+    if (!admin && adminId && typeof adminId === 'string') {
+      admin = company.adminUsers.find(a => a.id === adminId);
+    }
     if (!admin) {
-      return res.status(404).json({ error: 'La empresa no cuenta con un usuario Administrador registrado.' });
+      // Priorizar roles directivos si no se especificó un admin puntual
+      admin = company.adminUsers.find(a => ['ADMIN', 'CORPORATE_ADMIN', 'SUPER_ADMIN'].includes(a.role)) || company.adminUsers[0];
     }
 
     // Generar contraseña aleatoria si no fue provista
-    let finalPassword = newPassword;
-    if (!finalPassword || typeof finalPassword !== 'string' || finalPassword.length < 6) {
+    let finalPassword = typeof newPassword === 'string' ? newPassword.trim() : '';
+    if (!finalPassword || finalPassword.length < 6) {
       const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%';
       finalPassword = '';
       for (let i = 0; i < 12; i++) {

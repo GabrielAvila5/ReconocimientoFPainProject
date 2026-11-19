@@ -1,9 +1,13 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   Download, RefreshCw, AlertCircle, Clock, CheckCircle, 
   UserX, Camera, Server, Activity, Users, Search, ChevronRight, ChevronDown,
-  Filter, Zap, ArrowUpRight, TrendingUp, Calendar, CalendarDays, FileText, CheckCircle2, X
+  Filter, Zap, ArrowUpRight, TrendingUp, Calendar, CalendarDays, FileText, CheckCircle2, X,
+  CreditCard, DollarSign, ExternalLink, ShieldCheck, CheckCheck, Send, MessageSquare, AlertTriangle, Building2,
+  Mail, Phone
 } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
 import { 
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, 
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer 
@@ -635,6 +639,98 @@ const ReportsPage = () => {
   const [eventsDeptBreakdown, setEventsDeptBreakdown] = useState([]);
   const [eventsTableData, setEventsTableData] = useState([]);
 
+  // Super Admin Billing & Collections states
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+
+  const [billingData, setBillingData] = useState(null);
+  const [loadingBilling, setLoadingBilling] = useState(false);
+  const [billingSearch, setBillingSearch] = useState('');
+  const [billingStatusFilter, setBillingStatusFilter] = useState('ALL');
+
+  const fetchBillingReport = async () => {
+    if (!isSuperAdmin) return;
+    setLoadingBilling(true);
+    try {
+      const token = localStorage.getItem('token');
+      const baseUrl = import.meta.env.VITE_API_URL || '';
+      const res = await fetch(`${baseUrl}/api/v1/companies/upcoming-payments`, {
+        headers: {
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setBillingData(data);
+      }
+    } catch (e) {
+      console.error('Error fetching billing report:', e);
+    } finally {
+      setLoadingBilling(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isSuperAdmin) {
+      fetchBillingReport();
+    }
+  }, [isSuperAdmin]);
+
+  const filteredBillingCompanies = useMemo(() => {
+    if (!billingData?.companies) return [];
+    let list = billingData.companies;
+    if (billingStatusFilter === 'EXPIRED') {
+      list = list.filter(c => c.status === 'expired');
+    } else if (billingStatusFilter === 'DUE_SOON') {
+      list = list.filter(c => c.status === 'due_soon' || c.status === 'due_today');
+    } else if (billingStatusFilter === 'CURRENT') {
+      list = list.filter(c => c.status === 'current');
+    } else if (billingStatusFilter === 'EXEMPT') {
+      list = list.filter(c => c.status === 'exempt' || c.isExempt);
+    }
+
+    if (billingSearch.trim()) {
+      const q = billingSearch.toLowerCase().trim();
+      list = list.filter(c => 
+        (c.name || '').toLowerCase().includes(q) ||
+        (c.slug || '').toLowerCase().includes(q) ||
+        (c.billingContactName || '').toLowerCase().includes(q) ||
+        (c.billingEmail || '').toLowerCase().includes(q) ||
+        (c.billingPhone || '').toLowerCase().includes(q)
+      );
+    }
+    return list;
+  }, [billingData, billingStatusFilter, billingSearch]);
+
+  const billingPlanChartData = useMemo(() => {
+    if (!billingData?.companies) return [];
+    const counts = { Starter: 0, Pro: 0, Enterprise: 0, Personalizado: 0 };
+    billingData.companies.forEach(c => {
+      const plan = (c.plan || 'STARTER').toUpperCase();
+      if (plan === 'PRO') counts.Pro++;
+      else if (plan === 'ENTERPRISE') counts.Enterprise++;
+      else if (plan === 'CUSTOM') counts.Personalizado++;
+      else counts.Starter++;
+    });
+    return [
+      { name: 'Starter', value: counts.Starter, color: '#3b82f6' },
+      { name: 'Pro', value: counts.Pro, color: '#f97316' },
+      { name: 'Enterprise', value: counts.Enterprise, color: '#a855f7' },
+      { name: 'Personalizado', value: counts.Personalizado, color: '#10b981' }
+    ].filter(item => item.value > 0);
+  }, [billingData]);
+
+  const billingStatusChartData = useMemo(() => {
+    if (!billingData?.kpis) return [];
+    return [
+      { name: 'Al corriente', value: billingData.kpis.current || 0, color: '#10b981' },
+      { name: 'Por vencer', value: billingData.kpis.dueSoon || 0, color: '#f59e0b' },
+      { name: 'Vencidas', value: billingData.kpis.pastDue || 0, color: '#ef4444' },
+      { name: 'Exentas (Matriz)', value: billingData.kpis.exempt || 0, color: '#8b5cf6' }
+    ].filter(item => item.value > 0);
+  }, [billingData]);
+
   const fetchKpis = async () => {
     try {
       setLoading(true);
@@ -810,7 +906,11 @@ const ReportsPage = () => {
 
   const handleRefresh = () => {
     setRefreshing(true);
-    fetchKpis().then(() => setRefreshing(false));
+    const promises = [fetchKpis()];
+    if (isSuperAdmin) {
+      promises.push(fetchBillingReport());
+    }
+    Promise.all(promises).finally(() => setRefreshing(false));
   };
 
   const handleFilterFromCard = (type, employeeName = null) => {
@@ -1000,11 +1100,39 @@ const ReportsPage = () => {
     const empObj = employees.find(e => e.id === selectedEmployee);
     const empName = empObj ? `${empObj.firstName} ${empObj.lastName}` : null;
     const empFileTag = empName ? `_${empName.replace(/\s+/g, '_')}` : '';
-    const tabName = activeTab === 'asistencia' ? 'Asistencia' : activeTab === 'descansos' ? 'Descansos' : activeTab === 'eventos' ? 'Eventos' : 'Dispositivos';
+    const tabName = activeTab === 'asistencia' ? 'Asistencia' : activeTab === 'descansos' ? 'Descansos' : activeTab === 'eventos' ? 'Eventos' : activeTab === 'cobranza' ? 'Cobranza_SaaS' : 'Dispositivos';
     const dateTag = dateRange.replace(/\s+/g, '_');
     let filename = `Reporte_${tabName}${empFileTag}_${dateTag}.csv`;
     
-    if (activeTab === 'asistencia') {
+    if (activeTab === 'cobranza') {
+      filename = `Reporte_Facturacion_Cobranza_SaaS_${new Date().toISOString().split('T')[0]}.csv`;
+      headers = [
+        'Empresa',
+        'Slug',
+        'Plan',
+        'Ciclo Facturacion',
+        'Ingreso Mensual Estimado (MXN)',
+        'Proxima Fecha Pago',
+        'Dias Restantes',
+        'Estado Licencia',
+        'Contacto Cobranza',
+        'Email Facturacion',
+        'Telefono Facturacion'
+      ];
+      rows = filteredBillingCompanies.map(c => [
+        c.name,
+        c.slug,
+        c.plan,
+        c.billingCycle || 'MENSUAL',
+        c.monthlyEstimate || 0,
+        c.nextBilling ? new Date(c.nextBilling).toLocaleDateString('es-MX') : 'Exenta',
+        c.diffDays !== null ? c.diffDays : 'N/A',
+        c.isExempt ? 'Exenta / Propietaria' : c.status === 'expired' ? 'Vencida' : (c.status === 'due_soon' || c.status === 'due_today') ? 'Por vencer' : 'Al corriente',
+        c.billingContactName || 'No asignado',
+        c.billingEmail || 'No asignado',
+        c.billingPhone || 'No asignado'
+      ]);
+    } else if (activeTab === 'asistencia') {
       headers = ['Empleado', 'Departamento', 'Fecha', 'Entrada Real', 'Salida Real', 'Salida Esperada', 'Horas Trabajadas', 'Horas Extra', 'Estado Asistencia'];
       rows = filteredAttTable.map(r => [r.empleado, r.departamento, r.fecha, r.entrada, r.salida, r.horaEsperadaSalida, r.horasTrabajadas || '0', r.horasExtra ? `Sí (${+(r.overtimeMinutes / 60).toFixed(1)}h)` : 'No', r.estadoAsistencia]);
     } else if (activeTab === 'descansos') {
@@ -1116,7 +1244,8 @@ const ReportsPage = () => {
       </div>
 
       {/* Global Filters */}
-      <div className="no-print" style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', background: COLORS.darker, padding: '1rem', borderRadius: '12px', border: `1px solid ${COLORS.border}`, alignItems: 'center', flexWrap: 'wrap' }}>
+      {activeTab !== 'cobranza' && (
+        <div className="no-print" style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', background: COLORS.darker, padding: '1rem', borderRadius: '12px', border: `1px solid ${COLORS.border}`, alignItems: 'center', flexWrap: 'wrap' }}>
         
         <select 
           style={{ ...selectStyle, background: '#18181b', color: '#ffffff' }} 
@@ -1522,6 +1651,7 @@ const ReportsPage = () => {
         )}
         
       </div>
+      )}
 
       {/* Content wrapper for PDF */}
       <div className="printable-report">
@@ -1534,6 +1664,7 @@ const ReportsPage = () => {
                 {activeTab === 'asistencia' ? 'Reporte Ejecutivo de Asistencia' : 
                  activeTab === 'descansos' ? 'Reporte de Tiempos y Descansos' : 
                  activeTab === 'eventos' ? 'Reporte Oficial de Eventos y Permisos' : 
+                 activeTab === 'cobranza' ? 'Reporte Ejecutivo de Facturación y Cobranza SaaS' :
                  'Reporte Técnico de Dispositivos'}
               </h1>
               <p style={{ color: '#555', margin: '6px 0 0 0', fontSize: '13px' }}>
@@ -1635,6 +1766,34 @@ const ReportsPage = () => {
           >
             Dispositivos
           </button>
+          {isSuperAdmin && (
+            <button 
+              onClick={() => { setActiveTab('cobranza'); }} 
+              style={{ 
+                ...toggleBtn, 
+                background: activeTab === 'cobranza' ? 'rgba(59, 130, 246, 0.15)' : 'transparent', 
+                color: activeTab === 'cobranza' ? '#60a5fa' : COLORS.textMuted,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              <CreditCard size={15} style={{ color: activeTab === 'cobranza' ? '#60a5fa' : 'currentColor' }} />
+              <span>Cuotas y Licencias SaaS</span>
+              {billingData?.kpis && (billingData.kpis.pastDue + billingData.kpis.dueSoon > 0) && (
+                <span style={{ 
+                  fontSize: '0.68rem', 
+                  fontWeight: 700, 
+                  padding: '1px 6px', 
+                  borderRadius: '999px', 
+                  background: billingData.kpis.pastDue > 0 ? '#ef4444' : '#f59e0b', 
+                  color: '#fff' 
+                }}>
+                  {billingData.kpis.pastDue + billingData.kpis.dueSoon}
+                </span>
+              )}
+            </button>
+          )}
         </div>
 
         {/* TAB 1: ASISTENCIA */}
@@ -2313,7 +2472,7 @@ const ReportsPage = () => {
                             </span>
                           </td>
                           <td style={{ padding: '0.75rem 0.65rem', color: COLORS.textMuted, fontSize: '0.78rem', whiteSpace: 'nowrap' }}>
-                            👤 {evt.aprobadoPor}
+                            {evt.aprobadoPor}
                           </td>
                           <td style={{ padding: '0.75rem 0.65rem', whiteSpace: 'nowrap' }}>
                             <span style={{ 
@@ -2334,6 +2493,471 @@ const ReportsPage = () => {
                   )}
                 </tbody>
               </table>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 5: COBRANZA Y FACTURACIÓN SAAS (SUPER ADMIN) */}
+        {activeTab === 'cobranza' && isSuperAdmin && (
+          <div className="space-y-6">
+            {/* Direct Access Banner */}
+            <div style={{
+              background: 'linear-gradient(135deg, rgba(37, 99, 235, 0.12) 0%, rgba(249, 115, 22, 0.12) 100%)',
+              border: '1px solid rgba(59, 130, 246, 0.3)',
+              borderRadius: '12px',
+              padding: '1.25rem 1.5rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '1rem',
+              flexWrap: 'wrap',
+              marginBottom: '1.5rem'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                <div style={{
+                  width: '42px',
+                  height: '42px',
+                  borderRadius: '10px',
+                  background: 'rgba(59, 130, 246, 0.2)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#60a5fa'
+                }}>
+                  <CreditCard size={22} />
+                </div>
+                <div>
+                  <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: '#fff' }}>
+                    Central de Cobranza y Gestión de Pagos
+                  </h4>
+                  <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.85rem', color: '#a1a1aa' }}>
+                    Gestiona renovaciones, envía estados de cuenta por Correo o WhatsApp y registra comprobantes desde el módulo de Empresas SaaS.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => navigate('/dashboard/companies?tab=payments')}
+                style={{
+                  ...btnPrimary,
+                  background: '#f97316',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  padding: '0.6rem 1.2rem',
+                  fontSize: '0.875rem'
+                }}
+              >
+                <span>Ir al Panel de Cobranza</span>
+                <ExternalLink size={15} />
+              </button>
+            </div>
+
+            {/* Top Financial KPI Row */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem', marginBottom: '1.5rem' }}>
+              <div 
+                className="card-glow" 
+                style={{ 
+                  ...cardStyle, 
+                  background: 'rgba(249, 115, 22, 0.04)', 
+                  border: '1px solid rgba(249, 115, 22, 0.25)', 
+                  boxShadow: '0 4px 20px rgba(249, 115, 22, 0.04)',
+                  padding: '1.25rem'
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ color: COLORS.textMuted, fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.8px', textTransform: 'uppercase' }}>
+                    Facturación Mensual (MRR)
+                  </span>
+                  <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(249, 115, 22, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <DollarSign size={18} style={{ color: '#f97316' }} />
+                  </div>
+                </div>
+                <div style={{ marginTop: '0.75rem' }}>
+                  <h2 style={{ fontSize: '1.85rem', color: '#f97316', lineHeight: '1.1', margin: '0 0 0.4rem 0', fontWeight: 700 }}>
+                    {loadingBilling ? <Skeleton width="90px" height="32px" /> : `$${(billingData?.kpis?.totalProjectedMonthly || 0).toLocaleString('es-MX')} MXN`}
+                  </h2>
+                  <p style={{ margin: 0, fontSize: '0.75rem', color: COLORS.textMuted }}>
+                    Proyección anual (ARR): ${((billingData?.kpis?.totalProjectedMonthly || 0) * 12).toLocaleString('es-MX')} MXN
+                  </p>
+                </div>
+              </div>
+
+              <div 
+                className="card-glow" 
+                style={{ 
+                  ...cardStyle, 
+                  background: 'rgba(59, 130, 246, 0.04)', 
+                  border: '1px solid rgba(59, 130, 246, 0.25)', 
+                  boxShadow: '0 4px 20px rgba(59, 130, 246, 0.04)',
+                  padding: '1.25rem'
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ color: COLORS.textMuted, fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.8px', textTransform: 'uppercase' }}>
+                    Empresas Activas
+                  </span>
+                  <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(59, 130, 246, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Building2 size={18} style={{ color: '#60a5fa' }} />
+                  </div>
+                </div>
+                <div style={{ marginTop: '0.75rem' }}>
+                  <h2 style={{ fontSize: '1.85rem', color: '#60a5fa', lineHeight: '1.1', margin: '0 0 0.4rem 0', fontWeight: 700 }}>
+                    {loadingBilling ? <Skeleton width="90px" height="32px" /> : (billingData?.kpis?.total || 0)}
+                  </h2>
+                  <p style={{ margin: 0, fontSize: '0.75rem', color: COLORS.textMuted }}>
+                    {billingData?.kpis?.current || 0} al corriente • {billingData?.kpis?.exempt || 0} exentas / matriz
+                  </p>
+                </div>
+              </div>
+
+              <div 
+                className="card-glow" 
+                style={{ 
+                  ...cardStyle, 
+                  background: 'rgba(234, 179, 8, 0.04)', 
+                  border: '1px solid rgba(234, 179, 8, 0.25)', 
+                  boxShadow: '0 4px 20px rgba(234, 179, 8, 0.04)',
+                  padding: '1.25rem'
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ color: COLORS.textMuted, fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.8px', textTransform: 'uppercase' }}>
+                    Cuotas Por Vencer
+                  </span>
+                  <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(234, 179, 8, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Clock size={18} style={{ color: '#eab308' }} />
+                  </div>
+                </div>
+                <div style={{ marginTop: '0.75rem' }}>
+                  <h2 style={{ fontSize: '1.85rem', color: '#eab308', lineHeight: '1.1', margin: '0 0 0.4rem 0', fontWeight: 700 }}>
+                    {loadingBilling ? <Skeleton width="90px" height="32px" /> : (billingData?.kpis?.dueSoon || 0)}
+                  </h2>
+                  <p style={{ margin: 0, fontSize: '0.75rem', color: COLORS.textMuted }}>
+                    En periodo de notificación preventiva
+                  </p>
+                </div>
+              </div>
+
+              <div 
+                className="card-glow" 
+                style={{ 
+                  ...cardStyle, 
+                  background: 'rgba(239, 68, 68, 0.04)', 
+                  border: '1px solid rgba(239, 68, 68, 0.25)', 
+                  boxShadow: '0 4px 20px rgba(239, 68, 68, 0.04)',
+                  padding: '1.25rem'
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ color: COLORS.textMuted, fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.8px', textTransform: 'uppercase' }}>
+                    Cuotas Vencidas
+                  </span>
+                  <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(239, 68, 68, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <AlertTriangle size={18} style={{ color: '#ef4444' }} />
+                  </div>
+                </div>
+                <div style={{ marginTop: '0.75rem' }}>
+                  <h2 style={{ fontSize: '1.85rem', color: '#ef4444', lineHeight: '1.1', margin: '0 0 0.4rem 0', fontWeight: 700 }}>
+                    {loadingBilling ? <Skeleton width="90px" height="32px" /> : (billingData?.kpis?.pastDue || 0)}
+                  </h2>
+                  <p style={{ margin: 0, fontSize: '0.75rem', color: COLORS.textMuted }}>
+                    {billingData?.kpis?.pastDue > 0 ? "Cobro urgente requerido" : "Sin retrasos en pagos"}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Charts Row */}
+            <div className="charts-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '1.5rem', marginBottom: '1.5rem' }}>
+              {/* Distribución por Plan */}
+              <div style={cardStyle}>
+                <h3 style={{ color: COLORS.text, fontSize: '1.05rem', margin: '0 0 1rem 0', fontWeight: 600 }}>
+                  Distribución de Empresas por Plan Contratado
+                </h3>
+                <div style={{ height: '260px' }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={billingPlanChartData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={65}
+                        outerRadius={95}
+                        paddingAngle={5}
+                        dataKey="value"
+                      >
+                        {billingPlanChartData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip content={<CustomTooltip />} />
+                      <Legend />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Estado de Licencias */}
+              <div style={cardStyle}>
+                <h3 style={{ color: COLORS.text, fontSize: '1.05rem', margin: '0 0 1rem 0', fontWeight: 600 }}>
+                  Estado de Cuotas y Licenciamiento
+                </h3>
+                <div style={{ height: '260px' }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={billingStatusChartData} margin={{ top: 15, right: 20, left: -10, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
+                      <XAxis dataKey="name" stroke={COLORS.textMuted} tick={{ fill: COLORS.textMuted, fontSize: 12 }} />
+                      <YAxis allowDecimals={false} stroke={COLORS.textMuted} tick={{ fill: COLORS.textMuted, fontSize: 12 }} />
+                      <Tooltip content={<CustomTooltip />} />
+                      <Bar dataKey="value" name="Empresas" radius={[6, 6, 0, 0]}>
+                        {billingStatusChartData.map((entry, index) => (
+                          <Cell key={`bar-${index}`} fill={entry.color} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </div>
+
+            {/* Table of Upcoming Payments */}
+            <div style={{ ...cardStyle, padding: 0 }}>
+              <div style={{ padding: '1.25rem 1.5rem', borderBottom: `1px solid ${COLORS.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: '#fff' }}>
+                    Control de Cuotas y Próximos Pagos
+                  </h3>
+                  <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.82rem', color: COLORS.textMuted }}>
+                    {filteredBillingCompanies.length} de {billingData?.companies?.length || 0} empresas en el catálogo
+                  </p>
+                </div>
+
+                <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                  {/* Search */}
+                  <div style={{ position: 'relative' }}>
+                    <Search size={15} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: COLORS.textMuted }} />
+                    <input
+                      type="text"
+                      placeholder="Buscar empresa o contacto..."
+                      value={billingSearch}
+                      onChange={(e) => setBillingSearch(e.target.value)}
+                      style={{
+                        ...selectStyle,
+                        paddingLeft: '32px',
+                        width: '210px',
+                        fontSize: '0.82rem'
+                      }}
+                    />
+                  </div>
+
+                  {/* Filter Pills */}
+                  <div style={{ display: 'flex', gap: '4px', background: COLORS.darker, padding: '3px', borderRadius: '8px', border: `1px solid ${COLORS.border}` }}>
+                    <button
+                      onClick={() => setBillingStatusFilter('ALL')}
+                      style={{
+                        ...toggleBtn,
+                        padding: '4px 10px',
+                        fontSize: '0.78rem',
+                        background: billingStatusFilter === 'ALL' ? 'rgba(255,255,255,0.1)' : 'transparent',
+                        color: billingStatusFilter === 'ALL' ? '#fff' : COLORS.textMuted
+                      }}
+                    >
+                      Todas
+                    </button>
+                    <button
+                      onClick={() => setBillingStatusFilter('EXPIRED')}
+                      style={{
+                        ...toggleBtn,
+                        padding: '4px 10px',
+                        fontSize: '0.78rem',
+                        background: billingStatusFilter === 'EXPIRED' ? 'rgba(239, 68, 68, 0.2)' : 'transparent',
+                        color: billingStatusFilter === 'EXPIRED' ? '#ef4444' : COLORS.textMuted
+                      }}
+                    >
+                      Vencidas ({billingData?.kpis?.pastDue || 0})
+                    </button>
+                    <button
+                      onClick={() => setBillingStatusFilter('DUE_SOON')}
+                      style={{
+                        ...toggleBtn,
+                        padding: '4px 10px',
+                        fontSize: '0.78rem',
+                        background: billingStatusFilter === 'DUE_SOON' ? 'rgba(245, 158, 11, 0.2)' : 'transparent',
+                        color: billingStatusFilter === 'DUE_SOON' ? '#f59e0b' : COLORS.textMuted
+                      }}
+                    >
+                      Por vencer ({billingData?.kpis?.dueSoon || 0})
+                    </button>
+                    <button
+                      onClick={() => setBillingStatusFilter('CURRENT')}
+                      style={{
+                        ...toggleBtn,
+                        padding: '4px 10px',
+                        fontSize: '0.78rem',
+                        background: billingStatusFilter === 'CURRENT' ? 'rgba(16, 185, 129, 0.2)' : 'transparent',
+                        color: billingStatusFilter === 'CURRENT' ? '#10b981' : COLORS.textMuted
+                      }}
+                    >
+                      Al corriente
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Table */}
+              <div style={{ overflowX: 'auto' }} className="custom-scroll">
+                <table style={tableStyle}>
+                  <thead>
+                    <tr style={{ background: 'rgba(0,0,0,0.2)' }}>
+                      <th style={thStyle}>EMPRESA</th>
+                      <th style={thStyle}>PLAN Y CICLO</th>
+                      <th style={thStyle}>EST. MENSUAL</th>
+                      <th style={thStyle}>PRÓXIMO VENCIMIENTO</th>
+                      <th style={thStyle}>ESTADO</th>
+                      <th style={thStyle}>CONTACTO COBRANZA</th>
+                      <th style={{ ...thStyle, textAlign: 'right' }}>ACCIONES</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredBillingCompanies.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} style={{ ...tdStyle, textAlign: 'center', padding: '3rem', color: COLORS.textMuted }}>
+                          No se encontraron empresas con los filtros seleccionados
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredBillingCompanies.map((comp) => {
+                        const isExempt = Boolean(
+                          comp.isExempt || 
+                          comp.id === 'default-company-pain' || 
+                          comp.slug === 'pain' || 
+                          (comp.billingCycle || '').toUpperCase() === 'EXENTO'
+                        );
+                        return (
+                          <tr key={comp.id} style={{ transition: 'background 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
+                            <td style={tdStyle}>
+                              <div style={{ fontWeight: 600, color: '#fff', fontSize: '0.92rem' }}>{comp.name}</div>
+                              <div style={{ fontSize: '0.75rem', color: COLORS.textMuted, fontFamily: 'monospace' }}>/{comp.slug}</div>
+                            </td>
+                            <td style={tdStyle}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span style={{
+                                  fontSize: '0.75rem',
+                                  fontWeight: 600,
+                                  padding: '2px 8px',
+                                  borderRadius: '4px',
+                                  background: comp.plan === 'PRO' ? 'rgba(249, 115, 22, 0.15)' : comp.plan === 'ENTERPRISE' ? 'rgba(168, 85, 247, 0.15)' : comp.plan === 'CUSTOM' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(59, 130, 246, 0.15)',
+                                  color: comp.plan === 'PRO' ? '#f97316' : comp.plan === 'ENTERPRISE' ? '#c084fc' : comp.plan === 'CUSTOM' ? '#34d399' : '#60a5fa'
+                                }}>
+                                  {comp.plan || 'STARTER'}
+                                </span>
+                                <span style={{ fontSize: '0.8rem', color: '#a1a1aa' }}>
+                                  {isExempt ? 'Vitalicia' : comp.billingCycle || 'MENSUAL'}
+                                </span>
+                              </div>
+                            </td>
+                            <td style={tdStyle}>
+                              <div style={{ fontWeight: 600, color: '#fff' }}>
+                                {isExempt ? (
+                                  <span style={{ color: '#a855f7', fontSize: '0.82rem' }}>$0 (Exenta)</span>
+                                ) : (
+                                  `$${(comp.monthlyEstimate || 0).toLocaleString('es-MX')} MXN`
+                                )}
+                              </div>
+                              {!isExempt && (
+                                <div style={{ fontSize: '0.72rem', color: COLORS.textMuted }}>por mes</div>
+                              )}
+                            </td>
+                            <td style={tdStyle}>
+                              {isExempt ? (
+                                <span style={{ color: '#a855f7', fontWeight: 600, fontSize: '0.82rem' }}>Sin fecha límite</span>
+                              ) : comp.nextBilling ? (
+                                <div>
+                                  <div style={{ fontWeight: 500, color: '#fff' }}>
+                                    {new Date(comp.nextBilling).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                  </div>
+                                  <div style={{
+                                    fontSize: '0.75rem',
+                                    fontWeight: 600,
+                                    color: comp.diffDays < 0 ? '#ef4444' : comp.diffDays <= (comp.billingNoticeDays || 15) ? '#f59e0b' : '#10b981'
+                                  }}>
+                                    {comp.diffDays < 0 ? `Vencida hace ${Math.abs(comp.diffDays)} días` : comp.diffDays === 0 ? 'Vence hoy' : `En ${comp.diffDays} días`}
+                                  </div>
+                                </div>
+                              ) : (
+                                <span style={{ color: COLORS.textMuted }}>No definida</span>
+                              )}
+                            </td>
+                            <td style={tdStyle}>
+                              {isExempt ? (
+                                <span style={{ fontSize: '0.75rem', fontWeight: 700, padding: '3px 8px', borderRadius: '6px', background: 'rgba(168, 85, 247, 0.15)', color: '#c084fc', border: '1px solid rgba(168, 85, 247, 0.3)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                  <ShieldCheck size={12} />
+                                  <span>Matriz Exenta</span>
+                                </span>
+                              ) : comp.status === 'expired' ? (
+                                <span style={{ fontSize: '0.75rem', fontWeight: 700, padding: '3px 8px', borderRadius: '6px', background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.3)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                  <AlertTriangle size={12} />
+                                  <span>Vencida</span>
+                                </span>
+                              ) : comp.status === 'due_soon' || comp.status === 'due_today' ? (
+                                <span style={{ fontSize: '0.75rem', fontWeight: 700, padding: '3px 8px', borderRadius: '6px', background: 'rgba(245, 158, 11, 0.15)', color: '#fbbf24', border: '1px solid rgba(245, 158, 11, 0.3)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                  <Clock size={12} />
+                                  <span>Por Vencer</span>
+                                </span>
+                              ) : (
+                                <span style={{ fontSize: '0.75rem', fontWeight: 700, padding: '3px 8px', borderRadius: '6px', background: 'rgba(16, 185, 129, 0.15)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.3)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                  <CheckCircle2 size={12} />
+                                  <span>Al Corriente</span>
+                                </span>
+                              )}
+                            </td>
+                            <td style={tdStyle}>
+                              <div style={{ fontSize: '0.82rem', color: '#e4e4e7', fontWeight: 500 }}>
+                                {comp.billingContactName || 'Sin asignar'}
+                              </div>
+                              <div style={{ fontSize: '0.75rem', color: COLORS.textMuted, display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '2px' }}>
+                                {comp.billingEmail && (
+                                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                    <Mail size={12} />
+                                    <span>{comp.billingEmail}</span>
+                                  </span>
+                                )}
+                                {comp.billingPhone && (
+                                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                    <Phone size={12} />
+                                    <span>{comp.billingPhone}</span>
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td style={{ ...tdStyle, textAlign: 'right' }}>
+                              <button
+                                onClick={() => navigate('/dashboard/companies?tab=payments')}
+                                style={{
+                                  background: 'rgba(59, 130, 246, 0.12)',
+                                  border: '1px solid rgba(59, 130, 246, 0.3)',
+                                  color: '#60a5fa',
+                                  padding: '5px 10px',
+                                  borderRadius: '6px',
+                                  fontSize: '0.78rem',
+                                  fontWeight: 600,
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px'
+                                }}
+                              >
+                                <span>Cobranza</span>
+                                <ExternalLink size={12} />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )}

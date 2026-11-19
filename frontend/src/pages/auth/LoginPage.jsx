@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { LogIn, Lock, Mail, AlertCircle, Eye, EyeOff } from 'lucide-react';
+import { LogIn, Lock, Mail, AlertCircle, Eye, EyeOff, UserCheck, ArrowRight } from 'lucide-react';
 
 const LoginPage = () => {
   const [email, setEmail] = useState('');
@@ -10,7 +10,7 @@ const LoginPage = () => {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   
-  const { login } = useAuth();
+  const { user, login, logout } = useAuth();
   const navigate = useNavigate();
 
   const handleLogin = async (e) => {
@@ -18,13 +18,46 @@ const LoginPage = () => {
     setError('');
     setIsLoading(true);
 
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanPassword = password.trim();
+
     try {
-      await login(email, password);
+      console.log('[LoginPage] Iniciando sesión para:', cleanEmail);
+      await login(cleanEmail, cleanPassword);
+      console.log('[LoginPage] Sesión iniciada con éxito. Redirigiendo a /dashboard...');
       navigate('/dashboard');
     } catch (err) {
-      setError(err.response?.data?.error || 'Error al iniciar sesión. Verifica tus credenciales.');
+      console.error('[LoginPage] Error en login:', err.response?.data || err.message);
+      const serverError = (err.response?.data?.error || err.response?.data?.message || '').toString();
+      
+      if (
+        serverError.toLowerCase().includes('credenciales') ||
+        serverError.toLowerCase().includes('invalid') ||
+        err.response?.status === 401
+      ) {
+        if (!cleanEmail.includes('@')) {
+          setError('Credenciales inválidas. Recuerda ingresar tu correo electrónico oficial (ej. admin@empresa.com), no el identificador o slug de la empresa.');
+        } else {
+          setError('Credenciales inválidas. Verifica que el correo registrado y la contraseña sean correctos (sin espacios accidentales).');
+        }
+      } else if (serverError === 'COMPANY_SUSPENDED' || err.response?.status === 403) {
+        setError('La empresa asociada a este usuario se encuentra suspendida. Contacta a soporte técnico.');
+      } else if (serverError === 'TOO_MANY_LOGIN_ATTEMPTS' || err.response?.status === 429) {
+        setError('Demasiados intentos fallidos. Por seguridad, espera unos minutos antes de intentar de nuevo.');
+      } else {
+        setError(serverError || 'Error al iniciar sesión. Verifica tus credenciales o el estado de tu conexión.');
+      }
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleLogoutPrevious = async () => {
+    try {
+      await logout();
+      setError('');
+    } catch (err) {
+      console.error('Error cerrando sesión previa:', err);
     }
   };
 
@@ -38,6 +71,65 @@ const LoginPage = () => {
           <h2 className="auth-title">Acceso Restringido</h2>
           <p className="auth-subtitle">Panel de Administración Facial</p>
         </div>
+
+        {/* Notificación de sesión previa activa si el usuario ya tiene sesión iniciada */}
+        {user && (
+          <div style={{
+            margin: '0 2rem 1.25rem',
+            padding: '0.85rem 1rem',
+            background: 'rgba(59, 130, 246, 0.1)',
+            border: '1px solid rgba(59, 130, 246, 0.3)',
+            borderRadius: '8px',
+            fontSize: '0.82rem',
+            color: '#93c5fd',
+            position: 'relative',
+            zIndex: 1
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem', fontWeight: 600 }}>
+              <UserCheck size={16} />
+              <span>Sesión activa detectada ({user.role})</span>
+            </div>
+            <p style={{ margin: '0 0 0.65rem', color: '#cbd5e1', fontSize: '0.78rem' }}>
+              Tienes una sesión iniciada con <strong>{user.email}</strong>. Si deseas probar las credenciales de un administrador de empresa, cierra la sesión previa o usa una ventana de incógnito.
+            </p>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button
+                type="button"
+                onClick={handleLogoutPrevious}
+                style={{
+                  background: '#ef4444',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '6px',
+                  padding: '0.35rem 0.75rem',
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                Cerrar Sesión Activa
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate('/dashboard')}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.1)',
+                  color: '#fff',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  borderRadius: '6px',
+                  padding: '0.35rem 0.75rem',
+                  fontSize: '0.75rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.3rem'
+                }}
+              >
+                Ir a mi Dashboard <ArrowRight size={12} />
+              </button>
+            </div>
+          </div>
+        )}
 
         {error && (
           <div className="auth-error" style={{ margin: '0 2rem 1.5rem', position: 'relative', zIndex: 1 }}>

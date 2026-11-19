@@ -8,16 +8,20 @@ const { findAdminByEmailForLogin } = require('../../utils/authHelpers');
 
 const login = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    let { email, password } = req.body;
 
     if (!email || !password) {
       return res.status(400).json({ error: 'Email y contraseña son obligatorios' });
     }
 
+    email = typeof email === 'string' ? email.toLowerCase().trim() : email;
+    password = typeof password === 'string' ? password.trim() : password;
+
     // Buscar admin deterministicamente mediante helper estrecho
     const user = await findAdminByEmailForLogin(email);
 
     if (!user) {
+      console.warn(`[Auth] Login rechazado: No se encontró cuenta de administrador con el correo "${email}".`);
       return res.status(401).json({ error: 'Credenciales inválidas' });
     }
 
@@ -32,6 +36,7 @@ const login = async (req, res) => {
     // Verificar contraseña
     const isValidPassword = await bcrypt.compare(password, user.password);
     if (!isValidPassword) {
+      console.warn(`[Auth] Login rechazado: Contraseña incorrecta para el correo "${email}".`);
       return res.status(401).json({ error: 'Credenciales inválidas' });
     }
 

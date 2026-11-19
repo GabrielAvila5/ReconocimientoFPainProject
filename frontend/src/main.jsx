@@ -28,8 +28,8 @@ if (typeof window !== 'undefined' && window.fetch) {
       }
     }
 
-    // 2. Inyección de Authorization y x-tenant-id para la API
-    if (isApiCall) {
+    // 2. Inyección de Authorization y x-tenant-id para la API (excluyendo /auth/login)
+    if (isApiCall && !url.includes('/auth/login')) {
       const token = localStorage.getItem('token');
       const tenantId = localStorage.getItem('tenantId');
       const currentHeaders = init.headers || {};

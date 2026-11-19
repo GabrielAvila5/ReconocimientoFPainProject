@@ -4,7 +4,7 @@
  * Bloquea consultas raw no tipadas, inyecta filtros y sanitiza escrituras anidadas.
  */
 
-const { PrismaClient } = require('@prisma/client');
+const { PrismaClient } = require('../generated/prisma');
 const { getTenantContext, TenantContextRequiredError } = require('../middlewares/tenantContext');
 
 const globalForPrisma = global;
@@ -318,4 +318,5 @@ function buildTenantPrisma(client) {
 const prisma = buildTenantPrisma(basePrisma);
 
 module.exports = prisma;
+module.exports.basePrisma = basePrisma;
 module.exports.buildTenantPrisma = buildTenantPrisma;

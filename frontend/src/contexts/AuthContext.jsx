@@ -50,6 +50,9 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const login = async (email, password) => {
+    // Limpiar restos de filtros de sucursales previas
+    localStorage.removeItem('activeBranchId');
+    localStorage.removeItem('activeBranchName');
     const response = await api.post('/auth/login', { email, password });
     if (response.data?.token) {
       localStorage.setItem('token', response.data.token);

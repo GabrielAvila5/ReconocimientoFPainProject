@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { 
   Building2, Users, Monitor, Plus, RefreshCw, AlertCircle, 
   CheckCircle2, Copy, Check, Edit, Power, Search, Filter, 
   Clock, Globe, Shield, Sparkles, X, ChevronRight, Key,
   Trash2, Eye, AlertTriangle, ShieldCheck, Fingerprint, Calendar,
   ArrowUpRight, Info, LayoutGrid, List, UserCheck, Timer, BellRing, CalendarPlus,
+  CreditCard, Mail, Phone, Send, MessageSquare, DollarSign, ExternalLink, CheckCheck
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -13,6 +15,45 @@ const PLAN_PRESETS = {
   PRO: { maxEmployees: 200, maxDevices: 10, maxBranches: 1, label: 'Pro', badgeColor: '#f97316', bgBadge: 'rgba(249, 115, 22, 0.15)' },
   ENTERPRISE: { maxEmployees: 1000, maxDevices: 50, maxBranches: 1, label: 'Enterprise', badgeColor: '#a855f7', bgBadge: 'rgba(168, 85, 247, 0.15)' },
   CUSTOM: { maxEmployees: 1000, maxDevices: 50, maxBranches: 150, label: 'Personalizado', badgeColor: '#10b981', bgBadge: 'rgba(16, 185, 129, 0.15)' }
+};
+
+const BILLING_CYCLES = {
+  MENSUAL: {
+    key: 'MENSUAL',
+    label: 'Mensual',
+    periodText: '1 mes',
+    badgeColor: '#60a5fa',
+    bgBadge: 'rgba(59, 130, 246, 0.15)',
+    borderBadge: 'rgba(59, 130, 246, 0.3)',
+    description: 'Renovación y cobro cada 30 días'
+  },
+  TRIMESTRAL: {
+    key: 'TRIMESTRAL',
+    label: 'Trimestral',
+    periodText: '3 meses',
+    badgeColor: '#34d399',
+    bgBadge: 'rgba(52, 211, 153, 0.15)',
+    borderBadge: 'rgba(52, 211, 153, 0.3)',
+    description: 'Renovación trimestral (cada 3 meses)'
+  },
+  SEMESTRAL: {
+    key: 'SEMESTRAL',
+    label: 'Semestral',
+    periodText: '6 meses',
+    badgeColor: '#fbbf24',
+    bgBadge: 'rgba(251, 191, 36, 0.15)',
+    borderBadge: 'rgba(251, 191, 36, 0.3)',
+    description: 'Renovación semestral (cada 6 meses)'
+  },
+  ANUAL: {
+    key: 'ANUAL',
+    label: 'Anual',
+    periodText: '1 año',
+    badgeColor: '#c084fc',
+    bgBadge: 'rgba(192, 132, 252, 0.15)',
+    borderBadge: 'rgba(192, 132, 252, 0.3)',
+    description: 'Licencia anual con renovación cada 12 meses'
+  }
 };
 
 const TIMEZONES = [
@@ -55,7 +96,19 @@ const FIELD_EXPLANATIONS = {
   },
   customPrice: {
     title: '¿Para qué sirve el Precio Personalizado?',
-    text: 'Importe mensual acordado con clientes corporativos o holding que no se rigen por la tarifa estándar. Queda asentado en la ficha para control y seguimiento de facturación.'
+    text: 'Importe acordado con clientes corporativos o holding que no se rigen por la tarifa estándar. Queda asentado en la ficha para control y seguimiento de cobranza recurrente.'
+  },
+  billingCycle: {
+    title: '¿Qué es el Plan de Pago de Licencia?',
+    text: 'Define la frecuencia periódica de renovación del software contratado por la empresa: Mensual, Trimestral, Semestral o Anual. Ayuda a planificar cobranza y proyectar renovaciones de servicio.'
+  },
+  licenseStartDate: {
+    title: '¿Qué es la Fecha de Inicio de Licencia?',
+    text: 'Día exacto en que entra en vigor el licenciamiento activo del cliente en la plataforma para el cómputo de su periodo inicial.'
+  },
+  nextBillingDate: {
+    title: '¿Para qué sirve la Fecha del Próximo Pago?',
+    text: 'Indica el día exacto en que vence el periodo pagado de la licencia. Si llega esta fecha y no se liquida la renovación, la empresa aparecerá con aviso de pago pendiente o vencido para gestión de cobranza.'
   },
   timezone: {
     title: '¿Por qué es indispensable la Zona Horaria?',
@@ -72,7 +125,166 @@ const FIELD_EXPLANATIONS = {
   adminPassword: {
     title: '¿Cómo se maneja la Contraseña Inicial?',
     text: 'Contraseña de primer acceso almacenada bajo algoritmo hash bcrypt con salting. Podrás copiarla y compartirla con el cliente al finalizar el registro.'
+  },
+  isExempt: {
+    title: '¿Qué es Empresa Exenta de Pago?',
+    text: 'Identifica empresas propietarias, matrices o de cortesía interna (como PAIN Matriz). Cuenta con licencia vitalicia permanente, sin cobros periódicos, sin fechas de vencimiento y sin bloqueos por cuotas.'
+  },
+  billingEmail: {
+    title: '¿Para qué sirve el Correo de Cobranza?',
+    text: 'Dirección oficial del área de facturación, compras o tesorería del cliente. Los avisos de vencimiento de licencia y datos de transferencia se dirigirán a este correo en lugar de al administrador técnico.'
+  },
+  billingPhone: {
+    title: '¿Cómo funciona el Teléfono de Cobranza?',
+    text: 'Número de WhatsApp o teléfono directo del encargado de pagos de la empresa. Habilita el envío de recordatorios y comprobantes en un solo click.'
+  },
+  billingContactName: {
+    title: '¿Quién es el Contacto de Cobranza?',
+    text: 'Nombre de la persona o puesto a quien se dirigen formalmente los recordatorios y estados de cuenta (ej. "Lic. Roberto Pérez - Tesorería").'
+  },
+  billingNoticeDays: {
+    title: '¿Qué es la Anticipación de Aviso de Pago?',
+    text: 'Cantidad de días de margen previos a la fecha de corte en los que el sistema activará los avisos en amarillo ("Por vencer pronto") y habilitará el envío preventivo de recordatorios de pago.'
   }
+};
+
+const isCompanyExempt = (comp) => {
+  if (!comp) return false;
+  return Boolean(
+    comp.isExempt || 
+    comp.id === 'default-company-pain' || 
+    comp.slug === 'pain' || 
+    (comp.billingCycle || '').toUpperCase() === 'EXENTO'
+  );
+};
+
+const parseLocalDate = (dateInput) => {
+  if (!dateInput) return null;
+  if (dateInput instanceof Date) return isNaN(dateInput.getTime()) ? null : dateInput;
+  if (typeof dateInput === 'string') {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateInput)) {
+      const [year, month, day] = dateInput.split('-').map(Number);
+      return new Date(year, month - 1, day, 12, 0, 0);
+    }
+    const parsed = new Date(dateInput);
+    return isNaN(parsed.getTime()) ? null : parsed;
+  }
+  return null;
+};
+
+const calculateNextLicenseDate = (startDateStr, cycle) => {
+  const base = parseLocalDate(startDateStr) || new Date();
+  const d = new Date(base.getTime());
+  
+  switch ((cycle || 'MENSUAL').toUpperCase()) {
+    case 'TRIMESTRAL':
+      d.setMonth(d.getMonth() + 3);
+      break;
+    case 'SEMESTRAL':
+      d.setMonth(d.getMonth() + 6);
+      break;
+    case 'ANUAL':
+      d.setFullYear(d.getFullYear() + 1);
+      break;
+    case 'MENSUAL':
+    default:
+      d.setMonth(d.getMonth() + 1);
+      break;
+  }
+
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+};
+
+const formatLicenseDate = (dateInput) => {
+  const d = parseLocalDate(dateInput);
+  if (!d) return 'No programada';
+  return d.toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' });
+};
+
+const formatFullLicenseDate = (dateInput) => {
+  const d = parseLocalDate(dateInput);
+  if (!d) return 'No programada';
+  const dayName = d.toLocaleDateString('es-MX', { weekday: 'long' });
+  const capitalizedDay = dayName.charAt(0).toUpperCase() + dayName.slice(1);
+  const fullDate = d.toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' });
+  return `${capitalizedDay}, ${fullDate}`;
+};
+
+const getLicenseStatus = (nextBillingDate, isExempt = false, noticeDays = 15) => {
+  if (isExempt) {
+    return {
+      status: 'exempt',
+      diffDays: null,
+      badgeText: 'Vitalicia / Exenta',
+      label: 'Licencia Matriz / Exenta de Pago (Sin cuotas)',
+      color: '#38bdf8',
+      bg: 'rgba(56, 189, 248, 0.15)',
+      borderColor: 'rgba(56, 189, 248, 0.4)'
+    };
+  }
+  const d = parseLocalDate(nextBillingDate);
+  if (!d) return {
+    status: 'exempt',
+    diffDays: null,
+    badgeText: 'Sin Cobro',
+    label: 'Sin cobro programado',
+    color: '#94a3b8',
+    bg: 'rgba(148, 163, 184, 0.12)',
+    borderColor: 'rgba(148, 163, 184, 0.25)'
+  };
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12, 0, 0);
+  const target = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12, 0, 0);
+  const diffMs = target.getTime() - today.getTime();
+  const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+
+  if (diffDays < 0) {
+    const absDays = Math.abs(diffDays);
+    return {
+      status: 'expired',
+      diffDays,
+      badgeText: `Vencido (${absDays}d)`,
+      label: `Venció hace ${absDays} ${absDays === 1 ? 'día' : 'días'}`,
+      color: '#ef4444',
+      bg: 'rgba(239, 68, 68, 0.15)',
+      borderColor: 'rgba(239, 68, 68, 0.35)'
+    };
+  }
+  if (diffDays === 0) {
+    return {
+      status: 'due_today',
+      diffDays,
+      badgeText: 'Vence Hoy',
+      label: 'El pago vence el día de hoy',
+      color: '#f59e0b',
+      bg: 'rgba(245, 158, 11, 0.15)',
+      borderColor: 'rgba(245, 158, 11, 0.35)'
+    };
+  }
+  const threshold = (Number.isInteger(Number(noticeDays)) && Number(noticeDays) > 0) ? Number(noticeDays) : 15;
+  if (diffDays <= threshold) {
+    return {
+      status: 'due_soon',
+      diffDays,
+      badgeText: `Vence en ${diffDays}d`,
+      label: `Vence en ${diffDays} ${diffDays === 1 ? 'día' : 'días'} (Aviso activo)`,
+      color: '#fbbf24',
+      bg: 'rgba(251, 191, 36, 0.15)',
+      borderColor: 'rgba(251, 191, 36, 0.35)'
+    };
+  }
+  return {
+    status: 'current',
+    diffDays,
+    badgeText: `En ${diffDays} días`,
+    label: `Al corriente (quedan ${diffDays} días)`,
+    color: '#10b981',
+    bg: 'rgba(16, 185, 129, 0.12)',
+    borderColor: 'rgba(16, 185, 129, 0.25)'
+  };
 };
 
 const formatTimeAgo = (dateString) => {
@@ -226,15 +438,15 @@ const formatGraceTimer = (comp) => {
 
   if (isExpired) {
     label = `Plazo vencido hace ${absDiffDays} ${absDiffDays === 1 ? 'día' : 'días'}`;
-    badgeText = `🚨 VENCIDO (${absDiffDays}d)`;
+    badgeText = `Vencido (${absDiffDays}d)`;
     urgency = 'danger';
   } else if (absDiffDays <= 3) {
     label = `Vence en ${absDiffHours} horas (Crítico)`;
-    badgeText = `⚠️ ${absDiffDays}d restantes`;
+    badgeText = `${absDiffDays}d restantes`;
     urgency = 'warning';
   } else {
     label = `Quedan ${absDiffDays} días de gracia`;
-    badgeText = `⏱️ ${absDiffDays}d restantes`;
+    badgeText = `${absDiffDays}d restantes`;
     urgency = 'ok';
   }
 
@@ -265,6 +477,34 @@ const CompaniesPage = () => {
   const [error, setError] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  // Pestaña principal activa: 'catalog' (Catálogo de Empresas) o 'payments' (Próximos Pagos y Cobranza)
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [activeMainTab, setActiveMainTab] = useState(() => {
+    return searchParams.get('tab') === 'payments' ? 'payments' : 'catalog';
+  });
+
+  useEffect(() => {
+    const tabParam = searchParams.get('tab');
+    if (tabParam === 'payments' && activeMainTab !== 'payments') {
+      setActiveMainTab('payments');
+    } else if (tabParam === 'catalog' && activeMainTab !== 'catalog') {
+      setActiveMainTab('catalog');
+    }
+  }, [searchParams]);
+
+  // Filtros del Módulo de Cobranza y Próximos Pagos
+  const [paymentsFilter, setPaymentsFilter] = useState('ALL'); // 'ALL' | 'EXPIRED' | 'DUE_SOON' | 'CURRENT' | 'EXEMPT'
+  const [paymentsSearch, setPaymentsSearch] = useState('');
+
+  // Modal Recordatorio de Pago por Correo / WhatsApp
+  const [reminderModalCompany, setReminderModalCompany] = useState(null);
+  const [reminderSubject, setReminderSubject] = useState('');
+  const [reminderMessage, setReminderMessage] = useState('');
+  const [reminderBankDetails, setReminderBankDetails] = useState('');
+  const [reminderSending, setReminderSending] = useState(false);
+  const [reminderResult, setReminderResult] = useState(null);
+  const [reminderCopied, setReminderCopied] = useState(false);
+
   // Modo de visualización: 'table' (compacta) o 'grid' (tarjetas)
   const [viewMode, setViewMode] = useState(() => {
     return localStorage.getItem('companies_view_mode') || 'table';
@@ -279,6 +519,7 @@ const CompaniesPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedPlan, setSelectedPlan] = useState('ALL');
   const [selectedStatus, setSelectedStatus] = useState('ALL');
+  const [selectedBillingCycle, setSelectedBillingCycle] = useState('ALL');
 
   // Modal Alta de Empresa
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -296,8 +537,16 @@ const CompaniesPage = () => {
     maxBranches: 1,
     isHolding: false,
     customPrice: '',
+    billingCycle: 'MENSUAL',
+    licenseStartDate: new Date().toISOString().split('T')[0],
+    nextBillingDate: calculateNextLicenseDate(new Date().toISOString().split('T')[0], 'MENSUAL'),
     timezone: 'America/Mexico_City',
     customDomain: '',
+    isExempt: false,
+    billingEmail: '',
+    billingPhone: '',
+    billingContactName: '',
+    billingNoticeDays: 15,
     adminName: '',
     adminEmail: '',
     adminPassword: ''
@@ -312,8 +561,19 @@ const CompaniesPage = () => {
     plan: 'STARTER',
     maxEmployees: 50,
     maxDevices: 3,
+    maxBranches: 1,
+    isHolding: false,
+    customPrice: '',
+    billingCycle: 'MENSUAL',
+    licenseStartDate: '',
+    nextBillingDate: '',
     timezone: 'America/Mexico_City',
-    customDomain: ''
+    customDomain: '',
+    isExempt: false,
+    billingEmail: '',
+    billingPhone: '',
+    billingContactName: '',
+    billingNoticeDays: 15
   });
 
   // Modal de Ver Ficha Completa (Detalles de Empresa)
@@ -321,6 +581,7 @@ const CompaniesPage = () => {
   const [detailData, setDetailData] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailTab, setDetailTab] = useState('overview'); // 'overview' | 'admins' | 'devices' | 'structure'
+  const [isRenewingLicense, setIsRenewingLicense] = useState(false);
 
   // Modal de Credenciales / Copiar Acceso
   const [credentialCompany, setCredentialCompany] = useState(null);
@@ -328,6 +589,9 @@ const CompaniesPage = () => {
   const [credGeneratedPassword, setCredGeneratedPassword] = useState('');
   const [credCustomInput, setCredCustomInput] = useState('');
   const [credCopied, setCredCopied] = useState(false);
+  const [credSelectedAdminEmail, setCredSelectedAdminEmail] = useState('');
+  const [credAdminCopied, setCredAdminCopied] = useState(false);
+  const [credPasswordCopied, setCredPasswordCopied] = useState(false);
 
   // Modal de Suspensión / Reactivación con Estilos y Timer
   const [suspendModalCompany, setSuspendModalCompany] = useState(null);
@@ -419,6 +683,29 @@ const CompaniesPage = () => {
     }));
   };
 
+  const handleBillingCycleChange = (cycle) => {
+    setFormData(prev => {
+      const startDate = prev.licenseStartDate || new Date().toISOString().split('T')[0];
+      const nextDate = calculateNextLicenseDate(startDate, cycle);
+      return {
+        ...prev,
+        billingCycle: cycle,
+        nextBillingDate: nextDate
+      };
+    });
+  };
+
+  const handleLicenseStartDateChange = (dateStr) => {
+    setFormData(prev => {
+      const nextDate = calculateNextLicenseDate(dateStr, prev.billingCycle || 'MENSUAL');
+      return {
+        ...prev,
+        licenseStartDate: dateStr,
+        nextBillingDate: nextDate
+      };
+    });
+  };
+
   const generateRandomPassword = () => {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%';
     let pass = '';
@@ -496,6 +783,10 @@ const CompaniesPage = () => {
     setCredGeneratedPassword('');
     setCredCustomInput('');
     setCredCopied(false);
+    setCredAdminCopied(false);
+    setCredPasswordCopied(false);
+    const initialEmail = company?.adminUsers?.[0]?.email || company?.adminEmail || '';
+    setCredSelectedAdminEmail(initialEmail);
   };
 
   // Generar / Restablecer Contraseña de Admin
@@ -504,7 +795,10 @@ const CompaniesPage = () => {
     try {
       setCredResetLoading(true);
       const baseUrl = import.meta.env.VITE_API_URL || '';
-      const payload = credCustomInput.trim() ? { newPassword: credCustomInput.trim() } : {};
+      const payload = {
+        ...(credCustomInput.trim() ? { newPassword: credCustomInput.trim() } : {}),
+        ...(credSelectedAdminEmail ? { adminEmail: credSelectedAdminEmail } : {})
+      };
       const res = await fetch(`${baseUrl}/api/v1/superadmin/companies/${credentialCompany.id}/reset-admin-password`, {
         method: 'POST',
         headers: {
@@ -522,10 +816,13 @@ const CompaniesPage = () => {
 
       setCredGeneratedPassword(data.newPassword);
       if (data.adminEmail) {
+        setCredSelectedAdminEmail(data.adminEmail);
         setCredentialCompany(prev => ({
           ...prev,
           adminEmail: data.adminEmail,
-          adminUsers: [{ email: data.adminEmail, name: data.adminName, role: data.adminRole }]
+          adminUsers: (prev?.adminUsers && prev.adminUsers.length > 0)
+            ? prev.adminUsers.map(u => u.email === data.adminEmail ? { ...u, name: data.adminName, role: data.adminRole } : u)
+            : [{ email: data.adminEmail, name: data.adminName, role: data.adminRole }]
         }));
       }
       toast.success('Contraseña generada y actualizada exitosamente en base de datos.');
@@ -538,19 +835,24 @@ const CompaniesPage = () => {
 
   // Copiar plantilla completa de credenciales
   const copyFullCredentials = (comp, customPassword = '', explicitAdminEmail = '') => {
-    const adminEmail = explicitAdminEmail || comp?.admin?.email || comp?.adminUsers?.[0]?.email || comp?.adminEmail || 'admin@empresa.com';
+    const adminEmail = explicitAdminEmail || credSelectedAdminEmail || comp?.admin?.email || comp?.adminUsers?.[0]?.email || comp?.adminEmail || 'admin@empresa.com';
     const pwdText = customPassword ? `Contraseña Temporal: ${customPassword}` : '(Contraseña configurada por el cliente)';
+    const cycleText = comp?.billingCycle ? `Plan de Licencia: ${comp.billingCycle} (Próximo Vencimiento: ${formatLicenseDate(comp.nextBillingDate)})` : '';
     const text = `======================================
 ACCESO AL SISTEMA DE ASISTENCIA FACIAL
 ======================================
 Empresa: ${comp.name}
 Portal de Acceso: ${window.location.origin}/login
-Identificador (Slug): ${comp.slug}
-Usuario Administrador: ${adminEmail}
-${pwdText}
-Plan: ${comp.plan} (Máx: ${comp.maxEmployees} empleados, ${comp.maxDevices} kioscos)
+
+DATOS PARA INICIAR SESIÓN EN EL PORTAL:
+👉 Correo Electrónico: ${adminEmail}
+👉 ${pwdText}
+
+DETALLES DE LA CUENTA:
+- Identificador Empresa (Slug): ${comp.slug}
+- Plan: ${comp.plan} (Máx: ${comp.maxEmployees} empleados, ${comp.maxDevices} kioscos)${cycleText ? `\n- ${cycleText}` : ''}
 ======================================
-Por seguridad, ingrese al portal y configure sus credenciales.`;
+IMPORTANTE: Para iniciar sesión debe ingresar en el campo "Correo Electrónico" el correo (${adminEmail}), NO use el identificador o nombre de la empresa como usuario.`;
 
     navigator.clipboard.writeText(text);
     setCredCopied(true);
@@ -699,6 +1001,8 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
   // Edición de Plan y Cuotas
   const openEditModal = (company) => {
     setEditingCompany(company);
+    const startDateFormatted = company.licenseStartDate ? new Date(company.licenseStartDate).toISOString().split('T')[0] : '';
+    const nextDateFormatted = company.nextBillingDate ? new Date(company.nextBillingDate).toISOString().split('T')[0] : '';
     setEditFormData({
       name: company.name,
       plan: company.plan,
@@ -707,9 +1011,156 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
       maxBranches: company.maxBranches || 1,
       isHolding: company.isHolding || false,
       customPrice: company.customPrice || '',
+      billingCycle: company.billingCycle || 'MENSUAL',
+      licenseStartDate: startDateFormatted,
+      nextBillingDate: nextDateFormatted,
       timezone: company.timezone,
-      customDomain: company.customDomain || ''
+      customDomain: company.customDomain || '',
+      isExempt: isCompanyExempt(company),
+      billingEmail: company.billingEmail || '',
+      billingPhone: company.billingPhone || '',
+      billingContactName: company.billingContactName || '',
+      billingNoticeDays: company.billingNoticeDays || 15
     });
+  };
+
+  // Abrir Modal de Recordatorio de Cobranza
+  const openReminderModal = (company) => {
+    setReminderModalCompany(company);
+    setReminderResult(null);
+    setReminderCopied(false);
+
+    const now = new Date();
+    const nextDate = company.nextBillingDate ? new Date(company.nextBillingDate) : null;
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12, 0, 0);
+    const target = nextDate ? new Date(nextDate.getFullYear(), nextDate.getMonth(), nextDate.getDate(), 12, 0, 0) : null;
+    const diffDays = target ? Math.round((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)) : 0;
+
+    const recipientName = company.billingContactName || company.adminUsers?.[0]?.name || company.name;
+    const cycle = company.billingCycle || 'MENSUAL';
+    const formattedDate = nextDate ? formatFullLicenseDate(nextDate) : 'Fecha pendiente';
+
+    const isExpired = diffDays < 0;
+    const isDueToday = diffDays === 0;
+
+    let defaultSub = '';
+    if (isExpired) {
+      defaultSub = `[URGENTE] Licencia Vencida - Sistema Biométrico PAIN (${company.name})`;
+    } else if (isDueToday) {
+      defaultSub = `[PAGO HOY] Aviso de Vencimiento de Licencia - ${company.name}`;
+    } else {
+      defaultSub = `Aviso de Próximo Pago de Licencia - ${company.name} (${diffDays} días restantes)`;
+    }
+
+    const defaultBank = `Datos para Transferencia (SPEI):
+Banco: BBVA México
+Beneficiario: PAIN Biometría y Sistemas S.A.P.I. de C.V.
+CLABE: 012180001234567890
+Referencia / Concepto: LIC-${company.slug.toUpperCase()}`;
+
+    const defaultMsg = isExpired
+      ? `Estimado(a) ${recipientName}:
+
+Le informamos que la licencia de uso del Sistema de Asistencia Facial PAIN para la empresa "${company.name}" (Plan ${company.plan}) ha vencido el pasado ${formattedDate} (${Math.abs(diffDays)} días de mora).
+
+Para mantener la operatividad ininterrumpida de sus kioscos biométricos y evitar la suspensión temporal del servicio, le solicitamos atentamente realizar la liquidación de su cuota ${cycle.toLowerCase()}.
+
+${defaultBank}
+
+Una vez realizado su pago, por favor comparta el comprobante respondiendo a este mensaje para aplicar la renovación inmediata.
+
+Atentamente,
+Departamento de Cobranza y Licenciamiento
+PAIN - Sistema de Control y Asistencia Facial`
+      : `Estimado(a) ${recipientName}:
+
+Esperamos que se encuentre muy bien. Le enviamos un cordial recordatorio de que la licencia de uso del Sistema de Asistencia Facial PAIN para la empresa "${company.name}" (Plan ${company.plan} - ${cycle}) tiene programado su próximo pago el día:
+
+Fecha límite de pago: ${formattedDate} (${diffDays === 0 ? 'HOY' : `en ${diffDays} días`})
+
+Agradecemos programar su pago con anticipación para asegurar la continuidad de su servicio y sincronización biométrica sin interrupciones.
+
+${defaultBank}
+
+Una vez efectuada la transferencia, favor de enviar su comprobante por este medio.
+
+Agradecemos su confianza.
+Atentamente,
+Departamento de Cobranza y Licenciamiento
+PAIN - Sistema de Control y Asistencia Facial`;
+
+    setReminderSubject(defaultSub);
+    setReminderMessage(defaultMsg);
+    setReminderBankDetails(defaultBank);
+  };
+
+  const handleSendPaymentReminder = async () => {
+    if (!reminderModalCompany) return;
+    try {
+      setReminderSending(true);
+      const baseUrl = import.meta.env.VITE_API_URL || '';
+      const res = await fetch(`${baseUrl}/api/v1/superadmin/companies/${reminderModalCompany.id}/send-payment-reminder`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders()
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          customSubject: reminderSubject,
+          customMessage: reminderMessage,
+          bankAccountInfo: reminderBankDetails
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Error al enviar recordatorio de pago');
+      }
+
+      setReminderResult(data.reminder);
+      toast.success(data.message || 'Recordatorio registrado exitosamente');
+      fetchCompanies();
+    } catch (err) {
+      toast.error(err.message);
+    } finally {
+      setReminderSending(false);
+    }
+  };
+
+  const handleRenewLicense = async (company) => {
+    if (!company) return;
+    try {
+      setIsRenewingLicense(true);
+      const baseUrl = import.meta.env.VITE_API_URL || '';
+      const res = await fetch(`${baseUrl}/api/v1/superadmin/companies/${company.id}/renew-license`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders()
+        },
+        credentials: 'include'
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || data.error || 'Error al renovar licencia');
+      }
+
+      toast.success(data.message || 'Licencia renovada exitosamente.');
+      fetchCompanies();
+      if (detailCompany?.id === company.id) {
+        setDetailCompany(prev => ({
+          ...prev,
+          ...data.company,
+          nextBillingDate: data.nextBillingDate
+        }));
+      }
+    } catch (err) {
+      toast.error(err.message);
+    } finally {
+      setIsRenewingLicense(false);
+    }
   };
 
   const handleUpdateCompany = async (e) => {
@@ -729,8 +1180,8 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
       });
 
       if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.error || 'Error al actualizar empresa');
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.message || errData.error || 'Error al actualizar empresa');
       }
 
       toast.success('Empresa actualizada correctamente');
@@ -759,10 +1210,11 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
       const matchStatus = selectedStatus === 'ALL' || 
         (selectedStatus === 'ACTIVE' && c.isActive) ||
         (selectedStatus === 'SUSPENDED' && !c.isActive);
+      const matchBillingCycle = selectedBillingCycle === 'ALL' || (c.billingCycle || 'MENSUAL') === selectedBillingCycle;
 
-      return matchSearch && matchPlan && matchStatus;
+      return matchSearch && matchPlan && matchStatus && matchBillingCycle;
     });
-  }, [companies, searchTerm, selectedPlan, selectedStatus]);
+  }, [companies, searchTerm, selectedPlan, selectedStatus, selectedBillingCycle]);
 
   // Empresas con Plazo de Gracia Vencido (Alerta de Prioridad Alta)
   const expiredCompanies = useMemo(() => {
@@ -784,6 +1236,88 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
     const totalDevs = companies.reduce((acc, c) => acc + (c._count?.devices || 0), 0);
     return { total, active, suspended, totalEmps, totalEnrolled, totalDevs };
   }, [companies]);
+
+  // Métricas y Lista Consolidada de Cobranza y Próximos Pagos
+  const paymentsData = useMemo(() => {
+    const PRICING_ESTIMATES = {
+      STARTER: 990,
+      PRO: 2490,
+      ENTERPRISE: 5990,
+      CUSTOM: 9990
+    };
+
+    let countPastDue = 0;
+    let countDueSoon = 0;
+    let countCurrent = 0;
+    let countExempt = 0;
+    let totalProjectedMonthly = 0;
+
+    const list = companies.map(comp => {
+      const isExempt = isCompanyExempt(comp);
+      const licStatus = getLicenseStatus(comp.nextBillingDate, isExempt, comp.billingNoticeDays);
+      const diffDays = licStatus?.diffDays;
+
+      let monthlyEstimate = 0;
+      if (!isExempt) {
+        const basePrice = (comp.customPrice !== null && comp.customPrice !== undefined && comp.customPrice !== '')
+          ? Number(comp.customPrice)
+          : (PRICING_ESTIMATES[comp.plan] || 990);
+
+        const cycle = comp.billingCycle || 'MENSUAL';
+        if (cycle === 'ANUAL') monthlyEstimate = Math.round(basePrice / 12);
+        else if (cycle === 'SEMESTRAL') monthlyEstimate = Math.round(basePrice / 6);
+        else if (cycle === 'TRIMESTRAL') monthlyEstimate = Math.round(basePrice / 3);
+        else monthlyEstimate = basePrice;
+
+        totalProjectedMonthly += monthlyEstimate;
+
+        if (licStatus?.status === 'expired') countPastDue++;
+        else if (licStatus?.status === 'due_today' || licStatus?.status === 'due_soon') countDueSoon++;
+        else countCurrent++;
+      } else {
+        countExempt++;
+      }
+
+      return {
+        ...comp,
+        isExempt,
+        licStatus,
+        diffDays,
+        monthlyEstimate
+      };
+    });
+
+    const filtered = list.filter(item => {
+      const q = (paymentsSearch || '').toLowerCase().trim();
+      const matchSearch = !q ||
+        (item.name || '').toLowerCase().includes(q) ||
+        (item.slug || '').toLowerCase().includes(q) ||
+        (item.billingContactName || '').toLowerCase().includes(q) ||
+        (item.billingEmail || '').toLowerCase().includes(q) ||
+        (item.billingPhone || '').toLowerCase().includes(q) ||
+        (item.adminUsers?.[0]?.email || '').toLowerCase().includes(q);
+
+      if (!matchSearch) return false;
+
+      if (paymentsFilter === 'EXPIRED') return item.licStatus?.status === 'expired';
+      if (paymentsFilter === 'DUE_SOON') return item.licStatus?.status === 'due_today' || item.licStatus?.status === 'due_soon';
+      if (paymentsFilter === 'CURRENT') return item.licStatus?.status === 'current';
+      if (paymentsFilter === 'EXEMPT') return item.isExempt;
+      return true;
+    });
+
+    return {
+      list: filtered,
+      allList: list,
+      total: companies.length,
+      countPastDue,
+      countDueSoon,
+      countCurrent,
+      countExempt,
+      totalProjectedMonthly,
+      urgentCount: countPastDue + countDueSoon
+    };
+  }, [companies, paymentsSearch, paymentsFilter]);
 
   return (
     <div className="fade-in" style={{ paddingBottom: '3rem' }}>
@@ -853,14 +1387,26 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
           </button>
           <button 
             onClick={() => {
+              const todayStr = new Date().toISOString().split('T')[0];
               setFormData({
                 name: '',
                 slug: '',
                 plan: 'STARTER',
                 maxEmployees: 50,
                 maxDevices: 3,
+                maxBranches: 1,
+                isHolding: false,
+                customPrice: '',
+                billingCycle: 'MENSUAL',
+                licenseStartDate: todayStr,
+                nextBillingDate: calculateNextLicenseDate(todayStr, 'MENSUAL'),
                 timezone: 'America/Mexico_City',
                 customDomain: '',
+                isExempt: false,
+                billingEmail: '',
+                billingPhone: '',
+                billingContactName: '',
+                billingNoticeDays: 15,
                 adminName: '',
                 adminEmail: '',
                 adminPassword: ''
@@ -875,6 +1421,596 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
         </div>
       </div>
 
+      {/* Navegación por Pestañas Principales: Catálogo vs Próximos Pagos y Cobranza */}
+      <div style={{
+        display: 'flex',
+        gap: '0.75rem',
+        borderBottom: '1px solid #27272a',
+        marginBottom: '1.75rem',
+        paddingBottom: '0.5rem',
+        flexWrap: 'wrap'
+      }}>
+        <button
+          type="button"
+          onClick={() => setActiveMainTab('catalog')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.55rem',
+            padding: '0.7rem 1.35rem',
+            borderRadius: '10px',
+            border: activeMainTab === 'catalog' ? '1px solid rgba(249, 115, 22, 0.5)' : '1px solid transparent',
+            background: activeMainTab === 'catalog' ? 'rgba(249, 115, 22, 0.15)' : 'transparent',
+            color: activeMainTab === 'catalog' ? '#fff' : '#a1a1aa',
+            fontWeight: activeMainTab === 'catalog' ? 700 : 500,
+            fontSize: '0.92rem',
+            cursor: 'pointer',
+            transition: 'all 0.15s ease'
+          }}
+        >
+          <Building2 size={18} style={{ color: activeMainTab === 'catalog' ? '#f97316' : '#71717a' }} />
+          <span>Catálogo de Empresas</span>
+          <span style={{
+            fontSize: '0.75rem',
+            padding: '0.15rem 0.55rem',
+            borderRadius: '99px',
+            background: activeMainTab === 'catalog' ? '#f97316' : '#27272a',
+            color: '#fff',
+            fontWeight: 700
+          }}>
+            {companies.length}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveMainTab('payments')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.55rem',
+            padding: '0.7rem 1.35rem',
+            borderRadius: '10px',
+            border: activeMainTab === 'payments' ? '1px solid rgba(59, 130, 246, 0.5)' : '1px solid transparent',
+            background: activeMainTab === 'payments' ? 'rgba(59, 130, 246, 0.15)' : 'transparent',
+            color: activeMainTab === 'payments' ? '#fff' : '#a1a1aa',
+            fontWeight: activeMainTab === 'payments' ? 700 : 500,
+            fontSize: '0.92rem',
+            cursor: 'pointer',
+            transition: 'all 0.15s ease'
+          }}
+        >
+          <CreditCard size={18} style={{ color: activeMainTab === 'payments' ? '#60a5fa' : '#71717a' }} />
+          <span>Próximos Pagos y Cobranza</span>
+          {paymentsData.urgentCount > 0 ? (
+            <span style={{
+              fontSize: '0.72rem',
+              padding: '0.15rem 0.55rem',
+              borderRadius: '99px',
+              background: '#ef4444',
+              color: '#fff',
+              fontWeight: 800
+            }}>
+              {paymentsData.urgentCount} por atender
+            </span>
+          ) : (
+            <span style={{
+              fontSize: '0.72rem',
+              padding: '0.15rem 0.55rem',
+              borderRadius: '99px',
+              background: '#27272a',
+              color: '#a1a1aa',
+              fontWeight: 600
+            }}>
+              Al día
+            </span>
+          )}
+        </button>
+      </div>
+
+      {activeMainTab === 'payments' ? (
+        <div className="fade-in">
+          {/* Métricas Resumen de Cobranza */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.25rem', marginBottom: '2rem' }}>
+            <div 
+              onClick={() => setPaymentsFilter('EXPIRED')}
+              className="card card-glow" 
+              style={{ 
+                padding: '1.25rem', 
+                cursor: 'pointer', 
+                border: paymentsFilter === 'EXPIRED' ? '1px solid #ef4444' : '1px solid #27272a',
+                background: paymentsFilter === 'EXPIRED' ? 'rgba(239, 68, 68, 0.12)' : '#18181b',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#a1a1aa', fontSize: '0.85rem' }}>
+                <span>Licencias Vencidas</span>
+                <AlertCircle size={18} style={{ color: '#ef4444' }} />
+              </div>
+              <div style={{ fontSize: '1.9rem', fontWeight: 700, margin: '0.4rem 0 0.2rem', color: '#ef4444' }}>
+                {paymentsData.countPastDue}
+              </div>
+              <div style={{ fontSize: '0.75rem', color: '#fca5a5' }}>
+                {paymentsData.countPastDue === 0 ? 'Sin adeudos pendientes' : 'Requieren gestión inmediata'}
+              </div>
+            </div>
+
+            <div 
+              onClick={() => setPaymentsFilter('DUE_SOON')}
+              className="card card-glow" 
+              style={{ 
+                padding: '1.25rem', 
+                cursor: 'pointer',
+                border: paymentsFilter === 'DUE_SOON' ? '1px solid #fbbf24' : '1px solid #27272a',
+                background: paymentsFilter === 'DUE_SOON' ? 'rgba(251, 191, 36, 0.12)' : '#18181b',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#a1a1aa', fontSize: '0.85rem' }}>
+                <span>Por Vencer Pronto</span>
+                <Clock size={18} style={{ color: '#fbbf24' }} />
+              </div>
+              <div style={{ fontSize: '1.9rem', fontWeight: 700, margin: '0.4rem 0 0.2rem', color: '#fbbf24' }}>
+                {paymentsData.countDueSoon}
+              </div>
+              <div style={{ fontSize: '0.75rem', color: '#fde68a' }}>
+                Dentro de la regla de aviso preventivo
+              </div>
+            </div>
+
+            <div 
+              onClick={() => setPaymentsFilter('CURRENT')}
+              className="card card-glow" 
+              style={{ 
+                padding: '1.25rem', 
+                cursor: 'pointer',
+                border: paymentsFilter === 'CURRENT' ? '1px solid #10b981' : '1px solid #27272a',
+                background: paymentsFilter === 'CURRENT' ? 'rgba(16, 185, 129, 0.12)' : '#18181b',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#a1a1aa', fontSize: '0.85rem' }}>
+                <span>Al Corriente</span>
+                <CheckCircle2 size={18} style={{ color: '#10b981' }} />
+              </div>
+              <div style={{ fontSize: '1.9rem', fontWeight: 700, margin: '0.4rem 0 0.2rem', color: '#10b981' }}>
+                {paymentsData.countCurrent}
+              </div>
+              <div style={{ fontSize: '0.75rem', color: '#6ee7b7' }}>
+                Sin cuotas por vencer en este periodo
+              </div>
+            </div>
+
+            <div 
+              onClick={() => setPaymentsFilter('EXEMPT')}
+              className="card card-glow" 
+              style={{ 
+                padding: '1.25rem', 
+                cursor: 'pointer',
+                border: paymentsFilter === 'EXEMPT' ? '1px solid #38bdf8' : '1px solid #27272a',
+                background: paymentsFilter === 'EXEMPT' ? 'rgba(56, 189, 248, 0.12)' : '#18181b',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#a1a1aa', fontSize: '0.85rem' }}>
+                <span>Exentas (Matriz PAIN)</span>
+                <ShieldCheck size={18} style={{ color: '#38bdf8' }} />
+              </div>
+              <div style={{ fontSize: '1.9rem', fontWeight: 700, margin: '0.4rem 0 0.2rem', color: '#38bdf8' }}>
+                {paymentsData.countExempt}
+              </div>
+              <div style={{ fontSize: '0.75rem', color: '#7dd3fc' }}>
+                Licencia vitalicia de desarrollador
+              </div>
+            </div>
+
+            <div className="card card-glow" style={{ padding: '1.25rem', background: '#18181b', border: '1px solid #27272a' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#a1a1aa', fontSize: '0.85rem' }}>
+                <span>Facturación Mensual Est.</span>
+                <CreditCard size={18} style={{ color: '#c084fc' }} />
+              </div>
+              <div style={{ fontSize: '1.8rem', fontWeight: 700, margin: '0.4rem 0 0.2rem', color: '#c084fc' }}>
+                ${paymentsData.totalProjectedMonthly.toLocaleString('es-MX')}
+              </div>
+              <div style={{ fontSize: '0.75rem', color: '#d8b4fe' }}>
+                Proyección recurrente en MXN
+              </div>
+            </div>
+          </div>
+
+          {/* Filtros rápidos y Buscador de Cobranza */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.5rem' }}>
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+              {[
+                { key: 'ALL', label: 'Todas las Empresas', count: paymentsData.total, color: '#f97316' },
+                { key: 'EXPIRED', label: 'Vencidas', count: paymentsData.countPastDue, color: '#ef4444' },
+                { key: 'DUE_SOON', label: 'Por Vencer', count: paymentsData.countDueSoon, color: '#fbbf24' },
+                { key: 'CURRENT', label: 'Al Corriente', count: paymentsData.countCurrent, color: '#10b981' },
+                { key: 'EXEMPT', label: 'Exentas', count: paymentsData.countExempt, color: '#38bdf8' }
+              ].map(filterBtn => {
+                const isSelected = paymentsFilter === filterBtn.key;
+                return (
+                  <button
+                    key={filterBtn.key}
+                    type="button"
+                    onClick={() => setPaymentsFilter(filterBtn.key)}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.45rem',
+                      padding: '0.45rem 0.85rem',
+                      borderRadius: '8px',
+                      border: isSelected ? `1px solid ${filterBtn.color}` : '1px solid #27272a',
+                      background: isSelected ? `${filterBtn.color}22` : '#18181b',
+                      color: isSelected ? '#fff' : '#a1a1aa',
+                      fontSize: '0.82rem',
+                      fontWeight: isSelected ? 700 : 500,
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    <span>{filterBtn.label}</span>
+                    <span style={{
+                      background: isSelected ? filterBtn.color : '#27272a',
+                      color: '#fff',
+                      fontSize: '0.72rem',
+                      padding: '0.1rem 0.45rem',
+                      borderRadius: '99px',
+                      fontWeight: 700
+                    }}>
+                      {filterBtn.count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flex: 1, minWidth: '280px', maxWidth: '420px' }}>
+              <div style={{ position: 'relative', width: '100%' }}>
+                <Search size={15} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: '#71717a' }} />
+                <input
+                  type="text"
+                  placeholder="Buscar por empresa, correo o teléfono..."
+                  value={paymentsSearch}
+                  onChange={(e) => setPaymentsSearch(e.target.value)}
+                  style={{
+                    ...inputStyle,
+                    paddingLeft: '2.3rem',
+                    fontSize: '0.82rem',
+                    width: '100%'
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Tabla de Cobranza y Próximos Pagos */}
+          <div style={{
+            background: '#141416',
+            border: '1px solid #27272a',
+            borderRadius: '12px',
+            overflowX: 'auto',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.3)'
+          }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+              <thead>
+                <tr style={{ background: '#18181b', borderBottom: '1px solid #27272a', color: '#a1a1aa', textTransform: 'uppercase', fontSize: '0.72rem', letterSpacing: '0.05em' }}>
+                  <th style={{ padding: '0.85rem 1rem' }}>Empresa / Tenant</th>
+                  <th style={{ padding: '0.85rem 1rem' }}>Plan y Cuota</th>
+                  <th style={{ padding: '0.85rem 1rem' }}>Próximo Pago & Estado</th>
+                  <th style={{ padding: '0.85rem 1rem' }}>Regla de Aviso</th>
+                  <th style={{ padding: '0.85rem 1rem' }}>Contacto de Cobranza</th>
+                  <th style={{ padding: '0.85rem 1rem' }}>Último Recordatorio</th>
+                  <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {paymentsData.list.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} style={{ padding: '3rem', textAlign: 'center', color: '#71717a' }}>
+                      <Clock size={32} style={{ margin: '0 auto 0.75rem', color: '#3f3f46', display: 'block' }} />
+                      No se encontraron empresas con el criterio seleccionado.
+                    </td>
+                  </tr>
+                ) : (
+                  paymentsData.list.map(comp => {
+                    const preset = PLAN_PRESETS[comp.plan] || PLAN_PRESETS.STARTER;
+                    const cycleInfo = BILLING_CYCLES[comp.billingCycle] || BILLING_CYCLES.MENSUAL;
+                    const isExempt = comp.isExempt;
+                    const licStatus = comp.licStatus;
+                    const billingEmail = comp.billingEmail || comp.adminUsers?.[0]?.email || null;
+                    const billingPhone = comp.billingPhone || null;
+                    const noticeDays = comp.billingNoticeDays || 15;
+
+                    return (
+                      <tr 
+                        key={comp.id}
+                        style={{ 
+                          borderBottom: '1px solid #1f1f23',
+                          background: isExempt 
+                            ? 'rgba(56, 189, 248, 0.02)' 
+                            : (licStatus?.status === 'expired' 
+                                ? 'rgba(239, 68, 68, 0.04)' 
+                                : (licStatus?.status === 'due_soon' 
+                                    ? 'rgba(251, 191, 36, 0.04)' 
+                                    : 'transparent')),
+                          transition: 'background 0.15s ease'
+                        }}
+                      >
+                        {/* Empresa */}
+                        <td style={{ padding: '1rem' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                            <div style={{
+                              width: '36px',
+                              height: '36px',
+                              borderRadius: '8px',
+                              background: isExempt ? 'rgba(56, 189, 248, 0.15)' : 'rgba(249, 115, 22, 0.15)',
+                              border: isExempt ? '1px solid rgba(56, 189, 248, 0.35)' : '1px solid rgba(249, 115, 22, 0.35)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              color: isExempt ? '#38bdf8' : '#f97316',
+                              fontWeight: 700,
+                              fontSize: '0.85rem'
+                            }}>
+                              {comp.name.substring(0, 2).toUpperCase()}
+                            </div>
+                            <div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                <strong style={{ color: '#fff', fontSize: '0.92rem' }}>{comp.name}</strong>
+                                {isExempt && (
+                                  <span style={{
+                                    fontSize: '0.65rem',
+                                    fontWeight: 800,
+                                    color: '#38bdf8',
+                                    background: 'rgba(56, 189, 248, 0.2)',
+                                    border: '1px solid rgba(56, 189, 248, 0.4)',
+                                    borderRadius: '4px',
+                                    padding: '0.05rem 0.35rem',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '3px'
+                                  }}>
+                                    <ShieldCheck size={11} />
+                                    <span>MATRIZ EXENTA</span>
+                                  </span>
+                                )}
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.2rem' }}>
+                                <code style={{ fontSize: '0.72rem', color: '#f97316' }}>{comp.slug}</code>
+                                <span style={{ color: '#52525b' }}>·</span>
+                                <span style={{
+                                  fontSize: '0.7rem',
+                                  color: preset.badgeColor,
+                                  fontWeight: 600
+                                }}>
+                                  {preset.label}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Plan y Cuota */}
+                        <td style={{ padding: '1rem' }}>
+                          {isExempt ? (
+                            <div>
+                              <span style={{ color: '#38bdf8', fontWeight: 700, fontSize: '0.82rem' }}>Licencia Vitalicia</span>
+                              <div style={{ color: '#71717a', fontSize: '0.74rem' }}>$0 MXN (Exenta)</div>
+                            </div>
+                          ) : (
+                            <div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                <CreditCard size={13} style={{ color: cycleInfo.badgeColor }} />
+                                <strong style={{ color: '#fff', fontSize: '0.82rem' }}>{cycleInfo.label}</strong>
+                              </div>
+                              <div style={{ color: '#a1a1aa', fontSize: '0.75rem', marginTop: '0.15rem' }}>
+                                ${comp.monthlyEstimate.toLocaleString('es-MX')} MXN / mes
+                              </div>
+                            </div>
+                          )}
+                        </td>
+
+                        {/* Próximo Pago & Estado */}
+                        <td style={{ padding: '1rem' }}>
+                          {isExempt ? (
+                            <span style={{
+                              padding: '0.2rem 0.6rem',
+                              borderRadius: '6px',
+                              fontSize: '0.75rem',
+                              fontWeight: 700,
+                              color: '#38bdf8',
+                              background: 'rgba(56, 189, 248, 0.15)',
+                              border: '1px solid rgba(56, 189, 248, 0.35)',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.3rem'
+                            }}>
+                              <ShieldCheck size={13} />
+                              <span>Sin Cobros Programados</span>
+                            </span>
+                          ) : (
+                            <div>
+                              <div style={{ color: '#fff', fontWeight: 600, fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                                <Calendar size={13} style={{ color: '#60a5fa' }} />
+                                <span>{formatLicenseDate(comp.nextBillingDate)}</span>
+                              </div>
+                              <div style={{ marginTop: '0.25rem' }}>
+                                {licStatus && (
+                                  <span style={{
+                                    padding: '0.15rem 0.5rem',
+                                    borderRadius: '4px',
+                                    fontSize: '0.72rem',
+                                    fontWeight: 700,
+                                    color: licStatus.color,
+                                    background: licStatus.bg,
+                                    border: `1px solid ${licStatus.borderColor}`,
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.25rem'
+                                  }}>
+                                    <Clock size={11} /> {licStatus.badgeText}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </td>
+
+                        {/* Regla de Aviso */}
+                        <td style={{ padding: '1rem' }}>
+                          {isExempt ? (
+                            <span style={{ color: '#71717a', fontSize: '0.78rem' }}>No aplica</span>
+                          ) : (
+                            <div>
+                              <span style={{ color: '#d4d4d8', fontSize: '0.8rem', fontWeight: 600 }}>
+                                {noticeDays} días antes
+                              </span>
+                              <div style={{ fontSize: '0.72rem', color: '#71717a' }}>
+                                Margen preventivo
+                              </div>
+                            </div>
+                          )}
+                        </td>
+
+                        {/* Contacto de Cobranza */}
+                        <td style={{ padding: '1rem' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                            {comp.billingContactName && (
+                              <span style={{ color: '#fff', fontWeight: 600, fontSize: '0.8rem' }}>
+                                {comp.billingContactName}
+                              </span>
+                            )}
+                            {billingEmail ? (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.75rem', color: '#93c5fd' }}>
+                                <Mail size={12} style={{ color: '#60a5fa' }} />
+                                <span>{billingEmail}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(billingEmail);
+                                    toast.success('Correo de cobranza copiado');
+                                  }}
+                                  title="Copiar correo"
+                                  style={{ background: 'none', border: 'none', color: '#71717a', cursor: 'pointer', padding: 0 }}
+                                >
+                                  <Copy size={11} />
+                                </button>
+                              </div>
+                            ) : (
+                              <span style={{ color: '#71717a', fontSize: '0.72rem' }}>Sin correo configurado</span>
+                            )}
+
+                            {billingPhone && (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.75rem', color: '#86efac' }}>
+                                <Phone size={12} style={{ color: '#22c55e' }} />
+                                <span>{billingPhone}</span>
+                                <a
+                                  href={`https://wa.me/${billingPhone.replace(/[^0-9]/g, '')}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  title="Abrir chat de WhatsApp"
+                                  style={{ color: '#22c55e', display: 'inline-flex', alignItems: 'center' }}
+                                >
+                                  <ExternalLink size={11} />
+                                </a>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* Último Recordatorio */}
+                        <td style={{ padding: '1rem' }}>
+                          {isExempt ? (
+                            <span style={{ color: '#71717a', fontSize: '0.75rem' }}>Exenta</span>
+                          ) : comp.lastReminderSentAt ? (
+                            <div>
+                              <span style={{ color: '#fbbf24', fontSize: '0.78rem', fontWeight: 600 }}>
+                                {formatTimeAgo(comp.lastReminderSentAt)}
+                              </span>
+                              <div style={{ fontSize: '0.7rem', color: '#71717a' }}>
+                                {new Date(comp.lastReminderSentAt).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })}
+                              </div>
+                            </div>
+                          ) : (
+                            <span style={{ color: '#71717a', fontSize: '0.75rem' }}>Nunca enviado</span>
+                          )}
+                        </td>
+
+                        {/* Acciones */}
+                        <td style={{ padding: '1rem', textAlign: 'right' }}>
+                          <div style={{ display: 'inline-flex', gap: '0.4rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                            {!isExempt && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => openReminderModal(comp)}
+                                  title="Enviar recordatorio de pago (Correo, WhatsApp y Notificación)"
+                                  style={{
+                                    ...btnSecondary,
+                                    padding: '0.35rem 0.65rem',
+                                    fontSize: '0.75rem',
+                                    color: '#60a5fa',
+                                    borderColor: 'rgba(59, 130, 246, 0.4)',
+                                    background: 'rgba(59, 130, 246, 0.1)',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.3rem'
+                                  }}
+                                >
+                                  <Mail size={13} /> Recordar
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleRenewLicense(comp)}
+                                  disabled={isRenewingLicense}
+                                  title="Renovar licencia (+1 ciclo completo)"
+                                  style={{
+                                    ...btnSecondary,
+                                    padding: '0.35rem 0.65rem',
+                                    fontSize: '0.75rem',
+                                    color: '#34d399',
+                                    borderColor: 'rgba(52, 211, 153, 0.4)',
+                                    background: 'rgba(52, 211, 153, 0.1)',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.3rem'
+                                  }}
+                                >
+                                  <RefreshCw size={13} className={isRenewingLicense ? "spin" : ""} /> Renovar
+                                </button>
+                              </>
+                            )}
+
+                            <button
+                              type="button"
+                              onClick={() => openEditModal(comp)}
+                              title="Modificar cuotas, días de aviso y correos"
+                              style={{
+                                ...btnSecondary,
+                                padding: '0.35rem 0.6rem',
+                                fontSize: '0.75rem',
+                                color: '#d4d4d8',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.3rem'
+                              }}
+                            >
+                              <Edit size={13} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : (
+        <div className="fade-in">
       {/* Banner de Alerta de Prioridad Alta: Empresas con Plazo de Gracia Vencido */}
       {expiredCompanies.length > 0 && (
         <div style={{
@@ -1069,6 +2205,19 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
             <option value="STARTER">Starter</option>
             <option value="PRO">Pro</option>
             <option value="ENTERPRISE">Enterprise</option>
+            <option value="CUSTOM">Personalizado</option>
+          </select>
+
+          <select 
+            value={selectedBillingCycle} 
+            onChange={(e) => setSelectedBillingCycle(e.target.value)}
+            style={selectFilterStyle}
+          >
+            <option value="ALL">Todos los Ciclos</option>
+            <option value="MENSUAL">Mensual (1m)</option>
+            <option value="TRIMESTRAL">Trimestral (3m)</option>
+            <option value="SEMESTRAL">Semestral (6m)</option>
+            <option value="ANUAL">Anual (1 año)</option>
           </select>
 
           <select 
@@ -1159,6 +2308,26 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
                             }}>
                               {comp.plan}
                             </span>
+                            {(() => {
+                              const cycleInfo = BILLING_CYCLES[comp.billingCycle] || BILLING_CYCLES.MENSUAL;
+                              return (
+                                <span style={{ 
+                                  padding: '0.1rem 0.45rem', 
+                                  borderRadius: '4px', 
+                                  fontSize: '0.68rem', 
+                                  fontWeight: 700, 
+                                  color: cycleInfo.badgeColor, 
+                                  background: cycleInfo.bgBadge,
+                                  border: `1px solid ${cycleInfo.borderBadge}`,
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.2rem'
+                                }}>
+                                  <CreditCard size={10} />
+                                  {cycleInfo.label}
+                                </span>
+                              );
+                            })()}
                             {comp.isHolding && (
                               <span style={{ 
                                 padding: '0.1rem 0.45rem', 
@@ -1173,11 +2342,60 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
                               </span>
                             )}
                           </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.25rem', fontSize: '0.72rem', color: '#a1a1aa' }}>
-                            <Calendar size={11} style={{ color: '#f97316' }} />
-                            <span>Alta: <strong style={{ color: '#d4d4d8' }}>{new Date(comp.createdAt).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })}</strong></span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.25rem', fontSize: '0.72rem', color: '#a1a1aa', flexWrap: 'wrap' }}>
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                              <Calendar size={11} style={{ color: '#f97316' }} />
+                              Alta: <strong style={{ color: '#d4d4d8' }}>{new Date(comp.createdAt).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })}</strong>
+                            </span>
                             <span>·</span>
                             <span style={{ color: '#71717a' }}>{formatTimeAgo(comp.createdAt)}</span>
+                            {isCompanyExempt(comp) ? (
+                              <>
+                                <span>·</span>
+                                <span 
+                                  title="Empresa Propietaria / Desarrolladora del Sistema (Licencia Vitalicia Exenta de Pago)"
+                                  style={{
+                                    padding: '0.05rem 0.45rem',
+                                    borderRadius: '4px',
+                                    fontSize: '0.68rem',
+                                    fontWeight: 700,
+                                    color: '#38bdf8',
+                                    background: 'rgba(56, 189, 248, 0.15)',
+                                    border: '1px solid rgba(56, 189, 248, 0.4)',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.25rem'
+                                  }}
+                                >
+                                  <ShieldCheck size={11} />
+                                  <span>Propietario (Licencia Vitalicia Exenta)</span>
+                                </span>
+                              </>
+                            ) : comp.nextBillingDate ? (() => {
+                              const licStatus = getLicenseStatus(comp.nextBillingDate, false, comp.billingNoticeDays);
+                              return (
+                                <>
+                                  <span>·</span>
+                                  <span 
+                                    title={`Próximo pago: ${formatFullLicenseDate(comp.nextBillingDate)} (${licStatus?.label || ''})`}
+                                    style={{
+                                      padding: '0.05rem 0.35rem',
+                                      borderRadius: '4px',
+                                      fontSize: '0.68rem',
+                                      fontWeight: 600,
+                                      color: licStatus ? licStatus.color : '#a1a1aa',
+                                      background: licStatus ? licStatus.bg : 'transparent',
+                                      border: licStatus ? `1px solid ${licStatus.borderColor}` : 'none',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '0.2rem'
+                                    }}
+                                  >
+                                    <Clock size={10} /> Cobro: {formatLicenseDate(comp.nextBillingDate)} ({licStatus?.badgeText})
+                                  </span>
+                                </>
+                              );
+                            })() : null}
                           </div>
                         </div>
                       </div>
@@ -1205,7 +2423,7 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
                         {/* Empleados */}
                         <div>
                           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: '#d4d4d8', marginBottom: '0.15rem' }}>
-                            <span>👥 {empsCount} / {comp.maxEmployees} <span style={{ color: '#10b981', fontSize: '0.7rem' }}>({enrolledCount} 👤)</span></span>
+                            <span>{empsCount} / {comp.maxEmployees} <span style={{ color: '#10b981', fontSize: '0.7rem' }}>({enrolledCount} enrolados)</span></span>
                             <span style={{ color: '#71717a' }}>{empPct}%</span>
                           </div>
                           <div style={{ height: '3px', background: '#27272a', borderRadius: '99px', overflow: 'hidden' }}>
@@ -1216,7 +2434,7 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
                         {/* Kioscos */}
                         <div>
                           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: '#d4d4d8', marginBottom: '0.15rem' }}>
-                            <span>💻 {devsCount} / {comp.maxDevices} kioscos</span>
+                            <span>{devsCount} / {comp.maxDevices} kioscos</span>
                             <span style={{ color: '#71717a' }}>{devPct}%</span>
                           </div>
                           <div style={{ height: '3px', background: '#27272a', borderRadius: '99px', overflow: 'hidden' }}>
@@ -1454,17 +2672,39 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
                     </div>
 
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.35rem' }}>
-                      <span style={{ 
-                        padding: '0.15rem 0.55rem', 
-                        borderRadius: '99px', 
-                        fontSize: '0.7rem', 
-                        fontWeight: 700, 
-                        color: preset.badgeColor, 
-                        background: preset.bgBadge,
-                        border: `1px solid ${preset.badgeColor}33`
-                      }}>
-                        {comp.plan}
-                      </span>
+                      <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
+                        <span style={{ 
+                          padding: '0.15rem 0.55rem', 
+                          borderRadius: '99px', 
+                          fontSize: '0.7rem', 
+                          fontWeight: 700, 
+                          color: preset.badgeColor, 
+                          background: preset.bgBadge,
+                          border: `1px solid ${preset.badgeColor}33`
+                        }}>
+                          {comp.plan}
+                        </span>
+                        {(() => {
+                          const cycleInfo = BILLING_CYCLES[comp.billingCycle] || BILLING_CYCLES.MENSUAL;
+                          return (
+                            <span style={{ 
+                              padding: '0.15rem 0.55rem', 
+                              borderRadius: '99px', 
+                              fontSize: '0.68rem', 
+                              fontWeight: 700, 
+                              color: cycleInfo.badgeColor, 
+                              background: cycleInfo.bgBadge,
+                              border: `1px solid ${cycleInfo.borderBadge}`,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.2rem'
+                            }}>
+                              <CreditCard size={10} />
+                              {cycleInfo.label}
+                            </span>
+                          );
+                        })()}
+                      </div>
                       <span style={{
                         padding: '0.1rem 0.45rem',
                         borderRadius: '99px',
@@ -1490,6 +2730,78 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
                       </div>
                     )}
                   </div>
+
+                  {/* Plan de Pago y Próximo Cobro */}
+                  {(() => {
+                    const isExempt = isCompanyExempt(comp);
+                    if (isExempt) {
+                      return (
+                        <div style={{ background: 'rgba(56, 189, 248, 0.08)', borderRadius: '8px', padding: '0.65rem 0.85rem', marginBottom: '0.85rem', border: '1px solid rgba(56, 189, 248, 0.25)' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem', color: '#38bdf8' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontWeight: 700 }}>
+                              <ShieldCheck size={14} style={{ color: '#38bdf8' }} />
+                              <span>Licencia Propietaria (Exenta)</span>
+                            </div>
+                            <span style={{
+                              padding: '0.15rem 0.5rem',
+                              borderRadius: '4px',
+                              fontSize: '0.7rem',
+                              fontWeight: 800,
+                              color: '#38bdf8',
+                              background: 'rgba(56, 189, 248, 0.2)',
+                              border: '1px solid rgba(56, 189, 248, 0.4)'
+                            }}>
+                              Vitalicia
+                            </span>
+                          </div>
+                          <div style={{ fontSize: '0.74rem', color: '#94a3b8', marginTop: '0.25rem', paddingLeft: '1.35rem' }}>
+                            Empresa matriz desarrolladora · Sin cobros ni vencimientos
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    const cycleInfo = BILLING_CYCLES[comp.billingCycle] || BILLING_CYCLES.MENSUAL;
+                    const licStatus = getLicenseStatus(comp.nextBillingDate, false, comp.billingNoticeDays);
+                    return (
+                      <div style={{ background: '#18181b', borderRadius: '8px', padding: '0.65rem 0.85rem', marginBottom: '0.85rem', border: '1px solid #27272a' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem', color: '#fff' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontWeight: 600 }}>
+                            <CreditCard size={14} style={{ color: cycleInfo.badgeColor }} />
+                            <span>Plan {cycleInfo.label}</span>
+                            <span style={{ fontSize: '0.72rem', color: '#71717a', fontWeight: 400 }}>({cycleInfo.periodText})</span>
+                          </div>
+                          {licStatus ? (
+                            <span 
+                              title={licStatus.label}
+                              style={{
+                                padding: '0.15rem 0.5rem',
+                                borderRadius: '4px',
+                                fontSize: '0.7rem',
+                                fontWeight: 700,
+                                color: licStatus.color,
+                                background: licStatus.bg,
+                                border: `1px solid ${licStatus.borderColor}`,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.25rem'
+                              }}
+                            >
+                              <Calendar size={11} /> {licStatus.badgeText}
+                            </span>
+                          ) : (
+                            <span style={{ fontSize: '0.72rem', color: '#71717a' }}>Sin fecha</span>
+                          )}
+                        </div>
+                        {comp.nextBillingDate && (
+                          <div style={{ fontSize: '0.74rem', color: '#a1a1aa', marginTop: '0.3rem', paddingLeft: '1.35rem', display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.25rem' }}>
+                            <span>Próximo cobro: <strong style={{ color: '#d4d4d8' }}>{formatLicenseDate(comp.nextBillingDate)}</strong></span>
+                            {licStatus && <span style={{ color: licStatus.color }}>{licStatus.label}</span>}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
 
                   {/* Auditoría de Suspensión y Timer de Gracia (si no está activa) */}
                   {!comp.isActive && (() => {
@@ -1680,6 +2992,8 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
           })}
         </div>
       )}
+      </div>
+      )}
 
       {/* ========================================================= */}
       {/* MODAL 1: ALTA DE NUEVA EMPRESA                            */}
@@ -1715,6 +3029,22 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
                     <span style={{ color: '#38bdf8', fontWeight: 600 }}>
                       {createdSummary.company.plan} ({createdSummary.company.maxEmployees} emp, {createdSummary.company.maxDevices} kioscos)
                     </span>
+
+                    <span style={{ color: '#a1a1aa' }}>Plan de Pago:</span>
+                    {(() => {
+                      const cycle = createdSummary.company.billingCycle || formData.billingCycle || 'MENSUAL';
+                      const cycleInfo = BILLING_CYCLES[cycle] || BILLING_CYCLES.MENSUAL;
+                      return (
+                        <span style={{ color: cycleInfo.badgeColor, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                          <CreditCard size={13} /> {cycleInfo.label} ({cycleInfo.periodText})
+                        </span>
+                      );
+                    })()}
+
+                    <span style={{ color: '#a1a1aa' }}>Próximo Pago:</span>
+                    <strong style={{ color: '#10b981' }}>
+                      {formatFullLicenseDate(createdSummary.company.nextBillingDate || formData.nextBillingDate)}
+                    </strong>
 
                     <span style={{ color: '#a1a1aa' }}>Portal Web:</span>
                     <span style={{ color: '#fff', wordBreak: 'break-all' }}>{window.location.origin}/login</span>
@@ -1915,9 +3245,268 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
                     )}
                   </div>
 
+                  {/* 3. Plan de Pago, Anticipación y Cobranza */}
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', marginBottom: '0.75rem' }}>
+                      <h3 style={{ fontSize: '0.85rem', textTransform: 'uppercase', color: '#60a5fa', margin: 0, letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                        <CreditCard size={14} /> 3. Plan de Pago, Anticipación y Cobranza
+                      </h3>
+                      <FieldHelpButton fieldKey="billingCycle" activeHelp={activeHelpField} setActiveHelp={setActiveHelpField} />
+                    </div>
+                    <FieldHelpCallout fieldKey="billingCycle" activeHelp={activeHelpField} />
+
+                    {/* Opción Empresa Exenta */}
+                    <div 
+                      onClick={() => {
+                        setFormData(prev => ({
+                          ...prev,
+                          isExempt: !prev.isExempt,
+                          billingCycle: !prev.isExempt ? 'EXENTO' : 'MENSUAL',
+                          nextBillingDate: !prev.isExempt ? '' : calculateNextLicenseDate(prev.licenseStartDate || new Date().toISOString().split('T')[0], 'MENSUAL')
+                        }));
+                      }}
+                      style={{
+                        background: formData.isExempt ? 'rgba(56, 189, 248, 0.1)' : '#18181b',
+                        border: formData.isExempt ? '1px solid rgba(56, 189, 248, 0.45)' : '1px solid #27272a',
+                        borderRadius: '10px',
+                        padding: '0.85rem 1rem',
+                        marginBottom: '1rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                        <input
+                          type="checkbox"
+                          checked={formData.isExempt}
+                          onChange={() => {}}
+                          style={{ width: '18px', height: '18px', accentColor: '#38bdf8', cursor: 'pointer' }}
+                        />
+                        <div>
+                          <strong style={{ color: formData.isExempt ? '#38bdf8' : '#fff', fontSize: '0.88rem', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                            <ShieldCheck size={16} style={{ color: '#38bdf8' }} />
+                            <span>Empresa Exenta de Pago (Licencia Matriz PAIN / Interna / Cortesía)</span>
+                          </strong>
+                          <div style={{ fontSize: '0.74rem', color: '#a1a1aa', marginTop: '0.15rem' }}>
+                            {formData.isExempt ? 'Activa: Licencia vitalicia sin cobros periódicos ni fechas de corte.' : 'Marcar si esta empresa no debe generar cuotas ni adeudos comerciales.'}
+                          </div>
+                        </div>
+                      </div>
+                      <FieldHelpButton fieldKey="isExempt" activeHelp={activeHelpField} setActiveHelp={setActiveHelpField} />
+                    </div>
+                    <FieldHelpCallout fieldKey="isExempt" activeHelp={activeHelpField} />
+
+                    {formData.isExempt ? (
+                      <div style={{
+                        background: 'rgba(56, 189, 248, 0.08)',
+                        border: '1px solid rgba(56, 189, 248, 0.3)',
+                        borderRadius: '8px',
+                        padding: '0.85rem',
+                        color: '#7dd3fc',
+                        fontSize: '0.8rem',
+                        marginBottom: '1rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem'
+                      }}>
+                        <ShieldCheck size={18} style={{ flexShrink: 0 }} />
+                        <span>Esta empresa no generará cobros ni aparecerá en la lista de cuentas por cobrar. Podrás usarla indefinidamente sin avisos de pago.</span>
+                      </div>
+                    ) : (
+                      <>
+                        {/* Selector de Ciclo en Cards */}
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.75rem', marginBottom: '1rem' }}>
+                          {Object.keys(BILLING_CYCLES).map(cycleKey => {
+                            const isSelected = (formData.billingCycle || 'MENSUAL') === cycleKey;
+                            const b = BILLING_CYCLES[cycleKey];
+                            return (
+                              <div
+                                key={cycleKey}
+                                onClick={() => handleBillingCycleChange(cycleKey)}
+                                style={{
+                                  border: isSelected ? `2px solid ${b.badgeColor}` : '1px solid #27272a',
+                                  background: isSelected ? b.bgBadge : '#18181b',
+                                  borderRadius: '10px',
+                                  padding: '0.75rem',
+                                  cursor: 'pointer',
+                                  transition: 'all 0.15s'
+                                }}
+                              >
+                                <div style={{ fontWeight: 700, color: isSelected ? b.badgeColor : '#fff', fontSize: '0.88rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                  <span>{b.label}</span>
+                                  {isSelected && <Check size={14} style={{ color: b.badgeColor }} />}
+                                </div>
+                                <div style={{ fontSize: '0.74rem', color: '#a1a1aa', marginTop: '0.25rem', lineHeight: 1.45 }}>
+                                  {b.periodText}<br/>
+                                  <span style={{ color: '#71717a', fontSize: '0.7rem' }}>{b.description}</span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* Fechas de Licencia */}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '0.75rem' }}>
+                          <div>
+                            <label style={labelStyle}>
+                              Inicio de Licencia *
+                              <FieldHelpButton fieldKey="licenseStartDate" activeHelp={activeHelpField} setActiveHelp={setActiveHelpField} />
+                            </label>
+                            <FieldHelpCallout fieldKey="licenseStartDate" activeHelp={activeHelpField} />
+                            <input 
+                              type="date" 
+                              required={!formData.isExempt}
+                              value={formData.licenseStartDate}
+                              onChange={(e) => handleLicenseStartDateChange(e.target.value)}
+                              style={inputStyle}
+                            />
+                          </div>
+                          <div>
+                            <label style={labelStyle}>
+                              Próximo Pago de Licencia *
+                              <FieldHelpButton fieldKey="nextBillingDate" activeHelp={activeHelpField} setActiveHelp={setActiveHelpField} />
+                            </label>
+                            <FieldHelpCallout fieldKey="nextBillingDate" activeHelp={activeHelpField} />
+                            <input 
+                              type="date" 
+                              required={!formData.isExempt}
+                              value={formData.nextBillingDate}
+                              onChange={(e) => setFormData(prev => ({ ...prev, nextBillingDate: e.target.value }))}
+                              style={inputStyle}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Anticipación de Aviso de Pago */}
+                        <div style={{ marginBottom: '0.75rem' }}>
+                          <label style={labelStyle}>
+                            Anticipación de Aviso de Pago (Días para Notificar)
+                            <FieldHelpButton fieldKey="billingNoticeDays" activeHelp={activeHelpField} setActiveHelp={setActiveHelpField} />
+                          </label>
+                          <FieldHelpCallout fieldKey="billingNoticeDays" activeHelp={activeHelpField} />
+                          <select
+                            value={formData.billingNoticeDays || 15}
+                            onChange={(e) => setFormData(prev => ({ ...prev, billingNoticeDays: Number(e.target.value) || 15 }))}
+                            style={selectFilterStyle}
+                          >
+                            <option value={5}>5 días antes del corte</option>
+                            <option value={7}>7 días antes del corte (1 semana)</option>
+                            <option value={10}>10 días antes del corte</option>
+                            <option value={15}>15 días antes del corte (Recomendado por defecto)</option>
+                            <option value={30}>30 días antes del corte (1 mes)</option>
+                          </select>
+                        </div>
+
+                        {/* Banner Informativo en Vivo del Próximo Pago */}
+                        {formData.nextBillingDate && (
+                          <div style={{
+                            background: 'rgba(59, 130, 246, 0.08)',
+                            border: '1px solid rgba(59, 130, 246, 0.25)',
+                            borderRadius: '8px',
+                            padding: '0.65rem 0.85rem',
+                            fontSize: '0.78rem',
+                            color: '#93c5fd',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            flexWrap: 'wrap',
+                            gap: '0.5rem',
+                            marginBottom: '0.75rem'
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                              <Calendar size={14} style={{ color: '#60a5fa' }} />
+                              <span>
+                                Próximo vencimiento programado: <strong style={{ color: '#fff' }}>{formatFullLicenseDate(formData.nextBillingDate)}</strong>
+                              </span>
+                            </div>
+                            {(() => {
+                              const status = getLicenseStatus(formData.nextBillingDate, false, formData.billingNoticeDays);
+                              return status ? (
+                                <span style={{
+                                  padding: '0.1rem 0.45rem',
+                                  borderRadius: '4px',
+                                  fontSize: '0.72rem',
+                                  fontWeight: 700,
+                                  color: status.color,
+                                  background: status.bg,
+                                  border: `1px solid ${status.borderColor}`
+                                }}>
+                                  {status.label}
+                                </span>
+                              ) : null;
+                            })()}
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    {/* Datos de Cobranza y Facturación (Separado del Login) */}
+                    <div style={{
+                      background: '#18181b',
+                      border: '1px solid #27272a',
+                      borderRadius: '10px',
+                      padding: '1rem',
+                      marginBottom: '1rem'
+                    }}>
+                      <div style={{ color: '#93c5fd', fontSize: '0.82rem', fontWeight: 700, marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                        <Mail size={14} /> Contacto de Cobranza y Facturación (Separado del Login)
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '0.75rem' }}>
+                        <div>
+                          <label style={labelStyle}>
+                            Correo de Facturación / Cobranza
+                            <FieldHelpButton fieldKey="billingEmail" activeHelp={activeHelpField} setActiveHelp={setActiveHelpField} />
+                          </label>
+                          <FieldHelpCallout fieldKey="billingEmail" activeHelp={activeHelpField} />
+                          <input
+                            type="email"
+                            placeholder="ej. facturacion@empresa.com"
+                            value={formData.billingEmail || ''}
+                            onChange={(e) => setFormData(prev => ({ ...prev, billingEmail: e.target.value }))}
+                            style={inputStyle}
+                          />
+                        </div>
+
+                        <div>
+                          <label style={labelStyle}>
+                            Teléfono / WhatsApp de Cobranza
+                            <FieldHelpButton fieldKey="billingPhone" activeHelp={activeHelpField} setActiveHelp={setActiveHelpField} />
+                          </label>
+                          <FieldHelpCallout fieldKey="billingPhone" activeHelp={activeHelpField} />
+                          <input
+                            type="text"
+                            placeholder="ej. +52 55 1234 5678"
+                            value={formData.billingPhone || ''}
+                            onChange={(e) => setFormData(prev => ({ ...prev, billingPhone: e.target.value }))}
+                            style={inputStyle}
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label style={labelStyle}>
+                          Nombre del Contacto de Pagos
+                          <FieldHelpButton fieldKey="billingContactName" activeHelp={activeHelpField} setActiveHelp={setActiveHelpField} />
+                        </label>
+                        <FieldHelpCallout fieldKey="billingContactName" activeHelp={activeHelpField} />
+                        <input
+                          type="text"
+                          placeholder="ej. Lic. Ana Morales (Tesorería / Compras)"
+                          value={formData.billingContactName || ''}
+                          onChange={(e) => setFormData(prev => ({ ...prev, billingContactName: e.target.value }))}
+                          style={inputStyle}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
                   <div>
                     <h3 style={{ fontSize: '0.85rem', textTransform: 'uppercase', color: '#10b981', margin: '0 0 0.75rem', letterSpacing: '0.05em' }}>
-                      3. Primer Usuario Administrador
+                      4. Primer Usuario Administrador
                     </h3>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
                       <div>
@@ -2156,7 +3745,7 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem', flexWrap: 'wrap', gap: '0.5rem' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                         <strong style={{ color: '#ef4444', fontSize: '0.95rem' }}>
-                          {timer?.isExpired ? '🚨 Alerta: Plazo de Baja Temporal Vencido' : 'Empresa en Baja Temporal (Suspendida)'}
+                          {timer?.isExpired ? 'Alerta: Plazo de Baja Temporal Vencido' : 'Empresa en Baja Temporal (Suspendida)'}
                         </strong>
                         <span style={{ fontSize: '0.72rem', color: '#fca5a5', background: 'rgba(239, 68, 68, 0.2)', padding: '0.15rem 0.5rem', borderRadius: '4px', fontWeight: 600 }}>
                           Acceso bloqueado en portal y kioscos
@@ -2373,6 +3962,181 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
                     </div>
                   </div>
                 </div>
+
+                {/* Tarjeta de Licenciamiento y Esquema de Cobro */}
+                {(() => {
+                  const isExempt = isCompanyExempt(detailCompany);
+                  if (isExempt) {
+                    return (
+                      <div style={{ background: 'rgba(56, 189, 248, 0.06)', border: '1px solid rgba(56, 189, 248, 0.3)', borderRadius: '10px', padding: '1.25rem', gridColumn: '1 / -1' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+                          <h4 style={{ margin: 0, color: '#38bdf8', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <ShieldCheck size={18} /> Licencia Propietaria y Matriz (Exenta de Pago)
+                          </h4>
+                          <span style={{
+                            padding: '0.25rem 0.75rem',
+                            borderRadius: '99px',
+                            fontSize: '0.75rem',
+                            fontWeight: 800,
+                            color: '#38bdf8',
+                            background: 'rgba(56, 189, 248, 0.2)',
+                            border: '1px solid rgba(56, 189, 248, 0.4)',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                          }}>
+                            <ShieldCheck size={13} />
+                            <span>Licencia Vitalicia Exenta</span>
+                          </span>
+                        </div>
+                        <p style={{ margin: '0 0 1rem', color: '#94a3b8', fontSize: '0.85rem', lineHeight: 1.5 }}>
+                          Esta empresa es la entidad matriz / desarrolladora de la plataforma PAIN. Cuenta con licenciamiento vitalicio permanente y se encuentra <strong>100% exenta de cuotas de software, fechas de vencimiento y cobros periódicos</strong>.
+                        </p>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', borderTop: '1px solid rgba(56, 189, 248, 0.15)', paddingTop: '0.85rem' }}>
+                          <div>
+                            <span style={{ color: '#71717a', fontSize: '0.78rem', display: 'block' }}>Régimen de Licencia:</span>
+                            <strong style={{ color: '#38bdf8', fontSize: '0.88rem' }}>Exenta de Facturación ($0 MXN)</strong>
+                          </div>
+                          <div>
+                            <span style={{ color: '#71717a', fontSize: '0.78rem', display: 'block' }}>Vencimiento:</span>
+                            <strong style={{ color: '#fff', fontSize: '0.88rem' }}>Ilimitado / Permanente</strong>
+                          </div>
+                          <div>
+                            <span style={{ color: '#71717a', fontSize: '0.78rem', display: 'block' }}>Kioscos y Empleados:</span>
+                            <span style={{ color: '#34d399', fontSize: '0.88rem', fontWeight: 600 }}>Sin bloqueos por mora comercial</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  const cycle = detailCompany.billingCycle || 'MENSUAL';
+                  const cycleInfo = BILLING_CYCLES[cycle] || BILLING_CYCLES.MENSUAL;
+                  const licStatus = getLicenseStatus(detailCompany.nextBillingDate, false, detailCompany.billingNoticeDays);
+                  return (
+                    <div style={{ background: '#18181b', border: '1px solid #27272a', borderRadius: '10px', padding: '1.25rem', gridColumn: '1 / -1' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+                        <h4 style={{ margin: 0, color: '#60a5fa', fontSize: '0.92rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <CreditCard size={17} /> Licenciamiento y Esquema de Cobro
+                        </h4>
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          <button
+                            type="button"
+                            onClick={() => openReminderModal(detailCompany)}
+                            style={{
+                              ...btnSecondary,
+                              padding: '0.35rem 0.75rem',
+                              fontSize: '0.8rem',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.4rem',
+                              color: '#60a5fa',
+                              borderColor: 'rgba(59, 130, 246, 0.4)'
+                            }}
+                          >
+                            <Mail size={13} /> Enviar Recordatorio
+                          </button>
+                          <button
+                            onClick={() => handleRenewLicense(detailCompany)}
+                            disabled={isRenewingLicense}
+                            style={{
+                              ...btnPrimary,
+                              padding: '0.35rem 0.85rem',
+                              fontSize: '0.8rem',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.4rem',
+                              background: '#3b82f6'
+                            }}
+                            title="Avanza la fecha del próximo pago sumando un ciclo completo a la licencia"
+                          >
+                            <RefreshCw size={13} className={isRenewingLicense ? "spin" : ""} />
+                            {isRenewingLicense ? 'Renovando...' : `Renovar Licencia (+1 Periodo ${cycleInfo.label})`}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
+                        <div>
+                          <span style={{ color: '#a1a1aa', fontSize: '0.8rem', display: 'block', marginBottom: '0.25rem' }}>Frecuencia de Renovación:</span>
+                          <span style={{
+                            padding: '0.2rem 0.6rem',
+                            borderRadius: '6px',
+                            fontSize: '0.82rem',
+                            fontWeight: 700,
+                            color: cycleInfo.badgeColor,
+                            background: cycleInfo.bgBadge,
+                            border: `1px solid ${cycleInfo.borderBadge}`,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.35rem'
+                          }}>
+                            <CreditCard size={13} /> Plan {cycleInfo.label} ({cycleInfo.periodText})
+                          </span>
+                        </div>
+
+                        <div>
+                          <span style={{ color: '#a1a1aa', fontSize: '0.8rem', display: 'block', marginBottom: '0.25rem' }}>Inicio de Licencia:</span>
+                          <strong style={{ color: '#fff', fontSize: '0.92rem' }}>
+                            {formatFullLicenseDate(detailCompany.licenseStartDate || detailCompany.createdAt)}
+                          </strong>
+                        </div>
+
+                        <div>
+                          <span style={{ color: '#a1a1aa', fontSize: '0.8rem', display: 'block', marginBottom: '0.25rem' }}>Próximo Pago Programado:</span>
+                          <strong style={{ color: '#fff', fontSize: '0.92rem' }}>
+                            {formatFullLicenseDate(detailCompany.nextBillingDate)}
+                          </strong>
+                        </div>
+
+                        <div>
+                          <span style={{ color: '#a1a1aa', fontSize: '0.8rem', display: 'block', marginBottom: '0.25rem' }}>Estado de Licencia:</span>
+                          {licStatus ? (
+                            <span style={{
+                              padding: '0.2rem 0.6rem',
+                              borderRadius: '6px',
+                              fontSize: '0.78rem',
+                              fontWeight: 700,
+                              color: licStatus.color,
+                              background: licStatus.bg,
+                              border: `1px solid ${licStatus.borderColor}`,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.35rem'
+                            }}>
+                              <Clock size={12} /> {licStatus.label}
+                            </span>
+                          ) : (
+                            <span style={{ color: '#71717a', fontSize: '0.82rem' }}>Sin fecha de próximo pago</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Datos de Cobranza configurados */}
+                      <div style={{ marginTop: '1rem', borderTop: '1px solid #27272a', paddingTop: '0.85rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.85rem', fontSize: '0.8rem' }}>
+                        <div>
+                          <span style={{ color: '#71717a', display: 'block' }}>Aviso preventivo:</span>
+                          <strong style={{ color: '#d4d4d8' }}>{detailCompany.billingNoticeDays || 15} días antes del vencimiento</strong>
+                        </div>
+                        <div>
+                          <span style={{ color: '#71717a', display: 'block' }}>Correo de Cobranza:</span>
+                          <span style={{ color: '#93c5fd' }}>{detailCompany.billingEmail || detailCompany.adminUsers?.[0]?.email || 'No configurado'}</span>
+                        </div>
+                        <div>
+                          <span style={{ color: '#71717a', display: 'block' }}>Teléfono / WhatsApp:</span>
+                          <span style={{ color: '#86efac' }}>{detailCompany.billingPhone || 'No registrado'}</span>
+                        </div>
+                        <div>
+                          <span style={{ color: '#71717a', display: 'block' }}>Último recordatorio enviado:</span>
+                          <span style={{ color: detailCompany.lastReminderSentAt ? '#fbbf24' : '#71717a' }}>
+                            {detailCompany.lastReminderSentAt ? formatTimeAgo(detailCompany.lastReminderSentAt) : 'Nunca'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {/* Tarjeta de Registro y Trazabilidad Oficial */}
                 <div style={{ background: '#18181b', border: '1px solid #27272a', borderRadius: '10px', padding: '1.25rem', gridColumn: '1 / -1' }}>
@@ -2593,10 +4357,62 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ color: '#a1a1aa' }}>Usuario Admin:</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                  <strong style={{ color: '#10b981' }}>
-                    {credentialCompany.adminUsers?.[0]?.email || credentialCompany.adminEmail || 'Sin admin asignado'}
-                  </strong>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                  {credentialCompany.adminUsers && credentialCompany.adminUsers.length > 1 ? (
+                    <select
+                      value={credSelectedAdminEmail}
+                      onChange={(e) => setCredSelectedAdminEmail(e.target.value)}
+                      style={{
+                        background: '#18181b',
+                        border: '1px solid #3f3f46',
+                        color: '#10b981',
+                        borderRadius: '6px',
+                        padding: '0.25rem 0.5rem',
+                        fontSize: '0.85rem',
+                        fontWeight: 600
+                      }}
+                    >
+                      {credentialCompany.adminUsers.map(a => (
+                        <option key={a.email} value={a.email}>
+                          {a.name ? `${a.name} (${a.email})` : a.email} - {a.role}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <strong style={{ color: '#10b981' }}>
+                      {credSelectedAdminEmail || credentialCompany.adminUsers?.[0]?.email || credentialCompany.adminEmail || 'Sin admin asignado'}
+                    </strong>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const emailToCopy = credSelectedAdminEmail || credentialCompany.adminUsers?.[0]?.email || credentialCompany.adminEmail;
+                      if (emailToCopy) {
+                        navigator.clipboard.writeText(emailToCopy);
+                        setCredAdminCopied(true);
+                        toast.success('Correo de usuario copiado al portapapeles');
+                        setTimeout(() => setCredAdminCopied(false), 2500);
+                      }
+                    }}
+                    title="Copiar correo de inicio de sesión"
+                    style={{
+                      background: 'rgba(16, 185, 129, 0.12)',
+                      border: '1px solid rgba(16, 185, 129, 0.25)',
+                      color: '#10b981',
+                      padding: '0.2rem 0.45rem',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.25rem',
+                      fontSize: '0.75rem'
+                    }}
+                  >
+                    {credAdminCopied ? <Check size={12} /> : <Copy size={12} />}
+                    {credAdminCopied ? 'Copiado' : 'Copiar'}
+                  </button>
+
                   {(credentialCompany.adminUsers?.[0]?.role || credentialCompany.plan === 'CUSTOM') && (
                     <span style={{
                       padding: '0.1rem 0.45rem',
@@ -2607,7 +4423,7 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
                       fontWeight: 600,
                       border: '1px solid rgba(59, 130, 246, 0.3)'
                     }}>
-                      {credentialCompany.adminUsers?.[0]?.role || (credentialCompany.plan === 'CUSTOM' ? 'CORPORATE_ADMIN' : 'ADMIN')}
+                      {credentialCompany.adminUsers?.find(u => u.email === credSelectedAdminEmail)?.role || credentialCompany.adminUsers?.[0]?.role || (credentialCompany.plan === 'CUSTOM' ? 'CORPORATE_ADMIN' : 'ADMIN')}
                     </span>
                   )}
                 </div>
@@ -2619,11 +4435,47 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
                     <span style={{ color: '#eab308', fontWeight: 600, display: 'block' }}>Contraseña Activa en BD:</span>
                     <span style={{ fontSize: '0.72rem', color: '#10b981' }}>● Guardada y lista para iniciar sesión en /login</span>
                   </div>
-                  <code style={{ fontSize: '1rem', color: '#eab308', background: 'rgba(234, 179, 8, 0.12)', padding: '0.25rem 0.6rem', borderRadius: '6px', border: '1px solid rgba(234, 179, 8, 0.3)', fontWeight: 700 }}>
-                    {credGeneratedPassword}
-                  </code>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <code style={{ fontSize: '1rem', color: '#eab308', background: 'rgba(234, 179, 8, 0.12)', padding: '0.25rem 0.6rem', borderRadius: '6px', border: '1px solid rgba(234, 179, 8, 0.3)', fontWeight: 700 }}>
+                      {credGeneratedPassword}
+                    </code>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(credGeneratedPassword);
+                        setCredPasswordCopied(true);
+                        toast.success('Contraseña copiada al portapapeles');
+                        setTimeout(() => setCredPasswordCopied(false), 2500);
+                      }}
+                      title="Copiar solo la contraseña"
+                      style={{
+                        background: 'rgba(234, 179, 8, 0.15)',
+                        border: '1px solid rgba(234, 179, 8, 0.3)',
+                        color: '#eab308',
+                        padding: '0.3rem 0.6rem',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.35rem',
+                        fontSize: '0.8rem',
+                        fontWeight: 600
+                      }}
+                    >
+                      {credPasswordCopied ? <Check size={14} /> : <Copy size={14} />}
+                      {credPasswordCopied ? '¡Copiada!' : 'Copiar Clave'}
+                    </button>
+                  </div>
                 </div>
               )}
+            </div>
+
+            {/* Aviso informativo de credencial de inicio de sesión */}
+            <div style={{ background: 'rgba(59, 130, 246, 0.08)', border: '1px solid rgba(59, 130, 246, 0.25)', borderRadius: '8px', padding: '0.75rem', fontSize: '0.82rem', color: '#93c5fd', display: 'flex', alignItems: 'flex-start', gap: '0.5rem', marginBottom: '1.25rem' }}>
+              <Info size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
+              <span>
+                <strong>Atención:</strong> Para iniciar sesión en <code>/login</code>, el usuario debe ingresar en el campo <em>Correo Electrónico</em> el correo <strong>{credSelectedAdminEmail || credentialCompany.adminUsers?.[0]?.email || credentialCompany.adminEmail || 'admin@empresa.com'}</strong>. El <em>Identificador (Slug)</em> es de uso interno comercial y no sirve como nombre de usuario.
+              </span>
             </div>
 
             {/* Restablecer / Generar Contraseña */}
@@ -2838,7 +4690,7 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
                   marginTop: '0.75rem',
                   lineHeight: '1.4'
                 }}>
-                  📌 <strong>Regla Operativa:</strong> Si la empresa no paga antes del <strong>{new Date(Date.now() + (suspendGraceDays * 24 * 60 * 60 * 1000)).toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' })}</strong>, el sistema generará una <strong>Alerta de Prioridad Alta</strong> para que el Super Administrador ejecute manualmente la baja definitiva y purga total en MariaDB.
+                  <strong>Regla Operativa:</strong> Si la empresa no paga antes del <strong>{new Date(Date.now() + (suspendGraceDays * 24 * 60 * 60 * 1000)).toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' })}</strong>, el sistema generará una <strong>Alerta de Prioridad Alta</strong> para que el Super Administrador ejecute manualmente la baja definitiva y purga total en MariaDB.
                 </div>
               </div>
             )}
@@ -3196,6 +5048,180 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
                   </div>
                 )}
 
+                {/* Plan de Pago, Anticipación y Cobranza */}
+                <div style={{ padding: '0.85rem', background: 'rgba(59, 130, 246, 0.05)', borderRadius: '10px', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
+                  <div style={{ color: '#60a5fa', fontWeight: 600, fontSize: '0.85rem', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <CreditCard size={15} /> Licencia, Anticipación y Cobranza
+                  </div>
+
+                  {/* Toggle Exenta */}
+                  <div 
+                    onClick={() => {
+                      setEditFormData(prev => ({
+                        ...prev,
+                        isExempt: !prev.isExempt,
+                        billingCycle: !prev.isExempt ? 'EXENTO' : 'MENSUAL',
+                        nextBillingDate: !prev.isExempt ? '' : calculateNextLicenseDate(prev.licenseStartDate || new Date().toISOString().split('T')[0], 'MENSUAL')
+                      }));
+                    }}
+                    style={{
+                      background: editFormData.isExempt ? 'rgba(56, 189, 248, 0.1)' : '#18181b',
+                      border: editFormData.isExempt ? '1px solid rgba(56, 189, 248, 0.45)' : '1px solid #27272a',
+                      borderRadius: '8px',
+                      padding: '0.75rem 0.85rem',
+                      marginBottom: '0.75rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+                      <input
+                        type="checkbox"
+                        checked={editFormData.isExempt}
+                        onChange={() => {}}
+                        style={{ width: '16px', height: '16px', accentColor: '#38bdf8', cursor: 'pointer' }}
+                      />
+                      <div>
+                        <strong style={{ color: editFormData.isExempt ? '#38bdf8' : '#fff', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                          <ShieldCheck size={14} style={{ color: '#38bdf8' }} />
+                          <span>Empresa Exenta de Pago (Licencia Vitalicia / Matriz PAIN)</span>
+                        </strong>
+                        <div style={{ fontSize: '0.72rem', color: '#a1a1aa' }}>
+                          {editFormData.isExempt ? 'Exenta activa: Sin cobros ni vencimientos.' : 'Marcar para exentar de pago'}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {editFormData.isExempt ? (
+                    <div style={{
+                      background: 'rgba(56, 189, 248, 0.08)',
+                      border: '1px solid rgba(56, 189, 248, 0.25)',
+                      borderRadius: '6px',
+                      padding: '0.65rem 0.85rem',
+                      color: '#7dd3fc',
+                      fontSize: '0.76rem',
+                      marginBottom: '0.75rem'
+                    }}>
+                      Esta empresa operará como entidad propietaria / de cortesía sin adeudos ni avisos de corte.
+                    </div>
+                  ) : (
+                    <>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '0.75rem' }}>
+                        <div>
+                          <label style={labelStyle}>
+                            Plan de Pago
+                            <FieldHelpButton fieldKey="billingCycle" activeHelp={activeHelpField} setActiveHelp={setActiveHelpField} />
+                          </label>
+                          <FieldHelpCallout fieldKey="billingCycle" activeHelp={activeHelpField} />
+                          <select
+                            value={editFormData.billingCycle || 'MENSUAL'}
+                            onChange={(e) => {
+                              const newCycle = e.target.value;
+                              setEditFormData(prev => {
+                                const startDate = prev.licenseStartDate || new Date().toISOString().split('T')[0];
+                                const nextDate = calculateNextLicenseDate(startDate, newCycle);
+                                return {
+                                  ...prev,
+                                  billingCycle: newCycle,
+                                  nextBillingDate: nextDate
+                                };
+                              });
+                            }}
+                            style={selectFilterStyle}
+                          >
+                            <option value="MENSUAL">Mensual (1 mes)</option>
+                            <option value="TRIMESTRAL">Trimestral (3 meses)</option>
+                            <option value="SEMESTRAL">Semestral (6 meses)</option>
+                            <option value="ANUAL">Anual (1 año)</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label style={labelStyle}>
+                            Próximo Pago de Licencia
+                            <FieldHelpButton fieldKey="nextBillingDate" activeHelp={activeHelpField} setActiveHelp={setActiveHelpField} />
+                          </label>
+                          <FieldHelpCallout fieldKey="nextBillingDate" activeHelp={activeHelpField} />
+                          <input
+                            type="date"
+                            value={editFormData.nextBillingDate || ''}
+                            onChange={(e) => setEditFormData(prev => ({ ...prev, nextBillingDate: e.target.value }))}
+                            style={inputStyle}
+                          />
+                        </div>
+                      </div>
+
+                      <div style={{ marginBottom: '0.75rem' }}>
+                        <label style={labelStyle}>
+                          Anticipación de Aviso de Pago
+                          <FieldHelpButton fieldKey="billingNoticeDays" activeHelp={activeHelpField} setActiveHelp={setActiveHelpField} />
+                        </label>
+                        <FieldHelpCallout fieldKey="billingNoticeDays" activeHelp={activeHelpField} />
+                        <select
+                          value={editFormData.billingNoticeDays || 15}
+                          onChange={(e) => setEditFormData(prev => ({ ...prev, billingNoticeDays: Number(e.target.value) || 15 }))}
+                          style={selectFilterStyle}
+                        >
+                          <option value={5}>5 días antes del corte</option>
+                          <option value={7}>7 días antes del corte (1 semana)</option>
+                          <option value={10}>10 días antes del corte</option>
+                          <option value={15}>15 días antes del corte (Recomendado por defecto)</option>
+                          <option value={30}>30 días antes del corte (1 mes)</option>
+                        </select>
+                      </div>
+
+                      {editFormData.nextBillingDate && (
+                        <div style={{ fontSize: '0.75rem', color: '#93c5fd', display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.75rem' }}>
+                          <Calendar size={12} style={{ color: '#60a5fa' }} />
+                          <span>Vencimiento programado: <strong>{formatFullLicenseDate(editFormData.nextBillingDate)}</strong></span>
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {/* Datos de Contacto de Cobranza */}
+                  <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.08)', paddingTop: '0.75rem', marginTop: '0.5rem' }}>
+                    <div style={{ color: '#93c5fd', fontSize: '0.78rem', fontWeight: 600, marginBottom: '0.5rem' }}>
+                      Datos de Contacto de Facturación / Cobranza
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '0.5rem' }}>
+                      <div>
+                        <label style={{ ...labelStyle, fontSize: '0.75rem' }}>Correo Cobranza</label>
+                        <input
+                          type="email"
+                          placeholder="cobranza@empresa.com"
+                          value={editFormData.billingEmail || ''}
+                          onChange={(e) => setEditFormData(prev => ({ ...prev, billingEmail: e.target.value }))}
+                          style={inputStyle}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ ...labelStyle, fontSize: '0.75rem' }}>Teléfono / WhatsApp</label>
+                        <input
+                          type="text"
+                          placeholder="+52 55 1234 5678"
+                          value={editFormData.billingPhone || ''}
+                          onChange={(e) => setEditFormData(prev => ({ ...prev, billingPhone: e.target.value }))}
+                          style={inputStyle}
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label style={{ ...labelStyle, fontSize: '0.75rem' }}>Contacto de Pagos</label>
+                      <input
+                        type="text"
+                        placeholder="Lic. Ana Morales (Finanzas)"
+                        value={editFormData.billingContactName || ''}
+                        onChange={(e) => setEditFormData(prev => ({ ...prev, billingContactName: e.target.value }))}
+                        style={inputStyle}
+                      />
+                    </div>
+                  </div>
+                </div>
+
                 <div>
                   <label style={labelStyle}>Zona Horaria</label>
                   <select 
@@ -3230,6 +5256,330 @@ Por seguridad, ingrese al portal y configure sus credenciales.`;
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL 7: RECORDATORIO DE COBRANZA Y PAGO DE LICENCIA      */}
+      {/* ========================================================= */}
+      {reminderModalCompany && (
+        <div className="modal-overlay" onClick={() => !reminderSending && setReminderModalCompany(null)}>
+          <div
+            className="modal-content page-glow"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              maxWidth: '650px',
+              width: '92%',
+              borderRadius: '16px',
+              background: '#141416',
+              border: '1px solid rgba(59, 130, 246, 0.3)',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+              padding: '2rem',
+              maxHeight: '90vh',
+              overflowY: 'auto'
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                <div style={{
+                  width: '42px',
+                  height: '42px',
+                  borderRadius: '10px',
+                  background: 'rgba(59, 130, 246, 0.15)',
+                  border: '1px solid rgba(59, 130, 246, 0.35)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#60a5fa'
+                }}>
+                  <Mail size={22} />
+                </div>
+                <div>
+                  <h2 style={{ fontSize: '1.25rem', fontWeight: 700, margin: 0, color: '#fff' }}>
+                    Recordatorio de Pago de Licencia
+                  </h2>
+                  <p style={{ margin: '0.2rem 0 0', color: '#a1a1aa', fontSize: '0.82rem' }}>
+                    {reminderModalCompany.name} ({reminderModalCompany.slug})
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setReminderModalCompany(null)}
+                style={{ background: 'none', border: 'none', color: '#71717a', cursor: 'pointer' }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Ficha Resumen Destinatario */}
+            <div style={{ background: '#18181b', borderRadius: '10px', padding: '0.85rem 1rem', marginBottom: '1.25rem', border: '1px solid #27272a', display: 'flex', flexDirection: 'column', gap: '0.45rem', fontSize: '0.82rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: '#a1a1aa' }}>Destinatario de Cobranza:</span>
+                <span style={{ color: '#fff', fontWeight: 600 }}>
+                  {reminderModalCompany.billingContactName || reminderModalCompany.adminUsers?.[0]?.name || 'Encargado de Pagos'}
+                </span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: '#a1a1aa' }}>Correo de Envío:</span>
+                <strong style={{ color: '#60a5fa' }}>
+                  {reminderModalCompany.billingEmail || reminderModalCompany.adminUsers?.[0]?.email || 'No configurado'}
+                </strong>
+              </div>
+              {reminderModalCompany.billingPhone && (
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: '#a1a1aa' }}>Teléfono / WhatsApp:</span>
+                  <span style={{ color: '#22c55e', fontWeight: 600 }}>{reminderModalCompany.billingPhone}</span>
+                </div>
+              )}
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: '#a1a1aa' }}>Próximo Vencimiento:</span>
+                <span style={{ color: '#fbbf24', fontWeight: 700 }}>
+                  {formatFullLicenseDate(reminderModalCompany.nextBillingDate)}
+                </span>
+              </div>
+            </div>
+
+            {/* Asunto */}
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={labelStyle}>Asunto del Mensaje *</label>
+              <input
+                type="text"
+                value={reminderSubject}
+                onChange={(e) => setReminderSubject(e.target.value)}
+                style={inputStyle}
+              />
+            </div>
+
+            {/* Cuerpo */}
+            <div style={{ marginBottom: '1.25rem' }}>
+              <label style={labelStyle}>Cuerpo del Mensaje (Editable) *</label>
+              <textarea
+                rows={10}
+                value={reminderMessage}
+                onChange={(e) => setReminderMessage(e.target.value)}
+                style={{
+                  ...inputStyle,
+                  fontFamily: 'monospace',
+                  fontSize: '0.8rem',
+                  lineHeight: 1.5,
+                  resize: 'vertical'
+                }}
+              />
+            </div>
+
+            {/* Acciones de Envío y Notificación */}
+            {(() => {
+              const recipientEmail = reminderModalCompany.billingEmail || reminderModalCompany.adminUsers?.[0]?.email || '';
+              const encodedEmail = encodeURIComponent(recipientEmail);
+              const encodedSubject = encodeURIComponent(reminderSubject);
+              const encodedBody = encodeURIComponent(reminderMessage);
+
+              const gmailUrl = recipientEmail 
+                ? `https://mail.google.com/mail/?view=cm&fs=1&to=${encodedEmail}&su=${encodedSubject}&body=${encodedBody}`
+                : null;
+
+              const outlookUrl = recipientEmail
+                ? `https://outlook.live.com/mail/0/deeplink/compose?to=${encodedEmail}&subject=${encodedSubject}&body=${encodedBody}`
+                : null;
+
+              const mailtoUrl = recipientEmail 
+                ? `mailto:${encodedEmail}?subject=${encodedSubject}&body=${encodedBody}`
+                : null;
+
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                  {/* Encabezado de canales */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+                    <span style={{ fontSize: '0.8rem', color: '#a1a1aa', fontWeight: 600 }}>
+                      Selecciona el canal para enviar el recordatorio:
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleSendPaymentReminder}
+                      disabled={reminderSending}
+                      style={{
+                        ...btnPrimary,
+                        fontSize: '0.82rem',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        background: '#3b82f6',
+                        padding: '0.55rem 1rem'
+                      }}
+                    >
+                      <Send size={14} />
+                      <span>{reminderSending ? 'Emitiendo en sistema...' : 'Emitir Notificación en Sistema'}</span>
+                    </button>
+                  </div>
+
+                  {/* Fila de opciones de Correo y WhatsApp */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(135px, 1fr))', gap: '0.5rem' }}>
+                    {/* 1. Gmail Web */}
+                    <a
+                      href={gmailUrl || '#'}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => {
+                        if (!recipientEmail) {
+                          e.preventDefault();
+                          toast.error('Esta empresa no tiene correo asignado. Agrega uno en Editar Cuotas.');
+                        }
+                      }}
+                      style={{
+                        ...btnSecondary,
+                        fontSize: '0.78rem',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.4rem',
+                        color: '#f87171',
+                        borderColor: 'rgba(239, 68, 68, 0.4)',
+                        background: 'rgba(239, 68, 68, 0.08)',
+                        textDecoration: 'none',
+                        fontWeight: 600,
+                        padding: '0.55rem 0.75rem',
+                        borderRadius: '8px'
+                      }}
+                    >
+                      <Mail size={14} />
+                      <span>Gmail Web</span>
+                    </a>
+
+                    {/* 2. Outlook Web */}
+                    <a
+                      href={outlookUrl || '#'}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => {
+                        if (!recipientEmail) {
+                          e.preventDefault();
+                          toast.error('Esta empresa no tiene correo asignado. Agrega uno en Editar Cuotas.');
+                        }
+                      }}
+                      style={{
+                        ...btnSecondary,
+                        fontSize: '0.78rem',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.4rem',
+                        color: '#60a5fa',
+                        borderColor: 'rgba(59, 130, 246, 0.4)',
+                        background: 'rgba(59, 130, 246, 0.08)',
+                        textDecoration: 'none',
+                        fontWeight: 600,
+                        padding: '0.55rem 0.75rem',
+                        borderRadius: '8px'
+                      }}
+                    >
+                      <ExternalLink size={14} />
+                      <span>Outlook Web</span>
+                    </a>
+
+                    {/* 3. App de Correo Local */}
+                    <a
+                      href={mailtoUrl || '#'}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => {
+                        if (!recipientEmail) {
+                          e.preventDefault();
+                          toast.error('Esta empresa no tiene correo asignado. Agrega uno en Editar Cuotas.');
+                        }
+                      }}
+                      style={{
+                        ...btnSecondary,
+                        fontSize: '0.78rem',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.4rem',
+                        color: '#a1a1aa',
+                        borderColor: '#3f3f46',
+                        textDecoration: 'none',
+                        padding: '0.55rem 0.75rem',
+                        borderRadius: '8px'
+                      }}
+                    >
+                      <ExternalLink size={14} />
+                      <span>App Correo</span>
+                    </a>
+
+                    {/* 4. WhatsApp Web / Móvil */}
+                    {reminderModalCompany.billingPhone && (
+                      <a
+                        href={`https://wa.me/${reminderModalCompany.billingPhone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`${reminderSubject}\n\n${reminderMessage}`)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          ...btnSecondary,
+                          fontSize: '0.78rem',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '0.4rem',
+                          color: '#34d399',
+                          borderColor: 'rgba(52, 211, 153, 0.4)',
+                          background: 'rgba(52, 211, 153, 0.08)',
+                          textDecoration: 'none',
+                          fontWeight: 600,
+                          padding: '0.55rem 0.75rem',
+                          borderRadius: '8px'
+                        }}
+                      >
+                        <MessageSquare size={14} />
+                        <span>WhatsApp</span>
+                      </a>
+                    )}
+
+                    {/* 5. Copiar Texto Completo */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const copyPayload = `Para: ${recipientEmail || 'Sin correo'}\nAsunto: ${reminderSubject}\n\n${reminderMessage}`;
+                        navigator.clipboard.writeText(copyPayload);
+                        setReminderCopied(true);
+                        toast.success('Mensaje y datos copiados al portapapeles');
+                        setTimeout(() => setReminderCopied(false), 2500);
+                      }}
+                      style={{
+                        ...btnSecondary,
+                        fontSize: '0.78rem',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.4rem',
+                        padding: '0.55rem 0.75rem',
+                        borderRadius: '8px'
+                      }}
+                    >
+                      {reminderCopied ? <Check size={14} style={{ color: '#22c55e' }} /> : <Copy size={14} />}
+                      <span>{reminderCopied ? '¡Copiado!' : 'Copiar Todo'}</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {reminderResult && (
+              <div style={{
+                marginTop: '1.25rem',
+                padding: '0.85rem 1rem',
+                background: 'rgba(16, 185, 129, 0.1)',
+                border: '1px solid rgba(16, 185, 129, 0.3)',
+                borderRadius: '8px',
+                color: '#6ee7b7',
+                fontSize: '0.82rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem'
+              }}>
+                <CheckCircle2 size={16} />
+                <span>Notificación emitida en el portal del cliente y registrada en auditoría.</span>
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -1,0 +1,439 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Company {
+  id                  String    @id @default(uuid())
+  name                String
+  slug                String    @unique
+  customDomain        String?   @unique
+  plan                String    @default("STARTER") // "STARTER" | "PRO" | "ENTERPRISE"
+  isActive            Boolean   @default(true)
+  suspendedAt         DateTime?
+  suspensionReason    String?
+  suspendedById       String?
+  suspendedByName     String?
+  suspensionGraceDays Int?      @default(30)
+  suspensionExpiresAt DateTime?
+  deletionAlertSent   Boolean   @default(false)
+  deletionAlertAt     DateTime?
+  maxEmployees        Int       @default(50)
+  maxDevices          Int       @default(3)
+  timezone            String    @default("America/Mexico_City")
+  lastAbsenceDateRun  DateTime? @db.Date
+  descriptorsVersion  Int       @default(1)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  // Jerarquía Holding Multi-Sucursal (Plan Personalizado)
+  parentCompanyId String?
+  parentCompany   Company?               @relation("CompanyBranches", fields: [parentCompanyId], references: [id], onDelete: Restrict)
+  branches        Company[]              @relation("CompanyBranches")
+  isHolding       Boolean                @default(false)
+  maxBranches     Int?                   @default(1)
+  customPrice     Decimal?               @db.Decimal(10, 2)
+  branchAccesses  EmployeeBranchAccess[] @relation("BranchEmployees")
+
+  // Licenciamiento y Planes de Pago
+  billingCycle       String    @default("MENSUAL") // "MENSUAL" | "TRIMESTRAL" | "SEMESTRAL" | "ANUAL" | "EXENTO"
+  licenseStartDate   DateTime? @default(now())
+  nextBillingDate    DateTime?
+  isExempt           Boolean   @default(false)
+  billingEmail       String?
+  billingPhone       String?
+  billingContactName String?
+  billingNoticeDays  Int       @default(15)
+  lastReminderSentAt DateTime?
+
+  employees        Employee[]
+  departments      Department[]
+  shifts           Shift[]
+  devices          Device[]
+  authRequests     DeviceAuthRequest[]
+  adminUsers       AdminUser[]
+  settings         SystemSettings?
+  attendances      AttendanceRecord[]
+  events           EventRequest[]
+  notifications    Notification[]
+  auditLogs        AdminAuditLog[]
+  departmentShifts DepartmentShift[]
+  employeeShifts   EmployeeShift[]
+
+  @@index([isActive])
+  @@index([slug])
+  @@index([parentCompanyId])
+}
+
+model Department {
+  id        Int               @id @default(autoincrement())
+  companyId String
+  company   Company           @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  name      String
+  employees Employee[]
+  shifts    DepartmentShift[]
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  @@unique([companyId, name])
+  @@unique([id, companyId])
+  @@index([companyId])
+}
+
+model Employee {
+  id             String                 @id @default(uuid())
+  companyId      String
+  company        Company                @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  firstName      String
+  lastName       String
+  identifier     String // Número de empleado o DNI
+  email          String?
+  position       String?
+  departmentId   Int?
+  department     Department?            @relation(fields: [departmentId, companyId], references: [id, companyId], onDelete: Restrict)
+  faceDescriptor String?                @db.Text // Cifrado AES-256-GCM
+  enrolledAt     DateTime?
+  isActive       Boolean                @default(true)
+  attendances    AttendanceRecord[]
+  shifts         EmployeeShift[]
+  notifications  Notification[]
+  eventRequests  EventRequest[]
+  branchAccesses EmployeeBranchAccess[]
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+
+  @@unique([companyId, identifier])
+  @@unique([companyId, email])
+  @@unique([id, companyId])
+  @@index([companyId, isActive])
+  @@index([companyId, departmentId])
+  @@index([identifier])
+}
+
+model AttendanceRecord {
+  id           String    @id @default(uuid())
+  companyId    String
+  company      Company   @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  employeeId   String
+  employee     Employee  @relation(fields: [employeeId, companyId], references: [id, companyId], onDelete: Restrict)
+  date         DateTime  @db.Date
+  entrada      DateTime?
+  recesoInicio DateTime?
+  recesoFin    DateTime?
+  salida       DateTime?
+
+  // Turnos y Acciones Especiales
+  shiftId         Int?
+  shift           Shift?  @relation(fields: [shiftId, companyId], references: [id, companyId], onDelete: Restrict)
+  earlyExit       Boolean @default(false)
+  earlyExitReason String? @db.Text
+  overtimeMinutes Int?
+  isLate          Boolean @default(false)
+  lateMinutes     Int?
+  isAutoClosed    Boolean @default(false)
+  deviceId        String?
+  device          Device? @relation(fields: [deviceId, companyId], references: [id, companyId], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([id, companyId])
+  @@index([companyId, date])
+  @@index([companyId, employeeId, date])
+  @@index([companyId, deviceId])
+  @@index([employeeId, date])
+  @@index([date])
+  @@index([deviceId])
+}
+
+model Shift {
+  id             Int     @id @default(autoincrement())
+  companyId      String
+  company        Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  name           String
+  startTime      String // "HH:mm"
+  endTime        String // "HH:mm"
+  tolerance      Int?
+  breakStartTime String?
+  breakEndTime   String?
+  isActive       Boolean @default(true)
+
+  departments DepartmentShift[]
+  employees   EmployeeShift[]
+  attendances AttendanceRecord[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, name])
+  @@unique([id, companyId])
+  @@index([companyId])
+}
+
+model DepartmentShift {
+  id           Int     @id @default(autoincrement())
+  companyId    String
+  company      Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  departmentId Int
+  shiftId      Int
+
+  department Department @relation(fields: [departmentId, companyId], references: [id, companyId], onDelete: Cascade)
+  shift      Shift      @relation(fields: [shiftId, companyId], references: [id, companyId], onDelete: Cascade)
+
+  @@unique([departmentId, shiftId])
+  @@index([companyId])
+}
+
+model EmployeeShift {
+  id         Int     @id @default(autoincrement())
+  companyId  String
+  company    Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  employeeId String
+  shiftId    Int
+
+  employee Employee @relation(fields: [employeeId, companyId], references: [id, companyId], onDelete: Cascade)
+  shift    Shift    @relation(fields: [shiftId, companyId], references: [id, companyId], onDelete: Cascade)
+
+  @@unique([employeeId, shiftId])
+  @@index([companyId])
+}
+
+enum AdminRole {
+  SUPER_ADMIN
+  CORPORATE_ADMIN
+  ADMIN
+  SUPERVISOR
+  VIEWER
+}
+
+model AdminUser {
+  id        String    @id @default(uuid())
+  companyId String? // Nullable for SaaS SUPER_ADMIN
+  company   Company?  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  name      String
+  email     String    @unique // Email único globalmente para login directo
+  password  String
+  role      AdminRole @default(ADMIN)
+  createdBy String? // ID del Super Admin que lo creó
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  createdByUser AdminUser?     @relation("AdminCreator", fields: [createdBy], references: [id], onDelete: SetNull)
+  createdUsers  AdminUser[]    @relation("AdminCreator")
+  eventRequests EventRequest[]
+
+  @@unique([id, companyId])
+  @@index([companyId])
+}
+
+model AdminAuditLog {
+  id              String   @id @default(uuid())
+  companyId       String? // Nullable para auditorías de Super Admin
+  company         Company? @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  action          String // "CREATE_ADMIN" | "DELETE_ADMIN"
+  performedById   String
+  performedByName String
+  targetName      String
+  targetEmail     String
+  timestamp       DateTime @default(now())
+
+  @@index([companyId, timestamp])
+}
+
+model Notification {
+  id         String           @id @default(cuid())
+  companyId  String
+  company    Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  title      String
+  message    String
+  type       NotificationType
+  category   String // "device" | "attendance" | "system" | "security"
+  entityId   String? // ID del recurso relacionado
+  isRead     Boolean          @default(false)
+  createdAt  DateTime         @default(now())
+  employee   Employee?        @relation(fields: [employeeId, companyId], references: [id, companyId], onDelete: Cascade)
+  employeeId String?
+
+  @@unique([id, companyId])
+  @@index([companyId, isRead, createdAt])
+  @@index([employeeId, companyId])
+}
+
+enum NotificationType {
+  INFO
+  WARNING
+  ERROR
+  SUCCESS
+}
+
+enum EventType {
+  OVERTIME
+  EARLY_EXIT
+  JUSTIFIED_ABSENCE
+  VACATION
+  LATE_ARRIVAL
+  DISABILITY
+}
+
+enum EventStatus {
+  ACTIVE
+  CANCELLED
+}
+
+model EventRequest {
+  id                String      @id @default(uuid())
+  companyId         String
+  company           Company     @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  employeeId        String
+  employee          Employee    @relation(fields: [employeeId, companyId], references: [id, companyId], onDelete: Restrict)
+  type              EventType
+  status            EventStatus @default(ACTIVE)
+  date              DateTime    @db.Date
+  dateTo            DateTime?   @db.Date // Para VACATION / DISABILITY
+  startTime         DateTime? // Para OVERTIME / EARLY_EXIT
+  endTime           DateTime? // Para OVERTIME
+  minutes           Int?
+  reason            String      @db.Text
+  disabilityType    String? // Razón médica (MATERNITY, SURGERY, WORK_ACCIDENT, GENERAL_ILLNESS, OTHER)
+  certificateNumber String? // Folio o certificado médico (ej. Folio IMSS)
+  batchId           String?     @db.VarChar(50) // Para asignaciones masivas
+  registeredById    String
+  registeredBy      AdminUser   @relation(fields: [registeredById], references: [id], onDelete: Restrict)
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  @@unique([id, companyId])
+  @@index([companyId, date, status])
+  @@index([companyId, employeeId, date, type])
+  @@index([batchId])
+}
+
+model SystemSettings {
+  id        Int     @id @default(autoincrement())
+  companyId String  @unique // 1 a 1 con Company
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  // General
+  companyName String @default("PAIN")
+  timezone    String @default("America/Mexico_City")
+
+  // Asistencia
+  workdayStartHour     Int @default(8)
+  workdayStartMinute   Int @default(0)
+  latenessToleranceMin Int @default(15)
+  workdayEndHour       Int @default(17)
+  workdayEndMinute     Int @default(0)
+
+  breakStartTime String @default("13:00")
+  breakEndTime   String @default("14:00")
+
+  // Reconocimiento facial
+  faceConfidenceThreshold Float  @default(0.85)
+  captureMode             String @default("AUTO")
+
+  // Validación Facial
+  enableQualityValidation Boolean @default(true)
+  minFaceLuminance        Int     @default(40)
+  maxPoseDeviation        Float   @default(0.2)
+
+  // Notificaciones
+  alertEmail            String  @default("")
+  notifyOnDeviceOffline Boolean @default(true)
+  notifyOnUnknownFace   Boolean @default(true)
+  notifyOnLatenessMin   Int     @default(30)
+
+  // Privacidad
+  showConsentOnKiosk Boolean @default(true)
+  photoRetentionDays Int?    @default(30)
+
+  // Sistema
+  maintenanceMode     Boolean @default(false)
+  defaultExportFormat String  @default("CSV")
+
+  updatedAt DateTime @updatedAt
+}
+
+enum DeviceType {
+  KIOSK
+  CAMERA
+  TURNSTILE
+}
+
+enum DeviceStatus {
+  ONLINE
+  OFFLINE
+  UNSTABLE
+}
+
+enum AuthRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  EXPIRED
+}
+
+model Device {
+  id                String       @id @default(uuid())
+  companyId         String
+  company           Company      @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  name              String
+  type              DeviceType   @default(KIOSK)
+  status            DeviceStatus @default(ONLINE)
+  token             String?      @unique // Nullable: eliminado/purgado tras la ventana de gracia
+  tokenHash         String?      @unique // SHA-256 para validación segura
+  ipAddress         String?
+  description       String?
+  lastSeenAt        DateTime?
+  isBlocked         Boolean      @default(false)
+  blockedAt         DateTime?
+  blockedReason     String?
+  isActive          Boolean      @default(true)
+  deactivatedAt     DateTime?
+  deactivatedReason String?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  attendances AttendanceRecord[]
+
+  @@unique([id, companyId])
+  @@index([companyId, status])
+  @@index([token])
+  @@index([tokenHash])
+}
+
+model DeviceAuthRequest {
+  id          String            @id @default(uuid())
+  companyId   String? // Nullable mientras esté pendiente; se asigna al aprobar
+  company     Company?          @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  deviceId    String?
+  pairingCode String            @unique
+  ipAddress   String
+  userAgent   String            @db.Text
+  status      AuthRequestStatus @default(PENDING)
+  expiresAt   DateTime
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@index([pairingCode])
+  @@index([deviceId])
+  @@index([companyId, status])
+  @@index([status, expiresAt])
+}
+
+model EmployeeBranchAccess {
+  id         String   @id @default(uuid())
+  employeeId String
+  branchId   String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  branch     Company  @relation("BranchEmployees", fields: [branchId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@unique([employeeId, branchId])
+  @@index([branchId])
+  @@index([employeeId])
+}

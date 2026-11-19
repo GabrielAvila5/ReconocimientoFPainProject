@@ -20,6 +20,16 @@ const api = axios.create({
 
 // Interceptor para agregar token si existe en localStorage
 api.interceptors.request.use((config) => {
+  // En rutas públicas de autenticación no inyectar tokens de sesiones previas para evitar colisiones
+  if (config.url && config.url.includes('/auth/login')) {
+    if (config.headers) {
+      delete config.headers.Authorization;
+      delete config.headers['x-tenant-id'];
+      delete config.headers['x-branch-id'];
+    }
+    return config;
+  }
+
   const token = localStorage.getItem('token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;

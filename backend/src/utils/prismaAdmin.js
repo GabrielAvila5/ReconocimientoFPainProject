@@ -11,7 +11,7 @@
  * o en controladores y rutas de la aplicación de usuario.
  */
 
-const { PrismaClient } = require('@prisma/client');
+const { PrismaClient } = require('../generated/prisma');
 
 const globalForPrismaAdmin = global;
 const prismaAdmin = globalForPrismaAdmin.prismaAdmin || new PrismaClient({

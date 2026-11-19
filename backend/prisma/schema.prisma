@@ -1,5 +1,6 @@
 generator client {
   provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
 }
 
 datasource db {
@@ -38,6 +39,17 @@ model Company {
   maxBranches        Int?             @default(1)
   customPrice        Decimal?         @db.Decimal(10, 2)
   branchAccesses     EmployeeBranchAccess[] @relation("BranchEmployees")
+
+  // Licenciamiento y Planes de Pago
+  billingCycle       String           @default("MENSUAL") // "MENSUAL" | "TRIMESTRAL" | "SEMESTRAL" | "ANUAL" | "EXENTO"
+  licenseStartDate   DateTime?        @default(now())
+  nextBillingDate    DateTime?
+  isExempt           Boolean          @default(false)
+  billingEmail       String?
+  billingPhone       String?
+  billingContactName String?
+  billingNoticeDays  Int              @default(15)
+  lastReminderSentAt DateTime?
 
   employees          Employee[]
   departments        Department[]

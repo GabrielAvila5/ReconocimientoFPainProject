@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   Bell, AlertTriangle, XCircle, CheckCircle2, Info, 
-  Search, Filter, Check, Trash2, ChevronLeft, ChevronRight, RefreshCw
+  Search, Filter, Check, Trash2, ChevronLeft, ChevronRight, RefreshCw,
+  CreditCard, ArrowRight, DollarSign, CalendarClock
 } from 'lucide-react';
 import { useNotifications } from '../../contexts/NotificationContext';
+import { useAuth } from '../../contexts/AuthContext';
 
 const NotificationsPage = () => {
   const [notifications, setNotifications] = useState([]);
@@ -21,12 +24,41 @@ const NotificationsPage = () => {
   // Stats
   const [stats, setStats] = useState({ total: 0, unread: 0, errors: 0, warnings: 0 });
   const [deletingId, setDeletingId] = useState(null);
+  const [billingAlerts, setBillingAlerts] = useState(null);
+
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
 
   const { markAsRead, markAllAsRead, deleteNotification, deleteReadNotifications, refetch } = useNotifications();
 
   useEffect(() => {
     fetchNotifications();
   }, [page, typeFilter, statusFilter]);
+
+  useEffect(() => {
+    if (isSuperAdmin) {
+      fetchBillingAlerts();
+    }
+  }, [isSuperAdmin]);
+
+  const fetchBillingAlerts = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const baseUrl = import.meta.env.VITE_API_URL || '';
+      const response = await fetch(`${baseUrl}/api/v1/companies/upcoming-payments`, {
+        headers: {
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setBillingAlerts(data);
+      }
+    } catch {
+      // Ignorar errores en segundo plano
+    }
+  };
 
   const fetchNotifications = async () => {
     setLoading(true);
@@ -158,6 +190,101 @@ const NotificationsPage = () => {
           </button>
         </div>
       </header>
+
+      {/* Banner de Cobranza y Facturación de Empresas (Exclusivo Super Admin) */}
+      {isSuperAdmin && billingAlerts && (billingAlerts.kpis?.pastDue > 0 || billingAlerts.kpis?.dueSoon > 0) && (
+        <div 
+          style={{
+            background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.12) 0%, rgba(249, 115, 22, 0.12) 100%)',
+            border: '1px solid rgba(249, 115, 22, 0.35)',
+            borderRadius: '14px',
+            padding: '1.25rem 1.5rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '1.25rem',
+            flexWrap: 'wrap',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.3)'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: 1, minWidth: '280px' }}>
+            <div style={{
+              width: '46px',
+              height: '46px',
+              borderRadius: '12px',
+              background: 'rgba(249, 115, 22, 0.2)',
+              border: '1px solid rgba(249, 115, 22, 0.4)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#f97316',
+              flexShrink: 0
+            }}>
+              <CreditCard size={24} />
+            </div>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+                <h4 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: '#fff' }}>
+                  Avisos de Cobranza de Licencias SaaS
+                </h4>
+                {billingAlerts.kpis?.pastDue > 0 && (
+                  <span style={{ 
+                    fontSize: '0.75rem', 
+                    fontWeight: 700, 
+                    background: 'rgba(239, 68, 68, 0.25)', 
+                    color: '#fca5a5', 
+                    border: '1px solid rgba(239, 68, 68, 0.5)', 
+                    borderRadius: '6px', 
+                    padding: '0.2rem 0.55rem' 
+                  }}>
+                    {billingAlerts.kpis.pastDue} {billingAlerts.kpis.pastDue === 1 ? 'Vencida' : 'Vencidas'}
+                  </span>
+                )}
+                {billingAlerts.kpis?.dueSoon > 0 && (
+                  <span style={{ 
+                    fontSize: '0.75rem', 
+                    fontWeight: 700, 
+                    background: 'rgba(245, 158, 11, 0.25)', 
+                    color: '#fde047', 
+                    border: '1px solid rgba(245, 158, 11, 0.5)', 
+                    borderRadius: '6px', 
+                    padding: '0.2rem 0.55rem' 
+                  }}>
+                    {billingAlerts.kpis.dueSoon} {billingAlerts.kpis.dueSoon === 1 ? 'Por vencer' : 'Por vencer'}
+                  </span>
+                )}
+              </div>
+              <p style={{ margin: '0.35rem 0 0 0', fontSize: '0.85rem', color: '#cbd5e1', lineHeight: '1.4' }}>
+                Hay clientes con cuotas próximas a vencer o fuera de fecha. Puedes enviarles aviso de pago pre-redactado por Correo o WhatsApp desde la central de cobranza.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => navigate('/dashboard/companies?tab=payments')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              padding: '0.7rem 1.25rem',
+              background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '9px',
+              fontWeight: 700,
+              fontSize: '0.875rem',
+              cursor: 'pointer',
+              boxShadow: '0 4px 14px rgba(249, 115, 22, 0.35)',
+              transition: 'transform 0.2s',
+              whiteSpace: 'nowrap'
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-1px)'}
+            onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+          >
+            <span>Gestionar Pagos y Cobranza</span>
+            <ArrowRight size={16} />
+          </button>
+        </div>
+      )}
 
       {/* Cards de Resumen Rediseñadas (usando clases globales) */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.5rem' }}>
