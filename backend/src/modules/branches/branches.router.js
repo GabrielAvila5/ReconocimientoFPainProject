@@ -426,6 +426,32 @@ router.patch('/:id', async (req, res) => {
       dataToUpdate.timezone = timezone.trim();
     }
     if (typeof isActive === 'boolean') {
+      if (isActive && !currentBranch.isActive) {
+        // Validar cupo disponible en el Holding antes de reactivar
+        const holding = await prisma.company.findUnique({
+          where: { id: currentBranch.parentCompanyId },
+          select: { maxBranches: true }
+        });
+        const currentActiveBranches = await prisma.company.count({
+          where: { parentCompanyId: currentBranch.parentCompanyId, isActive: true }
+        });
+        const limit = holding?.maxBranches || 1;
+        if (currentActiveBranches >= limit) {
+          return res.status(403).json({
+            error: 'BRANCH_LIMIT_EXCEEDED',
+            message: `No se puede reactivar la sucursal porque se ha alcanzado el límite máximo del plan (${limit} sucursales activas permitidas).`
+          });
+        }
+      } else if (!isActive && currentBranch.isActive) {
+        // Al dar de baja, desconectar sockets de inmediato y desalojar de RAM
+        const appModule = require('../../app');
+        if (typeof appModule.disconnectCompanySockets === 'function') {
+          appModule.disconnectCompanySockets(branchId, 'BRANCH_DEACTIVATED');
+        }
+        if (global.cachedUsersByCompany) {
+          global.cachedUsersByCompany.delete(branchId);
+        }
+      }
       dataToUpdate.isActive = isActive;
     }
 
