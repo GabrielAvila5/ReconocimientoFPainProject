@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import { 
   MonitorSmartphone, ShieldCheck, ShieldAlert, Clock, RefreshCw, 
-  CheckCircle2, AlertCircle, ArrowRight 
+  CheckCircle2, AlertCircle, ArrowRight, Copy, Check, Building2 
 } from 'lucide-react';
 
 const SESSION_STORAGE_KEY = 'kiosk_pending_auth_request';
@@ -19,6 +19,8 @@ const KioskSetupPage = () => {
   const [status, setStatus] = useState('waiting'); // 'waiting' | 'approved' | 'rejected' | 'expired'
   const [approvedDevice, setApprovedDevice] = useState(null);
   const [timeLeft, setTimeLeft] = useState('');
+  const [copied, setCopied] = useState(false);
+  const [companySlugInput, setCompanySlugInput] = useState(searchParams.get('slug') || searchParams.get('company') || '');
 
   const socketRef = useRef(null);
   const timerRef = useRef(null);
@@ -70,10 +72,15 @@ const KioskSetupPage = () => {
       // 2. Pedir solicitud al backend enviando el deviceId para deduplicación estricta
       const deviceId = getOrCreateDeviceId();
       const baseUrl = import.meta.env.VITE_API_URL || '';
+      const requestPayload = { deviceId, forceNew };
+      if (companySlugInput.trim()) {
+        requestPayload.companySlug = companySlugInput.trim();
+      }
+
       const res = await fetch(`${baseUrl}/api/v1/devices/auth-request`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ deviceId, forceNew })
+        body: JSON.stringify(requestPayload)
       });
 
       if (!res.ok) {
@@ -232,10 +239,10 @@ const KioskSetupPage = () => {
           {status === 'approved'
             ? `Vinculado exitosamente como "${approvedDevice?.name || 'Kiosko'}". Redirigiendo...`
             : status === 'rejected'
-            ? 'La solicitud de vinculación fue rechazada por el Super Administrador.'
+            ? 'La solicitud de vinculación fue rechazada por el Administrador.'
             : status === 'expired'
             ? 'El código de emparejamiento ha expirado por seguridad.'
-            : 'Para habilitar este Kiosko, el Super Administrador debe aprobar este código desde el Panel de Control.'}
+            : 'Para habilitar este Kiosko, un Administrador o Super Administrador debe autorizar este código desde el Panel de Control.'}
         </p>
 
         {loading ? (
@@ -322,6 +329,36 @@ const KioskSetupPage = () => {
               }}>
                 {authData?.pairingCode}
               </div>
+
+              {/* Botón Copiar Código */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (authData?.pairingCode) {
+                    navigator.clipboard.writeText(authData.pairingCode);
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2000);
+                  }
+                }}
+                style={{
+                  marginTop: '0.85rem',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  backgroundColor: copied ? 'rgba(34, 197, 94, 0.15)' : 'rgba(249, 115, 22, 0.15)',
+                  border: `1px solid ${copied ? 'rgba(34, 197, 94, 0.3)' : 'rgba(249, 115, 22, 0.3)'}`,
+                  color: copied ? '#22c55e' : '#f97316',
+                  borderRadius: '8px',
+                  padding: '0.4rem 0.85rem',
+                  fontSize: '0.82rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+              >
+                {copied ? <Check size={14} /> : <Copy size={14} />}
+                {copied ? '¡Código Copiado!' : 'Copiar Código'}
+              </button>
             </div>
 
             {/* Temporizador y Pulso */}
@@ -333,7 +370,7 @@ const KioskSetupPage = () => {
               gap: '0.75rem 1.5rem',
               color: '#a1a1aa',
               fontSize: '0.85rem',
-              marginBottom: '2rem'
+              marginBottom: '1.5rem'
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                 <Clock size={16} color="#eab308" />
@@ -341,7 +378,7 @@ const KioskSetupPage = () => {
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <span className="pulse-dot" />
-                <span>Esperando aprobación remota</span>
+                <span>Esperando vinculación...</span>
               </div>
             </div>
 
@@ -349,18 +386,66 @@ const KioskSetupPage = () => {
             <div style={{
               backgroundColor: '#121215',
               borderRadius: '12px',
-              padding: '1rem 1.25rem',
+              padding: '1.1rem 1.25rem',
               textAlign: 'left',
               border: '1px solid #27272a',
               fontSize: '0.85rem',
               color: '#d4d4d8'
             }}>
               <div style={{ fontWeight: 600, color: '#fff', marginBottom: '0.5rem' }}>Pasos para autorizar:</div>
-              <ol style={{ margin: 0, paddingLeft: '1.2rem', display: 'flex', flexDirection: 'column', gap: '0.4rem', color: '#a1a1aa' }}>
-                <li>Abre el <strong>Dashboard de Administración</strong> con cuenta de Super Admin.</li>
-                <li>Dirígete a la sección <strong>Dispositivos</strong>.</li>
-                <li>Verás la alerta con el código <strong style={{ color: '#f97316' }}>{authData?.pairingCode}</strong> para aprobarlo.</li>
+              <ol style={{ margin: 0, paddingLeft: '1.2rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', color: '#a1a1aa' }}>
+                <li>Abre tu <strong>Dashboard de Administración</strong> (como Administrador de tu empresa o Super Admin).</li>
+                <li>Ve a la sección <strong>Dispositivos</strong> y pulsa en <strong>Añadir Dispositivo</strong> o <strong>Vincular Kiosko</strong>.</li>
+                <li>Ingresa el código <strong style={{ color: '#f97316' }}>{authData?.pairingCode}</strong> para asignarle nombre y activarlo.</li>
               </ol>
+
+              {/* Opción de Pre-Vincular con Identificador de Empresa */}
+              <div style={{ marginTop: '1rem', paddingTop: '0.9rem', borderTop: '1px solid #27272a' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+                  <label style={{ fontSize: '0.75rem', color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <Building2 size={13} /> Identificador de Empresa (Opcional)
+                  </label>
+                  {authData?.companyId && (
+                    <span style={{ fontSize: '0.75rem', color: '#22c55e', fontWeight: 600 }}>Empresa pre-vinculada</span>
+                  )}
+                </div>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <input
+                    type="text"
+                    placeholder="Ej. nexora-tech-puebla"
+                    value={companySlugInput}
+                    onChange={(e) => setCompanySlugInput(e.target.value)}
+                    style={{
+                      flex: 1,
+                      backgroundColor: '#0e0e11',
+                      border: '1px solid #27272a',
+                      borderRadius: '8px',
+                      padding: '0.45rem 0.75rem',
+                      color: '#fff',
+                      fontSize: '0.82rem'
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => initRequest(true)}
+                    style={{
+                      backgroundColor: '#27272a',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: '8px',
+                      padding: '0.45rem 0.85rem',
+                      fontSize: '0.78rem',
+                      fontWeight: 600,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Actualizar
+                  </button>
+                </div>
+                <p style={{ margin: '0.35rem 0 0 0', fontSize: '0.72rem', color: '#71717a' }}>
+                  Si indicas el identificador (slug) de tu empresa, aparecerá automáticamente en el banner de tu panel.
+                </p>
+              </div>
             </div>
           </div>
         )}

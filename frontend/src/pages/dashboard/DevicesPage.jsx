@@ -104,12 +104,13 @@ const DevicesPage = () => {
     }
   };
 
-  // Paso 1: Consultar Kiosco por código físico de 8 caracteres
+  // Paso 1: Consultar Kiosco por código físico
   const handleLookupKiosk = async (e) => {
     if (e) e.preventDefault();
-    const code = pairingCodeInput.trim().toUpperCase();
-    if (!code || code.length < 6) {
-      toast.error('Ingresa un código de emparejamiento válido de 8 caracteres.');
+    const raw = pairingCodeInput.trim().toUpperCase();
+    const clean = raw.replace(/[^A-Z0-9]/g, '');
+    if (!clean || clean.length < 6) {
+      toast.error('Ingresa un código de emparejamiento válido (ej. K9X2-7M4P).');
       return;
     }
 
@@ -120,7 +121,7 @@ const DevicesPage = () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
         credentials: 'include',
-        body: JSON.stringify({ pairingCode: code })
+        body: JSON.stringify({ pairingCode: raw })
       });
 
       if (!res.ok) {
@@ -322,7 +323,10 @@ const DevicesPage = () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
         credentials: 'include',
-        body: JSON.stringify({ name: nameToSend })
+        body: JSON.stringify({ 
+          name: nameToSend,
+          pairingCode: request.pairingCode
+        })
       });
 
       if (!res.ok) {
@@ -573,11 +577,13 @@ const DevicesPage = () => {
           <button 
             onClick={() => {
               setActiveTab('kiosk');
+              setPairingStep(1);
+              setPairingCodeInput('');
               setIsAddModalOpen(true);
             }}
             style={{ ...btnPrimary, display: 'flex', alignItems: 'center', gap: '0.5rem' }}
           >
-            <Plus size={18} /> Añadir Dispositivo
+            <Plus size={18} /> Vincular Kiosko / Dispositivo
           </button>
         </div>
       </div>
@@ -1173,6 +1179,73 @@ const DevicesPage = () => {
               <div>
                 {pairingStep === 1 ? (
                   <form onSubmit={handleLookupKiosk} style={{ padding: '0.5rem 0' }}>
+                    {/* Lista rápida de solicitudes pendientes detectadas */}
+                    {pendingRequests.length > 0 && (
+                      <div style={{
+                        backgroundColor: 'rgba(234, 179, 8, 0.08)',
+                        border: '1px solid rgba(234, 179, 8, 0.3)',
+                        borderRadius: '12px',
+                        padding: '1rem',
+                        marginBottom: '1.25rem'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', color: '#fef08a', fontSize: '0.85rem', fontWeight: 600 }}>
+                          <Clock size={15} color="#eab308" />
+                          <span>Solicitudes de kiosco esperando en la red ({pendingRequests.length}):</span>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                          {pendingRequests.map(req => (
+                            <div key={req.id} style={{
+                              backgroundColor: '#18181b',
+                              border: '1px solid #27272a',
+                              borderRadius: '8px',
+                              padding: '0.6rem 0.85rem',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              gap: '0.5rem'
+                            }}>
+                              <div>
+                                <div style={{ fontFamily: 'monospace', fontWeight: 700, color: '#f97316', fontSize: '1rem' }}>
+                                  {req.pairingCode}
+                                </div>
+                                <div style={{ fontSize: '0.75rem', color: '#71717a' }}>
+                                  IP: {req.ipAddress} • {getTimeRemaining(req.expiresAt)}
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setPairingLookupData({
+                                    id: req.id,
+                                    requestId: req.id,
+                                    pairingCode: req.pairingCode,
+                                    ipAddress: req.ipAddress,
+                                    userAgent: req.userAgent,
+                                    expiresAt: req.expiresAt,
+                                    createdAt: req.createdAt
+                                  });
+                                  setKioskCustomName(`Kiosko ${req.pairingCode}`);
+                                  setPairingStep(2);
+                                }}
+                                style={{
+                                  backgroundColor: '#f97316',
+                                  color: '#fff',
+                                  border: 'none',
+                                  borderRadius: '6px',
+                                  padding: '0.4rem 0.75rem',
+                                  fontSize: '0.8rem',
+                                  fontWeight: 600,
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                Vincular este
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
                       <div style={{
                         width: '56px',
@@ -1191,22 +1264,22 @@ const DevicesPage = () => {
                         Paso 1: Código de Emparejamiento
                       </h4>
                       <p style={{ margin: 0, color: '#a1a1aa', fontSize: '0.85rem', lineHeight: '1.5' }}>
-                        Ingresa el código alfanumérico de 8 caracteres que aparece en la pantalla del Kiosco físico.
+                        Ingresa el código alfanumérico que aparece en la pantalla del Kiosco físico (con o sin guión).
                       </p>
                     </div>
 
                     <div style={{ marginBottom: '1.5rem' }}>
                       <input 
                         type="text"
-                        maxLength={8}
-                        placeholder="Ej. A8X9K2M1"
+                        maxLength={12}
+                        placeholder="Ej. K9X2-7M4P o K9X27M4P"
                         value={pairingCodeInput}
                         onChange={(e) => setPairingCodeInput(e.target.value.toUpperCase())}
                         style={{
                           ...inputStyle,
                           textAlign: 'center',
-                          fontSize: '1.5rem',
-                          letterSpacing: '0.25em',
+                          fontSize: '1.35rem',
+                          letterSpacing: '0.15em',
                           fontWeight: 700,
                           fontFamily: 'monospace',
                           textTransform: 'uppercase'

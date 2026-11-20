@@ -61,9 +61,7 @@ const requestDeviceAuth = async (req, res) => {
   try {
     const ipAddress = getClientIp(req);
     const userAgent = req.headers['user-agent'] || 'Kiosk Device';
-    const { deviceId, forceNew } = req.body || {};
-
-    const now = new Date();
+    const { deviceId, forceNew, companySlug, companyId: inputCompanyId } = req.body || {};
 
     // 1. Detección de solicitud previa existente y activa para este dispositivo
     const existingRequest = await findActivePairingRequestForDevice({ deviceId, ipAddress, userAgent });
@@ -75,6 +73,24 @@ const requestDeviceAuth = async (req, res) => {
         pairingCode: existingRequest.pairingCode,
         expiresAt: existingRequest.expiresAt
       });
+    }
+
+    // Si se especificó un slug o ID de empresa opcional desde la pantalla del Kiosko
+    let targetCompanyId = null;
+    const slugOrId = companySlug || inputCompanyId;
+    if (slugOrId && typeof slugOrId === 'string') {
+      const foundCompany = await prismaAdmin.company.findFirst({
+        where: {
+          OR: [
+            { slug: slugOrId.trim().toLowerCase() },
+            { id: slugOrId.trim() }
+          ]
+        },
+        select: { id: true, name: true }
+      });
+      if (foundCompany) {
+        targetCompanyId = foundCompany.id;
+      }
     }
 
     // Si se pidió nueva o hay anteriores de este mismo cliente, marcarlas como EXPIRED
@@ -104,15 +120,34 @@ const requestDeviceAuth = async (req, res) => {
       attempts++;
     }
 
-    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutos (expiración corta para mitigar ataques de fuerza bruta)
+    // Expiración de 15 minutos para permitir que el administrador ingrese al dashboard e introduzca el código
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
 
     const authRequest = await createPairingRequest({
       deviceId: deviceId || null,
       pairingCode,
       ipAddress,
       userAgent,
-      expiresAt
+      expiresAt,
+      companyId: targetCompanyId
     });
+
+    // Notificar en tiempo real por WebSockets
+    if (io) {
+      const payload = {
+        id: authRequest.id,
+        pairingCode: authRequest.pairingCode,
+        ipAddress: authRequest.ipAddress,
+        userAgent: authRequest.userAgent,
+        createdAt: authRequest.createdAt,
+        expiresAt: authRequest.expiresAt,
+        companyId: authRequest.companyId
+      };
+      if (targetCompanyId) {
+        io.to(`company_${targetCompanyId}`).emit('new_device_auth_request', payload);
+      }
+      io.to('dashboard_global').emit('new_device_auth_request', payload);
+    }
 
     return res.status(201).json({
       requestId: authRequest.id,
@@ -127,10 +162,67 @@ const requestDeviceAuth = async (req, res) => {
 
 /**
  * GET /api/v1/devices/auth-requests/pending
- * Solo Super Administrador: Lista de solicitudes pendientes no expiradas.
+ * Obtiene las solicitudes de kiosko pendientes y vigentes.
+ * SUPER_ADMIN ve todas; ADMIN y CORPORATE_ADMIN ven las de su empresa y sin asignar.
  */
 const getPendingAuthRequests = async (req, res) => {
-  return res.status(404).json({ error: 'Endpoint descontinuado. Utilice el emparejamiento físico por código de 8 caracteres.' });
+  try {
+    const now = new Date();
+    const where = {
+      status: 'PENDING',
+      expiresAt: { gt: now }
+    };
+
+    if (req.user?.role !== 'SUPER_ADMIN') {
+      const userCompanyId = req.companyId || req.user?.companyId;
+      if (!userCompanyId) {
+        return res.json([]);
+      }
+
+      if (req.user?.role === 'CORPORATE_ADMIN') {
+        const branches = await prismaAdmin.company.findMany({
+          where: { parentCompanyId: userCompanyId },
+          select: { id: true }
+        });
+        const allowedIds = [userCompanyId, ...branches.map(b => b.id)];
+        where.OR = [
+          { companyId: { in: allowedIds } },
+          { companyId: null }
+        ];
+      } else {
+        where.OR = [
+          { companyId: userCompanyId },
+          { companyId: null }
+        ];
+      }
+    }
+
+    const pending = await prismaAdmin.deviceAuthRequest.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        pairingCode: true,
+        ipAddress: true,
+        userAgent: true,
+        createdAt: true,
+        expiresAt: true,
+        companyId: true,
+        company: {
+          select: {
+            id: true,
+            name: true,
+            slug: true
+          }
+        }
+      }
+    });
+
+    return res.json(pending);
+  } catch (error) {
+    console.error('Error al obtener solicitudes pendientes:', error);
+    return res.status(500).json({ error: 'Error al consultar solicitudes pendientes' });
+  }
 };
 
 // Tracker de intentos fallidos de aprobación por admin/IP para mitigar fuerza bruta
@@ -297,8 +389,11 @@ const approveDeviceAuth = async (req, res) => {
       return res.status(400).json({ error: 'La solicitud ha expirado' });
     }
 
-    // Validación de conocimiento del código físico: Obligatorio para vincular
-    if (!pairingCode || pairingCode.toUpperCase().trim() !== authRequest.pairingCode) {
+    // Validación de conocimiento del código físico: Obligatorio para vincular (acepta con o sin guiones)
+    const cleanGiven = (pairingCode || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const cleanStored = (authRequest.pairingCode || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+    if (!cleanGiven || cleanGiven !== cleanStored) {
       recordFailedApproval(adminId);
       return res.status(400).json({ error: 'Se requiere el código de emparejamiento físico para confirmar la vinculación.' });
     }
@@ -389,7 +484,7 @@ const approveDeviceAuth = async (req, res) => {
 
 /**
  * POST /api/v1/devices/auth-requests/:id/reject
- * Solo Super Administrador: Rechaza la solicitud.
+ * Administrador o Super Administrador: Rechaza la solicitud.
  */
 const rejectDeviceAuth = async (req, res) => {
   try {
@@ -404,17 +499,21 @@ const rejectDeviceAuth = async (req, res) => {
     const io = getIo(req);
     if (io) {
       // Notificar a la sala del Kiosko
-      io.to(`device_auth_${authRequest.id}`).emit('device_auth_rejected', {
+      io.to(`device_auth_${updated.id}`).emit('device_auth_rejected', {
         message: 'Solicitud rechazada por el administrador'
       });
 
       // Notificar al Dashboard del inquilino
-      if (authRequest.companyId) {
-        io.to(`company_${authRequest.companyId}`).emit('device_auth_request_resolved', {
-          id: authRequest.id,
+      if (updated.companyId) {
+        io.to(`company_${updated.companyId}`).emit('device_auth_request_resolved', {
+          id: updated.id,
           status: 'REJECTED'
         });
       }
+      io.to('dashboard_global').emit('device_auth_request_resolved', {
+        id: updated.id,
+        status: 'REJECTED'
+      });
     }
 
     return res.json({ success: true, message: 'Solicitud rechazada' });

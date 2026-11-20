@@ -101,7 +101,7 @@ async function isPairingCodeInUse(pairingCode) {
  * @param {object} params Parámetros de la solicitud
  * @returns {Promise<object>} Registro de DeviceAuthRequest creado
  */
-async function createPairingRequest({ deviceId, pairingCode, ipAddress, userAgent, expiresAt }) {
+async function createPairingRequest({ deviceId, pairingCode, ipAddress, userAgent, expiresAt, companyId = null }) {
   if (!pairingCode || !expiresAt) {
     throw new Error('createPairingRequest: pairingCode y expiresAt son obligatorios.');
   }
@@ -114,24 +114,31 @@ async function createPairingRequest({ deviceId, pairingCode, ipAddress, userAgen
       userAgent: userAgent || 'unknown',
       status: 'PENDING',
       expiresAt,
-      companyId: null // Kiosco no vinculado aún a ninguna empresa
+      companyId: companyId || null
     }
   });
 }
 
 /**
  * Busca una solicitud de emparejamiento pendiente por su código para verificación en Paso 1.
+ * Acepta códigos formateados con guión (ej: K9X2-7M4P) o continuos (ej: K9X27M4P).
  * 
- * @param {string} pairingCode Código de 8 caracteres
+ * @param {string} pairingCode Código de emparejamiento
  * @returns {Promise<object|null>} Solicitud de emparejamiento
  */
 async function lookupPairingRequest(pairingCode) {
-  if (!pairingCode) return null;
+  if (!pairingCode || typeof pairingCode !== 'string') return null;
   const now = new Date();
+
+  const raw = pairingCode.trim().toUpperCase();
+  const clean = raw.replace(/[^A-Z0-9]/g, '');
+  const formatted = clean.length === 8 ? `${clean.slice(0, 4)}-${clean.slice(4, 8)}` : clean;
+
+  const candidates = Array.from(new Set([raw, clean, formatted])).filter(Boolean);
 
   return prismaAdmin.deviceAuthRequest.findFirst({
     where: {
-      pairingCode,
+      pairingCode: { in: candidates },
       status: 'PENDING',
       expiresAt: { gt: now }
     },

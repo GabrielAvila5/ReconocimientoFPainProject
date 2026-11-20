@@ -30,10 +30,8 @@ router.post('/auth-requests/lookup', ...requireAdmin, lookupAuthRequestByCode);
 router.post('/auth-requests/:id/approve', ...requireAdmin, approveDeviceAuth);
 router.post('/auth-requests/:id/reject', ...requireAdmin, rejectDeviceAuth);
 
-// --- Rutas Protegidas de Gestión (SUPER_ADMIN y ADMIN de empresa) ---
-const requireSuperAdmin = [requireAuth, requireRole(['SUPER_ADMIN'])];
-
-router.get('/auth-requests/pending', ...requireSuperAdmin, getPendingAuthRequests);
+// --- Rutas Protegidas de Gestión (SUPER_ADMIN, CORPORATE_ADMIN y ADMIN de empresa) ---
+router.get('/auth-requests/pending', ...requireAdmin, getPendingAuthRequests);
 
 router.get('/', ...requireAdmin, getDevices);
 router.post('/', ...requireAdmin, createManualDevice);
