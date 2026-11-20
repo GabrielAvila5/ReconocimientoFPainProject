@@ -8,6 +8,16 @@
  */
 
 require('dotenv').config();
+
+const dbUrl = process.env.DATABASE_URL || '';
+// Salvaguarda: Negarse rotundamente a correr si la base de datos no es la réplica local de pruebas
+if (!dbUrl.includes('reconocimiento_test_copia_saas') && !dbUrl.includes('_test')) {
+  console.error('\n🚨 ERROR CRÍTICO DE SEGURIDAD: Intentando ejecutar pruebas de integración sobre una BD que no es de pruebas.');
+  console.error(`DATABASE_URL actual apunta a: ${dbUrl}`);
+  console.error('Abortando ejecución para proteger la base de datos de producción.\n');
+  process.exit(1);
+}
+
 const request = require('supertest');
 const jwt = require('jsonwebtoken');
 const { app } = require('../../src/app');
@@ -19,6 +29,7 @@ const CO_ALPHA = 'co-sec-alpha';
 const CO_BETA = 'co-sec-beta';
 const HOLDING_1 = 'holding-sec-1';
 const BRANCH_1 = 'branch-sec-h1-a';
+const BRANCH_INACTIVE = 'branch-sec-h1-inactive';
 const HOLDING_2 = 'holding-sec-2';
 const BRANCH_2 = 'branch-sec-h2-b';
 
@@ -59,14 +70,20 @@ async function runTenantSecurityHeadersTest() {
     // Holdings y Sucursales
     await prismaAdmin.company.upsert({
       where: { id: HOLDING_1 },
-      create: { id: HOLDING_1, name: 'Holding 1 Sec', slug: 'holding-1-sec', isHolding: true, plan: 'CUSTOM', maxBranches: 5, isActive: true },
-      update: { isHolding: true, isActive: true }
+      create: { id: HOLDING_1, name: 'Holding 1 Sec', slug: 'holding-1-sec', isHolding: true, plan: 'CUSTOM', maxBranches: 1, isActive: true },
+      update: { isHolding: true, maxBranches: 1, isActive: true }
     });
 
     await prismaAdmin.company.upsert({
       where: { id: BRANCH_1 },
-      create: { id: BRANCH_1, parentCompanyId: HOLDING_1, name: 'Sucursal 1 Propia', slug: 'sucursal-1-sec', isActive: true },
+      create: { id: BRANCH_1, parentCompanyId: HOLDING_1, name: 'Sucursal 1 Propia Activa', slug: 'sucursal-1-sec', isActive: true },
       update: { parentCompanyId: HOLDING_1, isActive: true }
+    });
+
+    await prismaAdmin.company.upsert({
+      where: { id: BRANCH_INACTIVE },
+      create: { id: BRANCH_INACTIVE, parentCompanyId: HOLDING_1, name: 'Sucursal Inactiva Esperando Cupo', slug: 'sucursal-inactiva-sec', isActive: false },
+      update: { parentCompanyId: HOLDING_1, isActive: false }
     });
 
     await prismaAdmin.company.upsert({
@@ -92,6 +109,20 @@ async function runTenantSecurityHeadersTest() {
       where: { id: 'emp-beta-sec-1' },
       create: { id: 'emp-beta-sec-1', companyId: CO_BETA, firstName: 'Pedro', lastName: 'Beta', identifier: 'SEC-B1', isActive: true },
       update: { companyId: CO_BETA, isActive: true }
+    });
+
+    // Admin User para Corporate Admin en MySQL
+    await prismaAdmin.adminUser.upsert({
+      where: { id: 'corp-admin-h1-id' },
+      create: {
+        id: 'corp-admin-h1-id',
+        companyId: HOLDING_1,
+        name: 'Corp Admin Holding 1',
+        email: 'corp@holding1.com',
+        role: 'CORPORATE_ADMIN',
+        password: 'hashed-password-123'
+      },
+      update: { companyId: HOLDING_1, role: 'CORPORATE_ADMIN' }
     });
 
     // Tokens JWT firmados
@@ -148,6 +179,33 @@ async function runTenantSecurityHeadersTest() {
 
     assert(resCorpLegit.status === 200, `Status code es 200 OK (obtenido ${resCorpLegit.status})`);
 
+    // -------------------------------------------------------------------------
+    // TEST 4: Reactivación de sucursal respetando cupo del plan (maxBranches)
+    // -------------------------------------------------------------------------
+    console.log('\n[Paso 4] Intento de reactivar sucursal cuando el Holding ya alcanzó su límite (maxBranches: 1)...');
+    const resOverLimit = await request(app)
+      .patch(`/api/v1/branches/${BRANCH_INACTIVE}`)
+      .set('Authorization', `Bearer ${corporateAdminToken}`)
+      .send({ isActive: true });
+
+    assert(resOverLimit.status === 403, `Status code es 403 Forbidden por cupo excedido (obtenido ${resOverLimit.status})`);
+    assert(resOverLimit.body.error === 'BRANCH_LIMIT_EXCEEDED', `Error es BRANCH_LIMIT_EXCEEDED (obtenido ${resOverLimit.body.error})`);
+
+    // Aumentar cupo a 2 y verificar que ahora sí permite reactivar
+    console.log('\n[Paso 4.b] Aumentando cupo del Holding a 2 y reintentando reactivación...');
+    await prismaAdmin.company.update({
+      where: { id: HOLDING_1 },
+      data: { maxBranches: 2 }
+    });
+
+    const resReactivateAllowed = await request(app)
+      .patch(`/api/v1/branches/${BRANCH_INACTIVE}`)
+      .set('Authorization', `Bearer ${corporateAdminToken}`)
+      .send({ isActive: true });
+
+    assert(resReactivateAllowed.status === 200, `Status code es 200 OK tras ampliar cupo (obtenido ${resReactivateAllowed.status})`);
+    assert(resReactivateAllowed.body.branch && resReactivateAllowed.body.branch.isActive === true, `Sucursal reactivada correctamente`);
+
     console.log('\n----------------------------------------------------------------');
     console.log(`RESULTADO FINAL PRUEBAS ZERO-TRUST: ${passed} PASADAS, ${failed} FALLADAS`);
     console.log('----------------------------------------------------------------\n');
@@ -157,8 +215,10 @@ async function runTenantSecurityHeadersTest() {
   } finally {
     console.log('[Teardown] Limpiando entidades de seguridad en MySQL...');
     try {
-      await prismaAdmin.employee.deleteMany({ where: { companyId: { in: [CO_ALPHA, CO_BETA, HOLDING_1, BRANCH_1, HOLDING_2, BRANCH_2] } } });
-      await prismaAdmin.company.deleteMany({ where: { id: { in: [BRANCH_1, BRANCH_2] } } });
+      await prismaAdmin.adminAuditLog.deleteMany({ where: { companyId: { in: [CO_ALPHA, CO_BETA, HOLDING_1, BRANCH_1, BRANCH_INACTIVE, HOLDING_2, BRANCH_2] } } });
+      await prismaAdmin.adminUser.deleteMany({ where: { id: 'corp-admin-h1-id' } });
+      await prismaAdmin.employee.deleteMany({ where: { companyId: { in: [CO_ALPHA, CO_BETA, HOLDING_1, BRANCH_1, BRANCH_INACTIVE, HOLDING_2, BRANCH_2] } } });
+      await prismaAdmin.company.deleteMany({ where: { id: { in: [BRANCH_1, BRANCH_INACTIVE, BRANCH_2] } } });
       await prismaAdmin.company.deleteMany({ where: { id: { in: [CO_ALPHA, CO_BETA, HOLDING_1, HOLDING_2] } } });
     } catch (e) {
       console.warn('Advertencia en teardown:', e.message);

@@ -7,6 +7,16 @@
  */
 
 require('dotenv').config();
+
+const dbUrl = process.env.DATABASE_URL || '';
+// Salvaguarda: Negarse rotundamente a correr si la base de datos no es la réplica local de pruebas
+if (!dbUrl.includes('reconocimiento_test_copia_saas') && !dbUrl.includes('_test')) {
+  console.error('\n🚨 ERROR CRÍTICO DE SEGURIDAD: Intentando ejecutar pruebas de integración sobre una BD que no es de pruebas.');
+  console.error(`DATABASE_URL actual apunta a: ${dbUrl}`);
+  console.error('Abortando ejecución para proteger la base de datos de producción.\n');
+  process.exit(1);
+}
+
 const request = require('supertest');
 const { app } = require('../../src/app');
 const prisma = require('../../src/utils/prisma');
