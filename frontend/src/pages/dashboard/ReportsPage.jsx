@@ -1752,7 +1752,7 @@ const ReportsPage = () => {
             onClick={() => { setActiveTab('descansos'); setSelectedStatus('Todos los estados'); }} 
             style={{ ...toggleBtn, background: activeTab === 'descansos' ? 'rgba(249, 115, 22, 0.1)' : 'transparent', color: activeTab === 'descansos' ? COLORS.orange : COLORS.textMuted }}
           >
-            Descansos
+            Pausas
           </button>
           <button 
             onClick={() => { setActiveTab('eventos'); }} 

@@ -190,6 +190,8 @@ app.use('/api/v1/superadmin/companies', companiesRouter);
 app.use('/api/v1/companies', companiesRouter); // Alias de compatibilidad
 const branchesRouter = require('./modules/branches/branches.router');
 app.use('/api/v1/branches', branchesRouter);
+const holidaysRouter = require('./modules/holidays/holidays.router');
+app.use('/api/v1/holidays', holidaysRouter);
 
 // Manejo de errores de CORS y seguridad
 app.use((err, req, res, next) => {

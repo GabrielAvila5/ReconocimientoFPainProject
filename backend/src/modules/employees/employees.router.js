@@ -5,6 +5,7 @@ const prisma = require('../../utils/prisma');
 const { syncFaceCache } = require('../../utils/faceMath');
 const { getCompanyForDescriptors, getDeviceByToken, updateDeviceLastSeen } = require('../../utils/authHelpers');
 const { runWithTenantContext } = require('../../middlewares/tenantContext');
+const { validateScheduleByDay } = require('../../utils/shiftUtils');
 
 // Tracker en memoria para rate limiting de descargas de descriptores (120 req/h)
 // y detección de anomalías/spikes (>30 req en 5 minutos)
@@ -756,7 +757,7 @@ router.delete('/:id', async (req, res) => {
 router.put('/:id/shift', async (req, res) => {
   try {
     const employeeId = req.params.id;
-    const { useCustom, startTime, endTime, tolerance, breakStartTime, breakEndTime } = req.body;
+    const { useCustom, startTime, endTime, tolerance, breakStartTime, breakEndTime, scheduleByDay } = req.body;
 
     const employee = await prisma.employee.findUnique({
       where: { id: employeeId },
@@ -789,22 +790,46 @@ router.put('/:id/shift', async (req, res) => {
       return res.json({ success: true, message: 'Horario personalizado desactivado' });
     }
 
+    if (scheduleByDay) {
+      const val = validateScheduleByDay(scheduleByDay);
+      if (!val.valid) {
+        return res.status(400).json({ error: val.error });
+      }
+    }
+
+    const parsedSchedule = scheduleByDay ? (typeof scheduleByDay === 'string' ? JSON.parse(scheduleByDay) : scheduleByDay) : null;
+
     // Si usa personalizado, creamos o actualizamos
     const shiftName = `Turno - ${employee.identifier}`;
 
     let shiftRecord;
     
     // Primero, buscar si ya existe el turno con ese nombre
-    const existingShift = await prisma.shift.findUnique({ where: { name: shiftName } });
+    const existingShift = await prisma.shift.findFirst({ where: { name: shiftName } });
 
     if (existingShift) {
       shiftRecord = await prisma.shift.update({
         where: { id: existingShift.id },
-        data: { startTime, endTime, tolerance, breakStartTime, breakEndTime }
+        data: {
+          startTime,
+          endTime,
+          tolerance,
+          breakStartTime,
+          breakEndTime,
+          scheduleByDay: parsedSchedule !== null ? parsedSchedule : undefined
+        }
       });
     } else {
       shiftRecord = await prisma.shift.create({
-        data: { name: shiftName, startTime, endTime, tolerance, breakStartTime, breakEndTime }
+        data: {
+          name: shiftName,
+          startTime,
+          endTime,
+          tolerance,
+          breakStartTime,
+          breakEndTime,
+          scheduleByDay: parsedSchedule
+        }
       });
     }
 

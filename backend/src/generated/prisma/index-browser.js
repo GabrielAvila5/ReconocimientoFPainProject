@@ -212,6 +212,7 @@ exports.Prisma.ShiftScalarFieldEnum = {
   tolerance: 'tolerance',
   breakStartTime: 'breakStartTime',
   breakEndTime: 'breakEndTime',
+  scheduleByDay: 'scheduleByDay',
   isActive: 'isActive',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
@@ -356,9 +357,50 @@ exports.Prisma.EmployeeBranchAccessScalarFieldEnum = {
   createdAt: 'createdAt'
 };
 
+exports.Prisma.AttendanceDayStatusScalarFieldEnum = {
+  id: 'id',
+  companyId: 'companyId',
+  employeeId: 'employeeId',
+  date: 'date',
+  status: 'status',
+  shiftId: 'shiftId',
+  shiftName: 'shiftName',
+  expectedStartTime: 'expectedStartTime',
+  expectedEndTime: 'expectedEndTime',
+  appliedToleranceMin: 'appliedToleranceMin',
+  isWorkDay: 'isWorkDay',
+  lateMinutes: 'lateMinutes',
+  overtimeMinutes: 'overtimeMinutes',
+  earlyExitMinutes: 'earlyExitMinutes',
+  notes: 'notes',
+  attendanceRecordId: 'attendanceRecordId',
+  evaluatedAt: 'evaluatedAt',
+  isLocked: 'isLocked',
+  lastModifiedById: 'lastModifiedById',
+  lastModifiedReason: 'lastModifiedReason',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.CompanyHolidayScalarFieldEnum = {
+  id: 'id',
+  companyId: 'companyId',
+  name: 'name',
+  date: 'date',
+  isMandatory: 'isMandatory',
+  departmentIds: 'departmentIds',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
 exports.Prisma.SortOrder = {
   asc: 'asc',
   desc: 'desc'
+};
+
+exports.Prisma.NullableJsonNullValueInput = {
+  DbNull: Prisma.DbNull,
+  JsonNull: Prisma.JsonNull
 };
 
 exports.Prisma.NullsOrder = {
@@ -405,6 +447,17 @@ exports.Prisma.AttendanceRecordOrderByRelevanceFieldEnum = {
   employeeId: 'employeeId',
   earlyExitReason: 'earlyExitReason',
   deviceId: 'deviceId'
+};
+
+exports.Prisma.JsonNullValueFilter = {
+  DbNull: Prisma.DbNull,
+  JsonNull: Prisma.JsonNull,
+  AnyNull: Prisma.AnyNull
+};
+
+exports.Prisma.QueryMode = {
+  default: 'default',
+  insensitive: 'insensitive'
 };
 
 exports.Prisma.ShiftOrderByRelevanceFieldEnum = {
@@ -502,6 +555,25 @@ exports.Prisma.EmployeeBranchAccessOrderByRelevanceFieldEnum = {
   employeeId: 'employeeId',
   branchId: 'branchId'
 };
+
+exports.Prisma.AttendanceDayStatusOrderByRelevanceFieldEnum = {
+  id: 'id',
+  companyId: 'companyId',
+  employeeId: 'employeeId',
+  shiftName: 'shiftName',
+  expectedStartTime: 'expectedStartTime',
+  expectedEndTime: 'expectedEndTime',
+  notes: 'notes',
+  attendanceRecordId: 'attendanceRecordId',
+  lastModifiedById: 'lastModifiedById',
+  lastModifiedReason: 'lastModifiedReason'
+};
+
+exports.Prisma.CompanyHolidayOrderByRelevanceFieldEnum = {
+  id: 'id',
+  companyId: 'companyId',
+  name: 'name'
+};
 exports.AdminRole = exports.$Enums.AdminRole = {
   SUPER_ADMIN: 'SUPER_ADMIN',
   CORPORATE_ADMIN: 'CORPORATE_ADMIN',
@@ -523,7 +595,8 @@ exports.EventType = exports.$Enums.EventType = {
   JUSTIFIED_ABSENCE: 'JUSTIFIED_ABSENCE',
   VACATION: 'VACATION',
   LATE_ARRIVAL: 'LATE_ARRIVAL',
-  DISABILITY: 'DISABILITY'
+  DISABILITY: 'DISABILITY',
+  REST_DAY_OVERRIDE: 'REST_DAY_OVERRIDE'
 };
 
 exports.EventStatus = exports.$Enums.EventStatus = {
@@ -550,6 +623,20 @@ exports.AuthRequestStatus = exports.$Enums.AuthRequestStatus = {
   EXPIRED: 'EXPIRED'
 };
 
+exports.DayStatusType = exports.$Enums.DayStatusType = {
+  PRESENTE: 'PRESENTE',
+  RETARDO: 'RETARDO',
+  FALTA: 'FALTA',
+  DESCANSO: 'DESCANSO',
+  DESCANSO_TRABAJADO: 'DESCANSO_TRABAJADO',
+  FESTIVO: 'FESTIVO',
+  FESTIVO_TRABAJADO: 'FESTIVO_TRABAJADO',
+  PERMISO_JUSTIFICADO: 'PERMISO_JUSTIFICADO',
+  VACACIONES: 'VACACIONES',
+  INCAPACIDAD: 'INCAPACIDAD',
+  INCOMPLETO: 'INCOMPLETO'
+};
+
 exports.Prisma.ModelName = {
   Company: 'Company',
   Department: 'Department',
@@ -565,7 +652,9 @@ exports.Prisma.ModelName = {
   SystemSettings: 'SystemSettings',
   Device: 'Device',
   DeviceAuthRequest: 'DeviceAuthRequest',
-  EmployeeBranchAccess: 'EmployeeBranchAccess'
+  EmployeeBranchAccess: 'EmployeeBranchAccess',
+  AttendanceDayStatus: 'AttendanceDayStatus',
+  CompanyHoliday: 'CompanyHoliday'
 };
 
 /**

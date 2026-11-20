@@ -1,7 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const prisma = require('../../utils/prisma');
-const requireJwt = require('../../middlewares/requireJwt'); // Asumiendo que existe, para proteger endpoints admin
+const requireJwt = require('../../middlewares/requireJwt');
+const { validateScheduleByDay } = require('../../utils/shiftUtils');
 
 // Obtener todos los turnos
 router.get('/', requireJwt, async (req, res) => {
@@ -26,10 +27,17 @@ router.get('/', requireJwt, async (req, res) => {
 // Crear turno
 router.post('/', requireJwt, async (req, res) => {
   try {
-    const { name, startTime, endTime, tolerance, isActive } = req.body;
+    const { name, startTime, endTime, tolerance, isActive, scheduleByDay, breakStartTime, breakEndTime } = req.body;
     
     if (!name || !startTime || !endTime) {
       return res.status(400).json({ error: 'Nombre, hora de inicio y fin son obligatorios' });
+    }
+
+    if (scheduleByDay) {
+      const val = validateScheduleByDay(scheduleByDay);
+      if (!val.valid) {
+        return res.status(400).json({ error: val.error });
+      }
     }
 
     const newShift = await prisma.shift.create({
@@ -37,8 +45,11 @@ router.post('/', requireJwt, async (req, res) => {
         name,
         startTime,
         endTime,
-        tolerance: tolerance !== undefined ? tolerance : null,
-        isActive: isActive !== undefined ? isActive : true,
+        tolerance: tolerance !== undefined && tolerance !== null && tolerance !== '' ? parseInt(tolerance, 10) : null,
+        breakStartTime: breakStartTime || null,
+        breakEndTime: breakEndTime || null,
+        scheduleByDay: scheduleByDay ? (typeof scheduleByDay === 'string' ? JSON.parse(scheduleByDay) : scheduleByDay) : null,
+        isActive: isActive !== undefined ? Boolean(isActive) : true,
       }
     });
     
@@ -57,7 +68,7 @@ router.put('/:id', requireJwt, async (req, res) => {
   try {
     const { id } = req.params;
     const shiftId = parseInt(id);
-    const { name, startTime, endTime, tolerance, isActive } = req.body;
+    const { name, startTime, endTime, tolerance, isActive, scheduleByDay, breakStartTime, breakEndTime } = req.body;
 
     const existingShift = await prisma.shift.findUnique({
       where: { id: shiftId }
@@ -66,14 +77,24 @@ router.put('/:id', requireJwt, async (req, res) => {
       return res.status(404).json({ error: 'Turno no encontrado' });
     }
 
+    if (scheduleByDay) {
+      const val = validateScheduleByDay(scheduleByDay);
+      if (!val.valid) {
+        return res.status(400).json({ error: val.error });
+      }
+    }
+
     const updatedShift = await prisma.shift.update({
       where: { id: shiftId },
       data: {
         name,
         startTime,
         endTime,
-        tolerance,
-        isActive
+        tolerance: tolerance !== undefined && tolerance !== null && tolerance !== '' ? parseInt(tolerance, 10) : null,
+        breakStartTime: breakStartTime !== undefined ? (breakStartTime || null) : undefined,
+        breakEndTime: breakEndTime !== undefined ? (breakEndTime || null) : undefined,
+        scheduleByDay: scheduleByDay !== undefined ? (typeof scheduleByDay === 'string' ? JSON.parse(scheduleByDay) : scheduleByDay) : undefined,
+        isActive: isActive !== undefined ? Boolean(isActive) : undefined
       }
     });
 

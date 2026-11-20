@@ -256,7 +256,13 @@ const AttendancePage = () => {
       const salidaTime = record.salida ? new Date(record.salida).toTimeString().split(' ')[0] : null;
       
       let puntualidad = 'A tiempo';
-      if (record.isLate) puntualidad = 'Retardo';
+      if (record.isHolidayWork) {
+        puntualidad = 'Festivo Trabajado';
+      } else if (record.isRestDayWork) {
+        puntualidad = 'Descanso Trabajado';
+      } else if (record.isLate) {
+        puntualidad = 'Retardo';
+      }
       if (!entradaTime) puntualidad = 'Falta';
       
       let tipoStr = 'Entrada';
@@ -324,6 +330,27 @@ const AttendancePage = () => {
         if (!emp.isActive) return;
         const key = `${emp.id}_${dayStr}`;
         if (recordedKeys.has(key)) return;
+
+        // Comprobar si para este empleado dayStr es día laboral según su turno
+        const [dy, dm, dd] = dayStr.split('-').map(Number);
+        const dObj = new Date(dy, dm - 1, dd);
+        const jsDay = dObj.getDay();
+        const isoDay = jsDay === 0 ? 7 : jsDay;
+
+        const empShift = emp.shifts?.[0]?.shift || emp.department?.shifts?.[0]?.shift;
+        let isWorkDay = isoDay >= 1 && isoDay <= 5;
+        if (empShift && empShift.scheduleByDay) {
+          let sched = empShift.scheduleByDay;
+          if (typeof sched === 'string') {
+            try { sched = JSON.parse(sched); } catch (e) { sched = null; }
+          }
+          if (sched && sched[String(isoDay)] !== undefined) {
+            isWorkDay = sched[String(isoDay)]?.enabled !== false;
+          }
+        }
+
+        // Si es día de descanso del empleado, omitir generación de inasistencia
+        if (!isWorkDay) return;
 
         // Revisar eventos justificados (vacaciones, licencias) en esa fecha
         const empEvent = activeEvents.find(e => {
@@ -1415,10 +1442,30 @@ const AttendancePage = () => {
                     badgeColor = '#ef4444';
                     badgeBg = 'rgba(239, 68, 68, 0.12)';
                     borderBadge = 'rgba(239, 68, 68, 0.3)';
-                  } else if (record.puntualidad === 'Vacaciones' || record.puntualidad === 'Falta Justificada') {
+                  } else if (record.puntualidad === 'Vacaciones' || record.puntualidad === 'Falta Justificada' || record.puntualidad === 'Permiso') {
                     badgeColor = '#3b82f6';
                     badgeBg = 'rgba(59, 130, 246, 0.12)';
                     borderBadge = 'rgba(59, 130, 246, 0.3)';
+                  } else if (record.puntualidad === 'Descanso') {
+                    badgeColor = '#94a3b8';
+                    badgeBg = 'rgba(148, 163, 184, 0.12)';
+                    borderBadge = 'rgba(148, 163, 184, 0.3)';
+                  } else if (record.puntualidad === 'Descanso Trabajado') {
+                    badgeColor = '#8b5cf6';
+                    badgeBg = 'rgba(139, 92, 246, 0.15)';
+                    borderBadge = 'rgba(139, 92, 246, 0.3)';
+                  } else if (record.puntualidad === 'Festivo') {
+                    badgeColor = '#14b8a6';
+                    badgeBg = 'rgba(20, 184, 166, 0.15)';
+                    borderBadge = 'rgba(20, 184, 166, 0.3)';
+                  } else if (record.puntualidad === 'Festivo Trabajado') {
+                    badgeColor = '#06b6d4';
+                    badgeBg = 'rgba(6, 182, 212, 0.15)';
+                    borderBadge = 'rgba(6, 182, 212, 0.3)';
+                  } else if (record.puntualidad === 'Incapacidad') {
+                    badgeColor = '#ec4899';
+                    badgeBg = 'rgba(236, 72, 153, 0.12)';
+                    borderBadge = 'rgba(236, 72, 153, 0.3)';
                   }
 
                   // Colores de Tipo

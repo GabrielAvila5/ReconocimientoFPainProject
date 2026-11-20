@@ -28,6 +28,7 @@ import CompaniesPage from './pages/dashboard/CompaniesPage';
 import BranchesPage from './pages/dashboard/BranchesPage';
 import NotificationsPage from './pages/dashboard/NotificationsPage';
 import SettingsPage from './pages/dashboard/SettingsPage';
+import HolidaysPage from './pages/dashboard/HolidaysPage';
 
 // Pages - Auth
 import LoginPage from './pages/auth/LoginPage';
@@ -132,6 +133,7 @@ function App() {
             <Route path="employees" element={<EmployeesPage />} />
             <Route path="attendance" element={<AttendancePage />} />
             <Route path="calendar" element={<CalendarPage />} />
+            <Route path="holidays" element={<HolidaysPage />} />
             <Route path="reports" element={<ReportsPage />} />
             <Route path="events" element={<EventsPage />} />
             <Route path="devices" element={<DevicesPage />} />

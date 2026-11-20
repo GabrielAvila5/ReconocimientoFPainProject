@@ -3,6 +3,8 @@ const prisma = require('../utils/prisma');
 const { cleanExpiredPairingRequests } = require('../utils/authHelpers');
 const { runWithTenantContext } = require('../middlewares/tenantContext');
 const { getStartOfDay, getShiftExpectedEndDate, DEFAULT_TZ } = require('../utils/timeUtils');
+const { evaluateEmployeeDayStatus, persistDayStatusSnapshot } = require('../utils/statusUtils');
+const { getShiftForDate, findMatchingHoliday } = require('../utils/shiftUtils');
 
 /**
  * Procesa el auto-cierre de asistencia para un inquilino específico
@@ -173,64 +175,102 @@ const processAbsences = async (targetCompanyId = null) => {
           }
         }
 
-        // 1.1 Omitir fines de semana estándar (Sábado = 6, Domingo = 0)
-        const dow = new Date(startOfDay).getUTCDay();
-        if (dow === 0 || dow === 6) {
-          console.log(`[CRON] Fin de semana detectado (${dow === 0 ? 'Domingo' : 'Sábado'}) para empresa ${comp.id}. Omitiendo generación de inasistencias.`);
-          return 0;
-        }
-
         const employees = await prisma.employee.findMany({
           where: { isActive: true, companyId: comp.id },
-          select: { id: true, firstName: true, lastName: true }
+          include: {
+            shifts: { include: { shift: true } },
+            department: {
+              include: { shifts: { include: { shift: true } } }
+            }
+          }
+        });
+
+        const [holidays, events, records] = await Promise.all([
+          prisma.companyHoliday.findMany({
+            where: { companyId: comp.id, date: startOfDay }
+          }),
+          prisma.eventRequest.findMany({
+            where: {
+              companyId: comp.id,
+              status: 'ACTIVE',
+              OR: [
+                { date: startOfDay },
+                { date: { lte: startOfDay }, dateTo: { gte: startOfDay } }
+              ]
+            }
+          }),
+          prisma.attendanceRecord.findMany({
+            where: { companyId: comp.id, date: startOfDay }
+          })
+        ]);
+
+        const recordMap = new Map();
+        records.forEach(r => recordMap.set(r.employeeId, r));
+
+        const eventMap = new Map();
+        events.forEach(ev => {
+          const list = eventMap.get(ev.employeeId) || [];
+          list.push(ev);
+          eventMap.set(ev.employeeId, list);
         });
 
         let compAbsences = 0;
         const appModule = require('../app');
 
         for (const emp of employees) {
-          // Verificar si el empleado tiene permiso, vacaciones o incapacidad justificada activa hoy
-          const activeEvent = await prisma.eventRequest.findFirst({
-            where: {
-              employeeId: emp.id,
-              status: 'ACTIVE',
-              companyId: comp.id,
-              OR: [
-                {
-                  date: { lte: startOfDay },
-                  dateTo: { gte: startOfDay }
-                },
-                {
-                  date: startOfDay
-                }
-              ]
-            }
+          const shift = emp.shifts?.[0]?.shift || emp.department?.shifts?.[0]?.shift || null;
+          const att = recordMap.get(emp.id) || null;
+          const empEvents = eventMap.get(emp.id) || [];
+
+          // Evaluación exhaustiva según horario por día (ISO 1-7), festivos, eventos y checadas
+          const dayEval = evaluateEmployeeDayStatus({
+            employee: emp,
+            shift,
+            attendanceRecord: att,
+            events: empEvents,
+            holidays,
+            date: startOfDay,
+            timeZone: tz,
+            settings
           });
 
-          if (activeEvent) {
-            // El empleado tiene permiso o ausencia autorizada
-            continue;
-          }
-
-          const record = await prisma.attendanceRecord.findFirst({
-            where: { employeeId: emp.id, date: startOfDay, companyId: comp.id }
+          // Snapshot inmutable persistido en BD (idempotente)
+          await persistDayStatusSnapshot(prisma, {
+            companyId: comp.id,
+            employeeId: emp.id,
+            date: startOfDay,
+            statusData: dayEval
           });
 
-          if (!record) {
+          if (dayEval.status === 'FALTA') {
             compAbsences++;
-            const notif = await prisma.notification.create({
-              data: {
-                title: 'Falta por Inasistencia',
-                message: `${emp.firstName} ${emp.lastName} no registró asistencia el día de hoy.`,
-                type: 'WARNING',
+
+            // Notificación garantizada sin duplicados
+            const existingNotif = await prisma.notification.findFirst({
+              where: {
+                companyId: comp.id,
+                employeeId: emp.id,
                 category: 'attendance',
-                entityId: emp.id,
-                companyId: comp.id
+                title: 'Falta por Inasistencia',
+                createdAt: { gte: startOfDay }
               }
             });
 
-            if (typeof appModule.emitNotification === 'function') {
-              appModule.emitNotification(notif);
+            if (!existingNotif) {
+              const notif = await prisma.notification.create({
+                data: {
+                  title: 'Falta por Inasistencia',
+                  message: `${emp.firstName} ${emp.lastName} no registró asistencia el día de hoy.`,
+                  type: 'WARNING',
+                  category: 'attendance',
+                  employeeId: emp.id,
+                  companyId: comp.id
+                }
+              });
+
+              if (typeof appModule.emitNotification === 'function') {
+                appModule.emitNotification(notif);
+              }
             }
           }
         }

@@ -51,19 +51,21 @@ model Company {
   billingNoticeDays  Int       @default(15)
   lastReminderSentAt DateTime?
 
-  employees        Employee[]
-  departments      Department[]
-  shifts           Shift[]
-  devices          Device[]
-  authRequests     DeviceAuthRequest[]
-  adminUsers       AdminUser[]
-  settings         SystemSettings?
-  attendances      AttendanceRecord[]
-  events           EventRequest[]
-  notifications    Notification[]
-  auditLogs        AdminAuditLog[]
-  departmentShifts DepartmentShift[]
-  employeeShifts   EmployeeShift[]
+  employees             Employee[]
+  departments           Department[]
+  shifts                Shift[]
+  devices               Device[]
+  authRequests          DeviceAuthRequest[]
+  adminUsers            AdminUser[]
+  settings              SystemSettings?
+  attendances           AttendanceRecord[]
+  events                EventRequest[]
+  notifications         Notification[]
+  auditLogs             AdminAuditLog[]
+  departmentShifts      DepartmentShift[]
+  employeeShifts        EmployeeShift[]
+  attendanceDayStatuses AttendanceDayStatus[]
+  holidays              CompanyHoliday[]
 
   @@index([isActive])
   @@index([slug])
@@ -86,26 +88,27 @@ model Department {
 }
 
 model Employee {
-  id             String                 @id @default(uuid())
-  companyId      String
-  company        Company                @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  firstName      String
-  lastName       String
-  identifier     String // Número de empleado o DNI
-  email          String?
-  position       String?
-  departmentId   Int?
-  department     Department?            @relation(fields: [departmentId, companyId], references: [id, companyId], onDelete: Restrict)
-  faceDescriptor String?                @db.Text // Cifrado AES-256-GCM
-  enrolledAt     DateTime?
-  isActive       Boolean                @default(true)
-  attendances    AttendanceRecord[]
-  shifts         EmployeeShift[]
-  notifications  Notification[]
-  eventRequests  EventRequest[]
-  branchAccesses EmployeeBranchAccess[]
-  createdAt      DateTime               @default(now())
-  updatedAt      DateTime               @updatedAt
+  id                    String                 @id @default(uuid())
+  companyId             String
+  company               Company                @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  firstName             String
+  lastName              String
+  identifier            String // Número de empleado o DNI
+  email                 String?
+  position              String?
+  departmentId          Int?
+  department            Department?            @relation(fields: [departmentId, companyId], references: [id, companyId], onDelete: Restrict)
+  faceDescriptor        String?                @db.Text // Cifrado AES-256-GCM
+  enrolledAt            DateTime?
+  isActive              Boolean                @default(true)
+  attendances           AttendanceRecord[]
+  shifts                EmployeeShift[]
+  notifications         Notification[]
+  eventRequests         EventRequest[]
+  branchAccesses        EmployeeBranchAccess[]
+  attendanceDayStatuses AttendanceDayStatus[]
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
 
   @@unique([companyId, identifier])
   @@unique([companyId, email])
@@ -161,6 +164,7 @@ model Shift {
   tolerance      Int?
   breakStartTime String?
   breakEndTime   String?
+  scheduleByDay  Json? // Configuración ISO 1-7 (Lunes a Domingo): { "1": { "enabled": true, "startTime": "08:00", ... } }
   isActive       Boolean @default(true)
 
   departments DepartmentShift[]
@@ -278,6 +282,7 @@ enum EventType {
   VACATION
   LATE_ARRIVAL
   DISABILITY
+  REST_DAY_OVERRIDE
 }
 
 enum EventStatus {
@@ -436,4 +441,75 @@ model EmployeeBranchAccess {
   @@unique([employeeId, branchId])
   @@index([branchId])
   @@index([employeeId])
+}
+
+enum DayStatusType {
+  PRESENTE
+  RETARDO
+  FALTA
+  DESCANSO
+  DESCANSO_TRABAJADO
+  FESTIVO
+  FESTIVO_TRABAJADO
+  PERMISO_JUSTIFICADO
+  VACACIONES
+  INCAPACIDAD
+  INCOMPLETO
+}
+
+model AttendanceDayStatus {
+  id         String        @id @default(uuid())
+  companyId  String
+  company    Company       @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  employeeId String
+  employee   Employee      @relation(fields: [employeeId, companyId], references: [id, companyId], onDelete: Restrict)
+  date       DateTime      @db.Date
+  status     DayStatusType
+
+  // Snapshot inmutable de las reglas del turno aplicadas ese día
+  shiftId             Int?
+  shiftName           String?
+  expectedStartTime   String? // "09:00"
+  expectedEndTime     String? // "18:00"
+  appliedToleranceMin Int? // 15
+  isWorkDay           Boolean @default(true)
+
+  // Métricas consolidadas
+  lateMinutes      Int?    @default(0)
+  overtimeMinutes  Int?    @default(0)
+  earlyExitMinutes Int?    @default(0)
+  notes            String? @db.Text
+
+  // Id de checada vinculada (si existe)
+  attendanceRecordId String?
+
+  // Concurrencia, idempotencia y auditoría
+  evaluatedAt        DateTime @default(now())
+  isLocked           Boolean  @default(true)
+  lastModifiedById   String?
+  lastModifiedReason String?  @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, employeeId, date])
+  @@unique([id, companyId])
+  @@index([companyId, date, status])
+  @@index([employeeId, date])
+}
+
+model CompanyHoliday {
+  id            String   @id @default(uuid())
+  companyId     String
+  company       Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  name          String
+  date          DateTime @db.Date
+  isMandatory   Boolean  @default(true)
+  departmentIds Json? // IDs de departamentos aplicables, ej: [1, 2]. Si es null, aplica a toda la empresa.
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([companyId, date])
+  @@unique([id, companyId])
+  @@index([companyId, date])
 }

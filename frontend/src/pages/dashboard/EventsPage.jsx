@@ -765,6 +765,7 @@ const EventsPage = () => {
               <option value="JUSTIFIED_ABSENCE">Falta Justificada</option>
               <option value="EARLY_EXIT">Salida Anticipada</option>
               <option value="LATE_ARRIVAL">Llegada Tardía</option>
+              <option value="REST_DAY_OVERRIDE">Cambio de Día de Descanso</option>
             </select>
           </div>
 
@@ -1465,7 +1466,8 @@ const EventTypeBadge = ({ type }) => {
     JUSTIFIED_ABSENCE: { label: 'Falta Justificada', color: '#10b981', bg: 'rgba(16, 185, 129, 0.12)' },
     VACATION: { label: 'Vacaciones', color: '#8b5cf6', bg: 'rgba(139, 92, 246, 0.12)' },
     LATE_ARRIVAL: { label: 'Llegada Tardía', color: '#f97316', bg: 'rgba(249, 115, 22, 0.12)' },
-    DISABILITY: { label: 'Incapacidad', color: '#ec4899', bg: 'rgba(236, 72, 153, 0.12)' }
+    DISABILITY: { label: 'Incapacidad', color: '#ec4899', bg: 'rgba(236, 72, 153, 0.12)' },
+    REST_DAY_OVERRIDE: { label: 'Cambio de Descanso', color: '#14b8a6', bg: 'rgba(20, 184, 166, 0.12)' }
   };
   const c = config[type] || { label: type, color: '#fff', bg: '#333' };
   
@@ -1697,6 +1699,7 @@ const CreateEventModal = ({ onClose, onCreated }) => {
                 <option value="VACATION">Vacaciones</option>
                 <option value="DISABILITY">Incapacidad Médica</option>
                 <option value="LATE_ARRIVAL">Llegada Tardía</option>
+                <option value="REST_DAY_OVERRIDE">Cambio de Día de Descanso</option>
               </select>
             </div>
             <div>

@@ -22,3 +22,4 @@ dist/
 build/
 coverage/
 *.sql
+!backend/prisma/migrations/**/migration.sql

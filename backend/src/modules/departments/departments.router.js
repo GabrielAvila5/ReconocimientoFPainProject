@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const prisma = require('../../utils/prisma');
 const requireJwt = require('../../middlewares/requireJwt');
+const { validateScheduleByDay } = require('../../utils/shiftUtils');
 
 // GET /api/v1/departments
 router.get('/', requireJwt, async (req, res) => {
@@ -152,7 +153,7 @@ router.delete('/:id', requireJwt, async (req, res) => {
 router.put('/:id/shift', requireJwt, async (req, res) => {
   try {
     const departmentId = parseInt(req.params.id);
-    const { useCustom, startTime, endTime, tolerance, breakStartTime, breakEndTime } = req.body;
+    const { useCustom, startTime, endTime, tolerance, breakStartTime, breakEndTime, scheduleByDay } = req.body;
 
     const department = await prisma.department.findUnique({
       where: { id: departmentId },
@@ -173,6 +174,15 @@ router.put('/:id/shift', requireJwt, async (req, res) => {
       return res.json({ success: true, message: 'Horario personalizado desactivado' });
     }
 
+    if (scheduleByDay) {
+      const val = validateScheduleByDay(scheduleByDay);
+      if (!val.valid) {
+        return res.status(400).json({ error: val.error });
+      }
+    }
+
+    const parsedSchedule = scheduleByDay ? (typeof scheduleByDay === 'string' ? JSON.parse(scheduleByDay) : scheduleByDay) : null;
+
     // Si usa personalizado, creamos o actualizamos
     const shiftName = `Turno - ${department.name}`;
 
@@ -189,7 +199,8 @@ router.put('/:id/shift', requireJwt, async (req, res) => {
           endTime,
           tolerance,
           breakStartTime,
-          breakEndTime
+          breakEndTime,
+          scheduleByDay: parsedSchedule !== null ? parsedSchedule : undefined
         }
       });
     } else {
@@ -200,7 +211,8 @@ router.put('/:id/shift', requireJwt, async (req, res) => {
           endTime,
           tolerance,
           breakStartTime,
-          breakEndTime
+          breakEndTime,
+          scheduleByDay: parsedSchedule
         }
       });
     }

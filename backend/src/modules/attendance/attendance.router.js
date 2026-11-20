@@ -5,6 +5,8 @@ const requireJwt = require('../../middlewares/requireJwt');
 const prisma = require('../../utils/prisma');
 const { euclideanDistance, syncFaceCache } = require('../../utils/faceMath');
 const { getStartOfDay, getTzParts, DEFAULT_TZ } = require('../../utils/timeUtils');
+const { getShiftForDate, findMatchingHoliday } = require('../../utils/shiftUtils');
+const { getCompanyAttendanceRangeStatus } = require('../../utils/statusUtils');
 const { processAutoCheckout } = require('../../jobs/attendanceCron');
 
 // ============================================
@@ -283,18 +285,43 @@ router.post('/register', requireApiKey, async (req, res) => {
           targetShift = await prisma.shift.findUnique({ where: { id: shiftId } });
           resolvedShiftId = shiftId;
         } else {
-          targetShift = {
-            startTime: `${(settings?.workdayStartHour ?? 9).toString().padStart(2, '0')}:${(settings?.workdayStartMinute ?? 0).toString().padStart(2, '0')}`,
-            endTime: `${(settings?.workdayEndHour ?? 17).toString().padStart(2, '0')}:${(settings?.workdayEndMinute ?? 0).toString().padStart(2, '0')}`,
-            tolerance: settings?.latenessToleranceMin ?? 15
-          };
+          // Resolver turno asignado al empleado o departamento
+          const empWithShift = await prisma.employee.findUnique({
+            where: { id: employeeId },
+            include: {
+              shifts: { include: { shift: true } },
+              department: { include: { shifts: { include: { shift: true } } } }
+            }
+          });
+          targetShift = empWithShift?.shifts?.[0]?.shift || empWithShift?.department?.shifts?.[0]?.shift || null;
+          resolvedShiftId = targetShift?.id || null;
         }
 
-        if (targetShift) {
+        const shiftInfo = getShiftForDate(targetShift, now, tz, settings);
+
+        // Verificar festivo oficial
+        const holidays = await prisma.companyHoliday.findMany({
+          where: { companyId, date: startOfDay }
+        });
+        const matchingHoliday = findMatchingHoliday(holidays, now, targetEmployee.departmentId, tz);
+
+        let isRestDayWork = false;
+        let isHolidayWork = false;
+
+        if (matchingHoliday) {
+          isHolidayWork = true;
+          isLate = false;
+          lateMinutes = null;
+        } else if (!shiftInfo.isWorkDay) {
+          isRestDayWork = true;
+          isLate = false;
+          lateMinutes = null;
+        } else {
+          // Día laboral: calcular retardo
           const nowParts = getTzParts(now, tz);
           const nowTotalMins = nowParts.totalMinutes;
 
-          const [shiftHour, shiftMinute] = targetShift.startTime.split(':').map(Number);
+          const [shiftHour, shiftMinute] = (shiftInfo.startTime || '09:00').split(':').map(Number);
           let expectedTotalMins = shiftHour * 60 + shiftMinute;
 
           const lateEvent = await prisma.eventRequest.findFirst({
@@ -307,7 +334,7 @@ router.post('/register', requireApiKey, async (req, res) => {
             expectedTotalMins = evParts.totalMinutes;
           }
 
-          const tolerance = targetShift.tolerance !== null ? targetShift.tolerance : (settings?.latenessToleranceMin ?? 15);
+          const tolerance = shiftInfo.tolerance !== null ? shiftInfo.tolerance : (settings?.latenessToleranceMin ?? 15);
           const diffMins = nowTotalMins - expectedTotalMins;
 
           if (diffMins > tolerance) {
@@ -492,6 +519,34 @@ router.get('/', requireJwt, async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Error al obtener registros' });
+  }
+});
+
+// Consultar estado consolidado de asistencias por rango con snapshots inmutables
+router.get('/status-range', requireJwt, async (req, res) => {
+  try {
+    const companyId = req.user?.companyId;
+    const { startDate, endDate, departmentId, employeeId } = req.query;
+
+    if (!companyId) {
+      return res.status(400).json({ error: 'Se requiere contexto de empresa (tenant)' });
+    }
+    if (!startDate || !endDate) {
+      return res.status(400).json({ error: 'startDate y endDate son obligatorios (YYYY-MM-DD)' });
+    }
+
+    const results = await getCompanyAttendanceRangeStatus({
+      companyId,
+      startDate: new Date(startDate),
+      endDate: new Date(endDate),
+      departmentId: departmentId ? parseInt(departmentId, 10) : null,
+      employeeId: employeeId || null
+    });
+
+    res.json(results);
+  } catch (error) {
+    console.error('Error fetching attendance status range:', error);
+    res.status(500).json({ error: 'Error al consultar estado de asistencias' });
   }
 });
 

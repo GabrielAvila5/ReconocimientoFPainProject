@@ -3,14 +3,19 @@ const router = express.Router();
 const requireJwt = require('../../middlewares/requireJwt');
 const prisma = require('../../utils/prisma');
 const { getTzParts, getStartOfDay, getTzDate, getShiftExpectedEndDate, formatExpectedTime, DEFAULT_TZ } = require('../../utils/timeUtils');
+const { getShiftForDate, findMatchingHoliday } = require('../../utils/shiftUtils');
 
 router.use(requireJwt);
 
 // --- Helpers ---
-// Determine working days. Since Shift model lacks daysOfWeek, we assume Mon-Fri (1-5).
-const isWorkingDay = (dateObj) => {
+// Determinar si una fecha es día laboral según el turno específico o por defecto Lun-Vie
+const isWorkingDay = (dateObj, shift = null) => {
+  if (shift) {
+    const info = getShiftForDate(shift, dateObj);
+    return info.isWorkDay;
+  }
   const day = typeof dateObj.getUTCDay === 'function' ? dateObj.getUTCDay() : dateObj.getDay();
-  return day >= 1 && day <= 5; // Lunes a Viernes
+  return day >= 1 && day <= 5; // Fallback: Lunes a Viernes
 };
 
 const getShiftCascadeForEmployees = async (employeeIds) => {
@@ -105,7 +110,7 @@ const buildEventMapForDateRange = async (start, end, employeeIds = null, departm
       
       while (currentDate <= actualLimit) {
         if (currentDate >= start) {
-          if ((evt.type === 'OVERTIME' || isWorkingDay(currentDate)) && shift) {
+          if ((evt.type === 'OVERTIME' || isWorkingDay(currentDate, shift)) && shift) {
             expandedEvents.push({ ...evt, dateStr: currentDate.toISOString().split('T')[0] });
           }
         }
@@ -429,10 +434,10 @@ router.get('/kpis', async (req, res) => {
       const dateStr = currentDate.toISOString().split('T')[0];
       if (!trendMap[dateStr]) trendMap[dateStr] = { aTiempo: 0, tardanzas: 0, ausencias: 0, justificados: 0 };
 
-      if (isWorkingDay(currentDate)) {
-        for (const emp of activeEmployees) {
-          if (empShiftMap[emp.id]) {
-            const key = `${emp.id}_${dateStr}`;
+      for (const emp of activeEmployees) {
+        const empShift = empShiftMap[emp.id];
+        if (empShift && isWorkingDay(currentDate, empShift)) {
+          const key = `${emp.id}_${dateStr}`;
             if (!attendanceMap[key]) {
               const dayEvents = eventMap[key] || [];
               const isVacation = dayEvents.some(e => e.type === 'VACATION');
@@ -478,7 +483,6 @@ router.get('/kpis', async (req, res) => {
             }
           }
         }
-      }
       currentDate.setUTCDate(currentDate.getUTCDate() + 1);
     }
 
@@ -772,10 +776,10 @@ router.get('/attendance-consolidated', async (req, res) => {
 
     while (curDate <= endAbsence) {
       const dStr = curDate.toISOString().split('T')[0];
-      if (isWorkingDay(curDate)) {
-        for (const emp of activeEmps) {
-          if (activeShiftMap[emp.id]) {
-            const k = `${emp.id}_${dStr}`;
+      for (const emp of activeEmps) {
+        const empShift = activeShiftMap[emp.id];
+        if (empShift && isWorkingDay(curDate, empShift)) {
+          const k = `${emp.id}_${dStr}`;
             if (!attendanceMap[k]) {
               attendanceMap[k] = true;
               unifiedList.push({
@@ -798,7 +802,6 @@ router.get('/attendance-consolidated', async (req, res) => {
             }
           }
         }
-      }
       curDate.setUTCDate(curDate.getUTCDate() + 1);
     }
 

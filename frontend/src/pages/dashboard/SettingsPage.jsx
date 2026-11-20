@@ -188,6 +188,7 @@ const SettingsPage = () => {
         tolerance: editingDepartment.shift?.tolerance !== undefined ? editingDepartment.shift.tolerance : 15,
         breakStartTime: editingDepartment.shift?.breakStartTime || '13:00',
         breakEndTime: editingDepartment.shift?.breakEndTime || '14:00',
+        scheduleByDay: editingDepartment.shift?.scheduleByDay || null
       });
       fetchDepartments();
       setEditingDepartment(null);
@@ -210,6 +211,7 @@ const SettingsPage = () => {
         tolerance: editingEmployee.shift?.tolerance !== undefined ? editingEmployee.shift.tolerance : 15,
         breakStartTime: editingEmployee.shift?.breakStartTime || '13:00',
         breakEndTime: editingEmployee.shift?.breakEndTime || '14:00',
+        scheduleByDay: editingEmployee.shift?.scheduleByDay || null
       });
       fetchEmployees();
       setEditingEmployee(null);
@@ -888,6 +890,67 @@ const SettingsPage = () => {
                       style={inputStyle} 
                     />
                   </div>
+
+                  <div>
+                    <label style={{ ...labelStyle, marginBottom: '0.5rem' }}>Días laborales y de descanso (ISO 1 a 7)</label>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '0.35rem' }}>
+                      {[
+                        { key: '1', label: 'Lun' },
+                        { key: '2', label: 'Mar' },
+                        { key: '3', label: 'Mié' },
+                        { key: '4', label: 'Jue' },
+                        { key: '5', label: 'Vie' },
+                        { key: '6', label: 'Sáb' },
+                        { key: '7', label: 'Dom' }
+                      ].map(d => {
+                        const isEnabled = editingDepartment.shift.scheduleByDay 
+                          ? editingDepartment.shift.scheduleByDay[d.key]?.enabled !== false 
+                          : (parseInt(d.key) <= 5);
+                        return (
+                          <button
+                            key={d.key}
+                            type="button"
+                            onClick={() => {
+                              const base = editingDepartment.shift.scheduleByDay || {
+                                "1": { enabled: true, startTime: editingDepartment.shift.startTime, endTime: editingDepartment.shift.endTime },
+                                "2": { enabled: true, startTime: editingDepartment.shift.startTime, endTime: editingDepartment.shift.endTime },
+                                "3": { enabled: true, startTime: editingDepartment.shift.startTime, endTime: editingDepartment.shift.endTime },
+                                "4": { enabled: true, startTime: editingDepartment.shift.startTime, endTime: editingDepartment.shift.endTime },
+                                "5": { enabled: true, startTime: editingDepartment.shift.startTime, endTime: editingDepartment.shift.endTime },
+                                "6": { enabled: false },
+                                "7": { enabled: false }
+                              };
+                              const updated = {
+                                ...base,
+                                [d.key]: {
+                                  ...(base[d.key] || {}),
+                                  enabled: !isEnabled,
+                                  startTime: editingDepartment.shift.startTime,
+                                  endTime: editingDepartment.shift.endTime
+                                }
+                              };
+                              setEditingDepartment(prev => ({ ...prev, shift: { ...prev.shift, scheduleByDay: updated } }));
+                            }}
+                            style={{
+                              padding: '0.45rem 0.2rem',
+                              borderRadius: '8px',
+                              fontSize: '0.75rem',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              border: isEnabled ? '1px solid rgba(249, 115, 22, 0.5)' : '1px solid #333',
+                              background: isEnabled ? 'rgba(249, 115, 22, 0.2)' : 'rgba(39, 39, 42, 0.5)',
+                              color: isEnabled ? '#f97316' : '#71717a'
+                            }}
+                          >
+                            {d.label}
+                            <div style={{ fontSize: '0.62rem', fontWeight: 400 }}>
+                              {isEnabled ? 'Laboral' : 'Descanso'}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -1029,6 +1092,67 @@ const SettingsPage = () => {
                       onChange={e => setEditingEmployee(prev => ({ ...prev, shift: { ...prev.shift, tolerance: parseInt(e.target.value) || 0 } }))} 
                       style={inputStyle} 
                     />
+                  </div>
+
+                  <div>
+                    <label style={{ ...labelStyle, marginBottom: '0.5rem' }}>Días laborales y de descanso (ISO 1 a 7)</label>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '0.35rem' }}>
+                      {[
+                        { key: '1', label: 'Lun' },
+                        { key: '2', label: 'Mar' },
+                        { key: '3', label: 'Mié' },
+                        { key: '4', label: 'Jue' },
+                        { key: '5', label: 'Vie' },
+                        { key: '6', label: 'Sáb' },
+                        { key: '7', label: 'Dom' }
+                      ].map(d => {
+                        const isEnabled = editingEmployee.shift.scheduleByDay 
+                          ? editingEmployee.shift.scheduleByDay[d.key]?.enabled !== false 
+                          : (parseInt(d.key) <= 5);
+                        return (
+                          <button
+                            key={d.key}
+                            type="button"
+                            onClick={() => {
+                              const base = editingEmployee.shift.scheduleByDay || {
+                                "1": { enabled: true, startTime: editingEmployee.shift.startTime, endTime: editingEmployee.shift.endTime },
+                                "2": { enabled: true, startTime: editingEmployee.shift.startTime, endTime: editingEmployee.shift.endTime },
+                                "3": { enabled: true, startTime: editingEmployee.shift.startTime, endTime: editingEmployee.shift.endTime },
+                                "4": { enabled: true, startTime: editingEmployee.shift.startTime, endTime: editingEmployee.shift.endTime },
+                                "5": { enabled: true, startTime: editingEmployee.shift.startTime, endTime: editingEmployee.shift.endTime },
+                                "6": { enabled: false },
+                                "7": { enabled: false }
+                              };
+                              const updated = {
+                                ...base,
+                                [d.key]: {
+                                  ...(base[d.key] || {}),
+                                  enabled: !isEnabled,
+                                  startTime: editingEmployee.shift.startTime,
+                                  endTime: editingEmployee.shift.endTime
+                                }
+                              };
+                              setEditingEmployee(prev => ({ ...prev, shift: { ...prev.shift, scheduleByDay: updated } }));
+                            }}
+                            style={{
+                              padding: '0.45rem 0.2rem',
+                              borderRadius: '8px',
+                              fontSize: '0.75rem',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              border: isEnabled ? '1px solid rgba(59, 130, 246, 0.5)' : '1px solid #333',
+                              background: isEnabled ? 'rgba(59, 130, 246, 0.2)' : 'rgba(39, 39, 42, 0.5)',
+                              color: isEnabled ? '#60a5fa' : '#71717a'
+                            }}
+                          >
+                            {d.label}
+                            <div style={{ fontSize: '0.62rem', fontWeight: 400 }}>
+                              {isEnabled ? 'Laboral' : 'Descanso'}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
               )}

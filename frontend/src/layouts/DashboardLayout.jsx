@@ -83,6 +83,7 @@ const DashboardLayout = () => {
     { name: 'Empleados', path: '/dashboard/employees', icon: <Users size={18} /> },
     { name: 'Asistencia', path: '/dashboard/attendance', icon: <Clock size={18} /> },
     { name: 'Calendario', path: '/dashboard/calendar', icon: <Calendar size={18} /> },
+    { name: 'Festivos', path: '/dashboard/holidays', icon: <Calendar size={18} /> },
     { name: 'Reportes', path: '/dashboard/reports', icon: <FileText size={18} />, badge: reportsCount > 0 ? reportsCount : undefined },
     { name: 'Eventos', path: '/dashboard/events', icon: <ClipboardList size={18} /> },
   ];

@@ -88,6 +88,16 @@ export type DeviceAuthRequest = $Result.DefaultSelection<Prisma.$DeviceAuthReque
  * 
  */
 export type EmployeeBranchAccess = $Result.DefaultSelection<Prisma.$EmployeeBranchAccessPayload>
+/**
+ * Model AttendanceDayStatus
+ * 
+ */
+export type AttendanceDayStatus = $Result.DefaultSelection<Prisma.$AttendanceDayStatusPayload>
+/**
+ * Model CompanyHoliday
+ * 
+ */
+export type CompanyHoliday = $Result.DefaultSelection<Prisma.$CompanyHolidayPayload>
 
 /**
  * Enums
@@ -120,7 +130,8 @@ export const EventType: {
   JUSTIFIED_ABSENCE: 'JUSTIFIED_ABSENCE',
   VACATION: 'VACATION',
   LATE_ARRIVAL: 'LATE_ARRIVAL',
-  DISABILITY: 'DISABILITY'
+  DISABILITY: 'DISABILITY',
+  REST_DAY_OVERRIDE: 'REST_DAY_OVERRIDE'
 };
 
 export type EventType = (typeof EventType)[keyof typeof EventType]
@@ -161,6 +172,23 @@ export const AuthRequestStatus: {
 
 export type AuthRequestStatus = (typeof AuthRequestStatus)[keyof typeof AuthRequestStatus]
 
+
+export const DayStatusType: {
+  PRESENTE: 'PRESENTE',
+  RETARDO: 'RETARDO',
+  FALTA: 'FALTA',
+  DESCANSO: 'DESCANSO',
+  DESCANSO_TRABAJADO: 'DESCANSO_TRABAJADO',
+  FESTIVO: 'FESTIVO',
+  FESTIVO_TRABAJADO: 'FESTIVO_TRABAJADO',
+  PERMISO_JUSTIFICADO: 'PERMISO_JUSTIFICADO',
+  VACACIONES: 'VACACIONES',
+  INCAPACIDAD: 'INCAPACIDAD',
+  INCOMPLETO: 'INCOMPLETO'
+};
+
+export type DayStatusType = (typeof DayStatusType)[keyof typeof DayStatusType]
+
 }
 
 export type AdminRole = $Enums.AdminRole
@@ -190,6 +218,10 @@ export const DeviceStatus: typeof $Enums.DeviceStatus
 export type AuthRequestStatus = $Enums.AuthRequestStatus
 
 export const AuthRequestStatus: typeof $Enums.AuthRequestStatus
+
+export type DayStatusType = $Enums.DayStatusType
+
+export const DayStatusType: typeof $Enums.DayStatusType
 
 /**
  * ##  Prisma Client ʲˢ
@@ -458,6 +490,26 @@ export class PrismaClient<
     * ```
     */
   get employeeBranchAccess(): Prisma.EmployeeBranchAccessDelegate<ExtArgs, ClientOptions>;
+
+  /**
+   * `prisma.attendanceDayStatus`: Exposes CRUD operations for the **AttendanceDayStatus** model.
+    * Example usage:
+    * ```ts
+    * // Fetch zero or more AttendanceDayStatuses
+    * const attendanceDayStatuses = await prisma.attendanceDayStatus.findMany()
+    * ```
+    */
+  get attendanceDayStatus(): Prisma.AttendanceDayStatusDelegate<ExtArgs, ClientOptions>;
+
+  /**
+   * `prisma.companyHoliday`: Exposes CRUD operations for the **CompanyHoliday** model.
+    * Example usage:
+    * ```ts
+    * // Fetch zero or more CompanyHolidays
+    * const companyHolidays = await prisma.companyHoliday.findMany()
+    * ```
+    */
+  get companyHoliday(): Prisma.CompanyHolidayDelegate<ExtArgs, ClientOptions>;
 }
 
 export namespace Prisma {
@@ -913,7 +965,9 @@ export namespace Prisma {
     SystemSettings: 'SystemSettings',
     Device: 'Device',
     DeviceAuthRequest: 'DeviceAuthRequest',
-    EmployeeBranchAccess: 'EmployeeBranchAccess'
+    EmployeeBranchAccess: 'EmployeeBranchAccess',
+    AttendanceDayStatus: 'AttendanceDayStatus',
+    CompanyHoliday: 'CompanyHoliday'
   };
 
   export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -932,7 +986,7 @@ export namespace Prisma {
       omit: GlobalOmitOptions
     }
     meta: {
-      modelProps: "company" | "department" | "employee" | "attendanceRecord" | "shift" | "departmentShift" | "employeeShift" | "adminUser" | "adminAuditLog" | "notification" | "eventRequest" | "systemSettings" | "device" | "deviceAuthRequest" | "employeeBranchAccess"
+      modelProps: "company" | "department" | "employee" | "attendanceRecord" | "shift" | "departmentShift" | "employeeShift" | "adminUser" | "adminAuditLog" | "notification" | "eventRequest" | "systemSettings" | "device" | "deviceAuthRequest" | "employeeBranchAccess" | "attendanceDayStatus" | "companyHoliday"
       txIsolationLevel: Prisma.TransactionIsolationLevel
     }
     model: {
@@ -1926,6 +1980,138 @@ export namespace Prisma {
           }
         }
       }
+      AttendanceDayStatus: {
+        payload: Prisma.$AttendanceDayStatusPayload<ExtArgs>
+        fields: Prisma.AttendanceDayStatusFieldRefs
+        operations: {
+          findUnique: {
+            args: Prisma.AttendanceDayStatusFindUniqueArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$AttendanceDayStatusPayload> | null
+          }
+          findUniqueOrThrow: {
+            args: Prisma.AttendanceDayStatusFindUniqueOrThrowArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$AttendanceDayStatusPayload>
+          }
+          findFirst: {
+            args: Prisma.AttendanceDayStatusFindFirstArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$AttendanceDayStatusPayload> | null
+          }
+          findFirstOrThrow: {
+            args: Prisma.AttendanceDayStatusFindFirstOrThrowArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$AttendanceDayStatusPayload>
+          }
+          findMany: {
+            args: Prisma.AttendanceDayStatusFindManyArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$AttendanceDayStatusPayload>[]
+          }
+          create: {
+            args: Prisma.AttendanceDayStatusCreateArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$AttendanceDayStatusPayload>
+          }
+          createMany: {
+            args: Prisma.AttendanceDayStatusCreateManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          delete: {
+            args: Prisma.AttendanceDayStatusDeleteArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$AttendanceDayStatusPayload>
+          }
+          update: {
+            args: Prisma.AttendanceDayStatusUpdateArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$AttendanceDayStatusPayload>
+          }
+          deleteMany: {
+            args: Prisma.AttendanceDayStatusDeleteManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          updateMany: {
+            args: Prisma.AttendanceDayStatusUpdateManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          upsert: {
+            args: Prisma.AttendanceDayStatusUpsertArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$AttendanceDayStatusPayload>
+          }
+          aggregate: {
+            args: Prisma.AttendanceDayStatusAggregateArgs<ExtArgs>
+            result: $Utils.Optional<AggregateAttendanceDayStatus>
+          }
+          groupBy: {
+            args: Prisma.AttendanceDayStatusGroupByArgs<ExtArgs>
+            result: $Utils.Optional<AttendanceDayStatusGroupByOutputType>[]
+          }
+          count: {
+            args: Prisma.AttendanceDayStatusCountArgs<ExtArgs>
+            result: $Utils.Optional<AttendanceDayStatusCountAggregateOutputType> | number
+          }
+        }
+      }
+      CompanyHoliday: {
+        payload: Prisma.$CompanyHolidayPayload<ExtArgs>
+        fields: Prisma.CompanyHolidayFieldRefs
+        operations: {
+          findUnique: {
+            args: Prisma.CompanyHolidayFindUniqueArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$CompanyHolidayPayload> | null
+          }
+          findUniqueOrThrow: {
+            args: Prisma.CompanyHolidayFindUniqueOrThrowArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$CompanyHolidayPayload>
+          }
+          findFirst: {
+            args: Prisma.CompanyHolidayFindFirstArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$CompanyHolidayPayload> | null
+          }
+          findFirstOrThrow: {
+            args: Prisma.CompanyHolidayFindFirstOrThrowArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$CompanyHolidayPayload>
+          }
+          findMany: {
+            args: Prisma.CompanyHolidayFindManyArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$CompanyHolidayPayload>[]
+          }
+          create: {
+            args: Prisma.CompanyHolidayCreateArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$CompanyHolidayPayload>
+          }
+          createMany: {
+            args: Prisma.CompanyHolidayCreateManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          delete: {
+            args: Prisma.CompanyHolidayDeleteArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$CompanyHolidayPayload>
+          }
+          update: {
+            args: Prisma.CompanyHolidayUpdateArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$CompanyHolidayPayload>
+          }
+          deleteMany: {
+            args: Prisma.CompanyHolidayDeleteManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          updateMany: {
+            args: Prisma.CompanyHolidayUpdateManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          upsert: {
+            args: Prisma.CompanyHolidayUpsertArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$CompanyHolidayPayload>
+          }
+          aggregate: {
+            args: Prisma.CompanyHolidayAggregateArgs<ExtArgs>
+            result: $Utils.Optional<AggregateCompanyHoliday>
+          }
+          groupBy: {
+            args: Prisma.CompanyHolidayGroupByArgs<ExtArgs>
+            result: $Utils.Optional<CompanyHolidayGroupByOutputType>[]
+          }
+          count: {
+            args: Prisma.CompanyHolidayCountArgs<ExtArgs>
+            result: $Utils.Optional<CompanyHolidayCountAggregateOutputType> | number
+          }
+        }
+      }
     }
   } & {
     other: {
@@ -2037,6 +2223,8 @@ export namespace Prisma {
     device?: DeviceOmit
     deviceAuthRequest?: DeviceAuthRequestOmit
     employeeBranchAccess?: EmployeeBranchAccessOmit
+    attendanceDayStatus?: AttendanceDayStatusOmit
+    companyHoliday?: CompanyHolidayOmit
   }
 
   /* Types for Logging */
@@ -2131,6 +2319,8 @@ export namespace Prisma {
     auditLogs: number
     departmentShifts: number
     employeeShifts: number
+    attendanceDayStatuses: number
+    holidays: number
   }
 
   export type CompanyCountOutputTypeSelect<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
@@ -2148,6 +2338,8 @@ export namespace Prisma {
     auditLogs?: boolean | CompanyCountOutputTypeCountAuditLogsArgs
     departmentShifts?: boolean | CompanyCountOutputTypeCountDepartmentShiftsArgs
     employeeShifts?: boolean | CompanyCountOutputTypeCountEmployeeShiftsArgs
+    attendanceDayStatuses?: boolean | CompanyCountOutputTypeCountAttendanceDayStatusesArgs
+    holidays?: boolean | CompanyCountOutputTypeCountHolidaysArgs
   }
 
   // Custom InputTypes
@@ -2259,6 +2451,20 @@ export namespace Prisma {
     where?: EmployeeShiftWhereInput
   }
 
+  /**
+   * CompanyCountOutputType without action
+   */
+  export type CompanyCountOutputTypeCountAttendanceDayStatusesArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    where?: AttendanceDayStatusWhereInput
+  }
+
+  /**
+   * CompanyCountOutputType without action
+   */
+  export type CompanyCountOutputTypeCountHolidaysArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    where?: CompanyHolidayWhereInput
+  }
+
 
   /**
    * Count Type DepartmentCountOutputType
@@ -2310,6 +2516,7 @@ export namespace Prisma {
     notifications: number
     eventRequests: number
     branchAccesses: number
+    attendanceDayStatuses: number
   }
 
   export type EmployeeCountOutputTypeSelect<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
@@ -2318,6 +2525,7 @@ export namespace Prisma {
     notifications?: boolean | EmployeeCountOutputTypeCountNotificationsArgs
     eventRequests?: boolean | EmployeeCountOutputTypeCountEventRequestsArgs
     branchAccesses?: boolean | EmployeeCountOutputTypeCountBranchAccessesArgs
+    attendanceDayStatuses?: boolean | EmployeeCountOutputTypeCountAttendanceDayStatusesArgs
   }
 
   // Custom InputTypes
@@ -2364,6 +2572,13 @@ export namespace Prisma {
    */
   export type EmployeeCountOutputTypeCountBranchAccessesArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     where?: EmployeeBranchAccessWhereInput
+  }
+
+  /**
+   * EmployeeCountOutputType without action
+   */
+  export type EmployeeCountOutputTypeCountAttendanceDayStatusesArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    where?: AttendanceDayStatusWhereInput
   }
 
 
@@ -2961,6 +3176,8 @@ export namespace Prisma {
     auditLogs?: boolean | Company$auditLogsArgs<ExtArgs>
     departmentShifts?: boolean | Company$departmentShiftsArgs<ExtArgs>
     employeeShifts?: boolean | Company$employeeShiftsArgs<ExtArgs>
+    attendanceDayStatuses?: boolean | Company$attendanceDayStatusesArgs<ExtArgs>
+    holidays?: boolean | Company$holidaysArgs<ExtArgs>
     _count?: boolean | CompanyCountOutputTypeDefaultArgs<ExtArgs>
   }, ExtArgs["result"]["company"]>
 
@@ -3021,6 +3238,8 @@ export namespace Prisma {
     auditLogs?: boolean | Company$auditLogsArgs<ExtArgs>
     departmentShifts?: boolean | Company$departmentShiftsArgs<ExtArgs>
     employeeShifts?: boolean | Company$employeeShiftsArgs<ExtArgs>
+    attendanceDayStatuses?: boolean | Company$attendanceDayStatusesArgs<ExtArgs>
+    holidays?: boolean | Company$holidaysArgs<ExtArgs>
     _count?: boolean | CompanyCountOutputTypeDefaultArgs<ExtArgs>
   }
 
@@ -3043,6 +3262,8 @@ export namespace Prisma {
       auditLogs: Prisma.$AdminAuditLogPayload<ExtArgs>[]
       departmentShifts: Prisma.$DepartmentShiftPayload<ExtArgs>[]
       employeeShifts: Prisma.$EmployeeShiftPayload<ExtArgs>[]
+      attendanceDayStatuses: Prisma.$AttendanceDayStatusPayload<ExtArgs>[]
+      holidays: Prisma.$CompanyHolidayPayload<ExtArgs>[]
     }
     scalars: $Extensions.GetPayloadResult<{
       id: string
@@ -3435,6 +3656,8 @@ export namespace Prisma {
     auditLogs<T extends Company$auditLogsArgs<ExtArgs> = {}>(args?: Subset<T, Company$auditLogsArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$AdminAuditLogPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
     departmentShifts<T extends Company$departmentShiftsArgs<ExtArgs> = {}>(args?: Subset<T, Company$departmentShiftsArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$DepartmentShiftPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
     employeeShifts<T extends Company$employeeShiftsArgs<ExtArgs> = {}>(args?: Subset<T, Company$employeeShiftsArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$EmployeeShiftPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+    attendanceDayStatuses<T extends Company$attendanceDayStatusesArgs<ExtArgs> = {}>(args?: Subset<T, Company$attendanceDayStatusesArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$AttendanceDayStatusPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+    holidays<T extends Company$holidaysArgs<ExtArgs> = {}>(args?: Subset<T, Company$holidaysArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$CompanyHolidayPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
     /**
      * Attaches callbacks for the resolution and/or rejection of the Promise.
      * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -4212,6 +4435,54 @@ export namespace Prisma {
     take?: number
     skip?: number
     distinct?: EmployeeShiftScalarFieldEnum | EmployeeShiftScalarFieldEnum[]
+  }
+
+  /**
+   * Company.attendanceDayStatuses
+   */
+  export type Company$attendanceDayStatusesArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the AttendanceDayStatus
+     */
+    select?: AttendanceDayStatusSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the AttendanceDayStatus
+     */
+    omit?: AttendanceDayStatusOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: AttendanceDayStatusInclude<ExtArgs> | null
+    where?: AttendanceDayStatusWhereInput
+    orderBy?: AttendanceDayStatusOrderByWithRelationInput | AttendanceDayStatusOrderByWithRelationInput[]
+    cursor?: AttendanceDayStatusWhereUniqueInput
+    take?: number
+    skip?: number
+    distinct?: AttendanceDayStatusScalarFieldEnum | AttendanceDayStatusScalarFieldEnum[]
+  }
+
+  /**
+   * Company.holidays
+   */
+  export type Company$holidaysArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the CompanyHoliday
+     */
+    select?: CompanyHolidaySelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the CompanyHoliday
+     */
+    omit?: CompanyHolidayOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: CompanyHolidayInclude<ExtArgs> | null
+    where?: CompanyHolidayWhereInput
+    orderBy?: CompanyHolidayOrderByWithRelationInput | CompanyHolidayOrderByWithRelationInput[]
+    cursor?: CompanyHolidayWhereUniqueInput
+    take?: number
+    skip?: number
+    distinct?: CompanyHolidayScalarFieldEnum | CompanyHolidayScalarFieldEnum[]
   }
 
   /**
@@ -5523,6 +5794,7 @@ export namespace Prisma {
     notifications?: boolean | Employee$notificationsArgs<ExtArgs>
     eventRequests?: boolean | Employee$eventRequestsArgs<ExtArgs>
     branchAccesses?: boolean | Employee$branchAccessesArgs<ExtArgs>
+    attendanceDayStatuses?: boolean | Employee$attendanceDayStatusesArgs<ExtArgs>
     _count?: boolean | EmployeeCountOutputTypeDefaultArgs<ExtArgs>
   }, ExtArgs["result"]["employee"]>
 
@@ -5553,6 +5825,7 @@ export namespace Prisma {
     notifications?: boolean | Employee$notificationsArgs<ExtArgs>
     eventRequests?: boolean | Employee$eventRequestsArgs<ExtArgs>
     branchAccesses?: boolean | Employee$branchAccessesArgs<ExtArgs>
+    attendanceDayStatuses?: boolean | Employee$attendanceDayStatusesArgs<ExtArgs>
     _count?: boolean | EmployeeCountOutputTypeDefaultArgs<ExtArgs>
   }
 
@@ -5566,6 +5839,7 @@ export namespace Prisma {
       notifications: Prisma.$NotificationPayload<ExtArgs>[]
       eventRequests: Prisma.$EventRequestPayload<ExtArgs>[]
       branchAccesses: Prisma.$EmployeeBranchAccessPayload<ExtArgs>[]
+      attendanceDayStatuses: Prisma.$AttendanceDayStatusPayload<ExtArgs>[]
     }
     scalars: $Extensions.GetPayloadResult<{
       id: string
@@ -5928,6 +6202,7 @@ export namespace Prisma {
     notifications<T extends Employee$notificationsArgs<ExtArgs> = {}>(args?: Subset<T, Employee$notificationsArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$NotificationPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
     eventRequests<T extends Employee$eventRequestsArgs<ExtArgs> = {}>(args?: Subset<T, Employee$eventRequestsArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$EventRequestPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
     branchAccesses<T extends Employee$branchAccessesArgs<ExtArgs> = {}>(args?: Subset<T, Employee$branchAccessesArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$EmployeeBranchAccessPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+    attendanceDayStatuses<T extends Employee$attendanceDayStatusesArgs<ExtArgs> = {}>(args?: Subset<T, Employee$attendanceDayStatusesArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$AttendanceDayStatusPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
     /**
      * Attaches callbacks for the resolution and/or rejection of the Promise.
      * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -6449,6 +6724,30 @@ export namespace Prisma {
     take?: number
     skip?: number
     distinct?: EmployeeBranchAccessScalarFieldEnum | EmployeeBranchAccessScalarFieldEnum[]
+  }
+
+  /**
+   * Employee.attendanceDayStatuses
+   */
+  export type Employee$attendanceDayStatusesArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the AttendanceDayStatus
+     */
+    select?: AttendanceDayStatusSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the AttendanceDayStatus
+     */
+    omit?: AttendanceDayStatusOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: AttendanceDayStatusInclude<ExtArgs> | null
+    where?: AttendanceDayStatusWhereInput
+    orderBy?: AttendanceDayStatusOrderByWithRelationInput | AttendanceDayStatusOrderByWithRelationInput[]
+    cursor?: AttendanceDayStatusWhereUniqueInput
+    take?: number
+    skip?: number
+    distinct?: AttendanceDayStatusScalarFieldEnum | AttendanceDayStatusScalarFieldEnum[]
   }
 
   /**
@@ -7693,6 +7992,7 @@ export namespace Prisma {
     tolerance: number
     breakStartTime: number
     breakEndTime: number
+    scheduleByDay: number
     isActive: number
     createdAt: number
     updatedAt: number
@@ -7747,6 +8047,7 @@ export namespace Prisma {
     tolerance?: true
     breakStartTime?: true
     breakEndTime?: true
+    scheduleByDay?: true
     isActive?: true
     createdAt?: true
     updatedAt?: true
@@ -7848,6 +8149,7 @@ export namespace Prisma {
     tolerance: number | null
     breakStartTime: string | null
     breakEndTime: string | null
+    scheduleByDay: JsonValue | null
     isActive: boolean
     createdAt: Date
     updatedAt: Date
@@ -7881,6 +8183,7 @@ export namespace Prisma {
     tolerance?: boolean
     breakStartTime?: boolean
     breakEndTime?: boolean
+    scheduleByDay?: boolean
     isActive?: boolean
     createdAt?: boolean
     updatedAt?: boolean
@@ -7902,12 +8205,13 @@ export namespace Prisma {
     tolerance?: boolean
     breakStartTime?: boolean
     breakEndTime?: boolean
+    scheduleByDay?: boolean
     isActive?: boolean
     createdAt?: boolean
     updatedAt?: boolean
   }
 
-  export type ShiftOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "companyId" | "name" | "startTime" | "endTime" | "tolerance" | "breakStartTime" | "breakEndTime" | "isActive" | "createdAt" | "updatedAt", ExtArgs["result"]["shift"]>
+  export type ShiftOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "companyId" | "name" | "startTime" | "endTime" | "tolerance" | "breakStartTime" | "breakEndTime" | "scheduleByDay" | "isActive" | "createdAt" | "updatedAt", ExtArgs["result"]["shift"]>
   export type ShiftInclude<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     company?: boolean | CompanyDefaultArgs<ExtArgs>
     departments?: boolean | Shift$departmentsArgs<ExtArgs>
@@ -7933,6 +8237,7 @@ export namespace Prisma {
       tolerance: number | null
       breakStartTime: string | null
       breakEndTime: string | null
+      scheduleByDay: Prisma.JsonValue | null
       isActive: boolean
       createdAt: Date
       updatedAt: Date
@@ -8317,6 +8622,7 @@ export namespace Prisma {
     readonly tolerance: FieldRef<"Shift", 'Int'>
     readonly breakStartTime: FieldRef<"Shift", 'String'>
     readonly breakEndTime: FieldRef<"Shift", 'String'>
+    readonly scheduleByDay: FieldRef<"Shift", 'Json'>
     readonly isActive: FieldRef<"Shift", 'Boolean'>
     readonly createdAt: FieldRef<"Shift", 'DateTime'>
     readonly updatedAt: FieldRef<"Shift", 'DateTime'>
@@ -19100,6 +19406,2134 @@ export namespace Prisma {
 
 
   /**
+   * Model AttendanceDayStatus
+   */
+
+  export type AggregateAttendanceDayStatus = {
+    _count: AttendanceDayStatusCountAggregateOutputType | null
+    _avg: AttendanceDayStatusAvgAggregateOutputType | null
+    _sum: AttendanceDayStatusSumAggregateOutputType | null
+    _min: AttendanceDayStatusMinAggregateOutputType | null
+    _max: AttendanceDayStatusMaxAggregateOutputType | null
+  }
+
+  export type AttendanceDayStatusAvgAggregateOutputType = {
+    shiftId: number | null
+    appliedToleranceMin: number | null
+    lateMinutes: number | null
+    overtimeMinutes: number | null
+    earlyExitMinutes: number | null
+  }
+
+  export type AttendanceDayStatusSumAggregateOutputType = {
+    shiftId: number | null
+    appliedToleranceMin: number | null
+    lateMinutes: number | null
+    overtimeMinutes: number | null
+    earlyExitMinutes: number | null
+  }
+
+  export type AttendanceDayStatusMinAggregateOutputType = {
+    id: string | null
+    companyId: string | null
+    employeeId: string | null
+    date: Date | null
+    status: $Enums.DayStatusType | null
+    shiftId: number | null
+    shiftName: string | null
+    expectedStartTime: string | null
+    expectedEndTime: string | null
+    appliedToleranceMin: number | null
+    isWorkDay: boolean | null
+    lateMinutes: number | null
+    overtimeMinutes: number | null
+    earlyExitMinutes: number | null
+    notes: string | null
+    attendanceRecordId: string | null
+    evaluatedAt: Date | null
+    isLocked: boolean | null
+    lastModifiedById: string | null
+    lastModifiedReason: string | null
+    createdAt: Date | null
+    updatedAt: Date | null
+  }
+
+  export type AttendanceDayStatusMaxAggregateOutputType = {
+    id: string | null
+    companyId: string | null
+    employeeId: string | null
+    date: Date | null
+    status: $Enums.DayStatusType | null
+    shiftId: number | null
+    shiftName: string | null
+    expectedStartTime: string | null
+    expectedEndTime: string | null
+    appliedToleranceMin: number | null
+    isWorkDay: boolean | null
+    lateMinutes: number | null
+    overtimeMinutes: number | null
+    earlyExitMinutes: number | null
+    notes: string | null
+    attendanceRecordId: string | null
+    evaluatedAt: Date | null
+    isLocked: boolean | null
+    lastModifiedById: string | null
+    lastModifiedReason: string | null
+    createdAt: Date | null
+    updatedAt: Date | null
+  }
+
+  export type AttendanceDayStatusCountAggregateOutputType = {
+    id: number
+    companyId: number
+    employeeId: number
+    date: number
+    status: number
+    shiftId: number
+    shiftName: number
+    expectedStartTime: number
+    expectedEndTime: number
+    appliedToleranceMin: number
+    isWorkDay: number
+    lateMinutes: number
+    overtimeMinutes: number
+    earlyExitMinutes: number
+    notes: number
+    attendanceRecordId: number
+    evaluatedAt: number
+    isLocked: number
+    lastModifiedById: number
+    lastModifiedReason: number
+    createdAt: number
+    updatedAt: number
+    _all: number
+  }
+
+
+  export type AttendanceDayStatusAvgAggregateInputType = {
+    shiftId?: true
+    appliedToleranceMin?: true
+    lateMinutes?: true
+    overtimeMinutes?: true
+    earlyExitMinutes?: true
+  }
+
+  export type AttendanceDayStatusSumAggregateInputType = {
+    shiftId?: true
+    appliedToleranceMin?: true
+    lateMinutes?: true
+    overtimeMinutes?: true
+    earlyExitMinutes?: true
+  }
+
+  export type AttendanceDayStatusMinAggregateInputType = {
+    id?: true
+    companyId?: true
+    employeeId?: true
+    date?: true
+    status?: true
+    shiftId?: true
+    shiftName?: true
+    expectedStartTime?: true
+    expectedEndTime?: true
+    appliedToleranceMin?: true
+    isWorkDay?: true
+    lateMinutes?: true
+    overtimeMinutes?: true
+    earlyExitMinutes?: true
+    notes?: true
+    attendanceRecordId?: true
+    evaluatedAt?: true
+    isLocked?: true
+    lastModifiedById?: true
+    lastModifiedReason?: true
+    createdAt?: true
+    updatedAt?: true
+  }
+
+  export type AttendanceDayStatusMaxAggregateInputType = {
+    id?: true
+    companyId?: true
+    employeeId?: true
+    date?: true
+    status?: true
+    shiftId?: true
+    shiftName?: true
+    expectedStartTime?: true
+    expectedEndTime?: true
+    appliedToleranceMin?: true
+    isWorkDay?: true
+    lateMinutes?: true
+    overtimeMinutes?: true
+    earlyExitMinutes?: true
+    notes?: true
+    attendanceRecordId?: true
+    evaluatedAt?: true
+    isLocked?: true
+    lastModifiedById?: true
+    lastModifiedReason?: true
+    createdAt?: true
+    updatedAt?: true
+  }
+
+  export type AttendanceDayStatusCountAggregateInputType = {
+    id?: true
+    companyId?: true
+    employeeId?: true
+    date?: true
+    status?: true
+    shiftId?: true
+    shiftName?: true
+    expectedStartTime?: true
+    expectedEndTime?: true
+    appliedToleranceMin?: true
+    isWorkDay?: true
+    lateMinutes?: true
+    overtimeMinutes?: true
+    earlyExitMinutes?: true
+    notes?: true
+    attendanceRecordId?: true
+    evaluatedAt?: true
+    isLocked?: true
+    lastModifiedById?: true
+    lastModifiedReason?: true
+    createdAt?: true
+    updatedAt?: true
+    _all?: true
+  }
+
+  export type AttendanceDayStatusAggregateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Filter which AttendanceDayStatus to aggregate.
+     */
+    where?: AttendanceDayStatusWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of AttendanceDayStatuses to fetch.
+     */
+    orderBy?: AttendanceDayStatusOrderByWithRelationInput | AttendanceDayStatusOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the start position
+     */
+    cursor?: AttendanceDayStatusWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` AttendanceDayStatuses from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` AttendanceDayStatuses.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Count returned AttendanceDayStatuses
+    **/
+    _count?: true | AttendanceDayStatusCountAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to average
+    **/
+    _avg?: AttendanceDayStatusAvgAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to sum
+    **/
+    _sum?: AttendanceDayStatusSumAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to find the minimum value
+    **/
+    _min?: AttendanceDayStatusMinAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to find the maximum value
+    **/
+    _max?: AttendanceDayStatusMaxAggregateInputType
+  }
+
+  export type GetAttendanceDayStatusAggregateType<T extends AttendanceDayStatusAggregateArgs> = {
+        [P in keyof T & keyof AggregateAttendanceDayStatus]: P extends '_count' | 'count'
+      ? T[P] extends true
+        ? number
+        : GetScalarType<T[P], AggregateAttendanceDayStatus[P]>
+      : GetScalarType<T[P], AggregateAttendanceDayStatus[P]>
+  }
+
+
+
+
+  export type AttendanceDayStatusGroupByArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    where?: AttendanceDayStatusWhereInput
+    orderBy?: AttendanceDayStatusOrderByWithAggregationInput | AttendanceDayStatusOrderByWithAggregationInput[]
+    by: AttendanceDayStatusScalarFieldEnum[] | AttendanceDayStatusScalarFieldEnum
+    having?: AttendanceDayStatusScalarWhereWithAggregatesInput
+    take?: number
+    skip?: number
+    _count?: AttendanceDayStatusCountAggregateInputType | true
+    _avg?: AttendanceDayStatusAvgAggregateInputType
+    _sum?: AttendanceDayStatusSumAggregateInputType
+    _min?: AttendanceDayStatusMinAggregateInputType
+    _max?: AttendanceDayStatusMaxAggregateInputType
+  }
+
+  export type AttendanceDayStatusGroupByOutputType = {
+    id: string
+    companyId: string
+    employeeId: string
+    date: Date
+    status: $Enums.DayStatusType
+    shiftId: number | null
+    shiftName: string | null
+    expectedStartTime: string | null
+    expectedEndTime: string | null
+    appliedToleranceMin: number | null
+    isWorkDay: boolean
+    lateMinutes: number | null
+    overtimeMinutes: number | null
+    earlyExitMinutes: number | null
+    notes: string | null
+    attendanceRecordId: string | null
+    evaluatedAt: Date
+    isLocked: boolean
+    lastModifiedById: string | null
+    lastModifiedReason: string | null
+    createdAt: Date
+    updatedAt: Date
+    _count: AttendanceDayStatusCountAggregateOutputType | null
+    _avg: AttendanceDayStatusAvgAggregateOutputType | null
+    _sum: AttendanceDayStatusSumAggregateOutputType | null
+    _min: AttendanceDayStatusMinAggregateOutputType | null
+    _max: AttendanceDayStatusMaxAggregateOutputType | null
+  }
+
+  type GetAttendanceDayStatusGroupByPayload<T extends AttendanceDayStatusGroupByArgs> = Prisma.PrismaPromise<
+    Array<
+      PickEnumerable<AttendanceDayStatusGroupByOutputType, T['by']> &
+        {
+          [P in ((keyof T) & (keyof AttendanceDayStatusGroupByOutputType))]: P extends '_count'
+            ? T[P] extends boolean
+              ? number
+              : GetScalarType<T[P], AttendanceDayStatusGroupByOutputType[P]>
+            : GetScalarType<T[P], AttendanceDayStatusGroupByOutputType[P]>
+        }
+      >
+    >
+
+
+  export type AttendanceDayStatusSelect<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
+    id?: boolean
+    companyId?: boolean
+    employeeId?: boolean
+    date?: boolean
+    status?: boolean
+    shiftId?: boolean
+    shiftName?: boolean
+    expectedStartTime?: boolean
+    expectedEndTime?: boolean
+    appliedToleranceMin?: boolean
+    isWorkDay?: boolean
+    lateMinutes?: boolean
+    overtimeMinutes?: boolean
+    earlyExitMinutes?: boolean
+    notes?: boolean
+    attendanceRecordId?: boolean
+    evaluatedAt?: boolean
+    isLocked?: boolean
+    lastModifiedById?: boolean
+    lastModifiedReason?: boolean
+    createdAt?: boolean
+    updatedAt?: boolean
+    company?: boolean | CompanyDefaultArgs<ExtArgs>
+    employee?: boolean | EmployeeDefaultArgs<ExtArgs>
+  }, ExtArgs["result"]["attendanceDayStatus"]>
+
+
+
+  export type AttendanceDayStatusSelectScalar = {
+    id?: boolean
+    companyId?: boolean
+    employeeId?: boolean
+    date?: boolean
+    status?: boolean
+    shiftId?: boolean
+    shiftName?: boolean
+    expectedStartTime?: boolean
+    expectedEndTime?: boolean
+    appliedToleranceMin?: boolean
+    isWorkDay?: boolean
+    lateMinutes?: boolean
+    overtimeMinutes?: boolean
+    earlyExitMinutes?: boolean
+    notes?: boolean
+    attendanceRecordId?: boolean
+    evaluatedAt?: boolean
+    isLocked?: boolean
+    lastModifiedById?: boolean
+    lastModifiedReason?: boolean
+    createdAt?: boolean
+    updatedAt?: boolean
+  }
+
+  export type AttendanceDayStatusOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "companyId" | "employeeId" | "date" | "status" | "shiftId" | "shiftName" | "expectedStartTime" | "expectedEndTime" | "appliedToleranceMin" | "isWorkDay" | "lateMinutes" | "overtimeMinutes" | "earlyExitMinutes" | "notes" | "attendanceRecordId" | "evaluatedAt" | "isLocked" | "lastModifiedById" | "lastModifiedReason" | "createdAt" | "updatedAt", ExtArgs["result"]["attendanceDayStatus"]>
+  export type AttendanceDayStatusInclude<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    company?: boolean | CompanyDefaultArgs<ExtArgs>
+    employee?: boolean | EmployeeDefaultArgs<ExtArgs>
+  }
+
+  export type $AttendanceDayStatusPayload<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    name: "AttendanceDayStatus"
+    objects: {
+      company: Prisma.$CompanyPayload<ExtArgs>
+      employee: Prisma.$EmployeePayload<ExtArgs>
+    }
+    scalars: $Extensions.GetPayloadResult<{
+      id: string
+      companyId: string
+      employeeId: string
+      date: Date
+      status: $Enums.DayStatusType
+      shiftId: number | null
+      shiftName: string | null
+      expectedStartTime: string | null
+      expectedEndTime: string | null
+      appliedToleranceMin: number | null
+      isWorkDay: boolean
+      lateMinutes: number | null
+      overtimeMinutes: number | null
+      earlyExitMinutes: number | null
+      notes: string | null
+      attendanceRecordId: string | null
+      evaluatedAt: Date
+      isLocked: boolean
+      lastModifiedById: string | null
+      lastModifiedReason: string | null
+      createdAt: Date
+      updatedAt: Date
+    }, ExtArgs["result"]["attendanceDayStatus"]>
+    composites: {}
+  }
+
+  type AttendanceDayStatusGetPayload<S extends boolean | null | undefined | AttendanceDayStatusDefaultArgs> = $Result.GetResult<Prisma.$AttendanceDayStatusPayload, S>
+
+  type AttendanceDayStatusCountArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> =
+    Omit<AttendanceDayStatusFindManyArgs, 'select' | 'include' | 'distinct' | 'omit'> & {
+      select?: AttendanceDayStatusCountAggregateInputType | true
+    }
+
+  export interface AttendanceDayStatusDelegate<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs, GlobalOmitOptions = {}> {
+    [K: symbol]: { types: Prisma.TypeMap<ExtArgs>['model']['AttendanceDayStatus'], meta: { name: 'AttendanceDayStatus' } }
+    /**
+     * Find zero or one AttendanceDayStatus that matches the filter.
+     * @param {AttendanceDayStatusFindUniqueArgs} args - Arguments to find a AttendanceDayStatus
+     * @example
+     * // Get one AttendanceDayStatus
+     * const attendanceDayStatus = await prisma.attendanceDayStatus.findUnique({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findUnique<T extends AttendanceDayStatusFindUniqueArgs>(args: SelectSubset<T, AttendanceDayStatusFindUniqueArgs<ExtArgs>>): Prisma__AttendanceDayStatusClient<$Result.GetResult<Prisma.$AttendanceDayStatusPayload<ExtArgs>, T, "findUnique", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Find one AttendanceDayStatus that matches the filter or throw an error with `error.code='P2025'`
+     * if no matches were found.
+     * @param {AttendanceDayStatusFindUniqueOrThrowArgs} args - Arguments to find a AttendanceDayStatus
+     * @example
+     * // Get one AttendanceDayStatus
+     * const attendanceDayStatus = await prisma.attendanceDayStatus.findUniqueOrThrow({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findUniqueOrThrow<T extends AttendanceDayStatusFindUniqueOrThrowArgs>(args: SelectSubset<T, AttendanceDayStatusFindUniqueOrThrowArgs<ExtArgs>>): Prisma__AttendanceDayStatusClient<$Result.GetResult<Prisma.$AttendanceDayStatusPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Find the first AttendanceDayStatus that matches the filter.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {AttendanceDayStatusFindFirstArgs} args - Arguments to find a AttendanceDayStatus
+     * @example
+     * // Get one AttendanceDayStatus
+     * const attendanceDayStatus = await prisma.attendanceDayStatus.findFirst({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findFirst<T extends AttendanceDayStatusFindFirstArgs>(args?: SelectSubset<T, AttendanceDayStatusFindFirstArgs<ExtArgs>>): Prisma__AttendanceDayStatusClient<$Result.GetResult<Prisma.$AttendanceDayStatusPayload<ExtArgs>, T, "findFirst", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Find the first AttendanceDayStatus that matches the filter or
+     * throw `PrismaKnownClientError` with `P2025` code if no matches were found.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {AttendanceDayStatusFindFirstOrThrowArgs} args - Arguments to find a AttendanceDayStatus
+     * @example
+     * // Get one AttendanceDayStatus
+     * const attendanceDayStatus = await prisma.attendanceDayStatus.findFirstOrThrow({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findFirstOrThrow<T extends AttendanceDayStatusFindFirstOrThrowArgs>(args?: SelectSubset<T, AttendanceDayStatusFindFirstOrThrowArgs<ExtArgs>>): Prisma__AttendanceDayStatusClient<$Result.GetResult<Prisma.$AttendanceDayStatusPayload<ExtArgs>, T, "findFirstOrThrow", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Find zero or more AttendanceDayStatuses that matches the filter.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {AttendanceDayStatusFindManyArgs} args - Arguments to filter and select certain fields only.
+     * @example
+     * // Get all AttendanceDayStatuses
+     * const attendanceDayStatuses = await prisma.attendanceDayStatus.findMany()
+     * 
+     * // Get first 10 AttendanceDayStatuses
+     * const attendanceDayStatuses = await prisma.attendanceDayStatus.findMany({ take: 10 })
+     * 
+     * // Only select the `id`
+     * const attendanceDayStatusWithIdOnly = await prisma.attendanceDayStatus.findMany({ select: { id: true } })
+     * 
+     */
+    findMany<T extends AttendanceDayStatusFindManyArgs>(args?: SelectSubset<T, AttendanceDayStatusFindManyArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$AttendanceDayStatusPayload<ExtArgs>, T, "findMany", GlobalOmitOptions>>
+
+    /**
+     * Create a AttendanceDayStatus.
+     * @param {AttendanceDayStatusCreateArgs} args - Arguments to create a AttendanceDayStatus.
+     * @example
+     * // Create one AttendanceDayStatus
+     * const AttendanceDayStatus = await prisma.attendanceDayStatus.create({
+     *   data: {
+     *     // ... data to create a AttendanceDayStatus
+     *   }
+     * })
+     * 
+     */
+    create<T extends AttendanceDayStatusCreateArgs>(args: SelectSubset<T, AttendanceDayStatusCreateArgs<ExtArgs>>): Prisma__AttendanceDayStatusClient<$Result.GetResult<Prisma.$AttendanceDayStatusPayload<ExtArgs>, T, "create", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Create many AttendanceDayStatuses.
+     * @param {AttendanceDayStatusCreateManyArgs} args - Arguments to create many AttendanceDayStatuses.
+     * @example
+     * // Create many AttendanceDayStatuses
+     * const attendanceDayStatus = await prisma.attendanceDayStatus.createMany({
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     *     
+     */
+    createMany<T extends AttendanceDayStatusCreateManyArgs>(args?: SelectSubset<T, AttendanceDayStatusCreateManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Delete a AttendanceDayStatus.
+     * @param {AttendanceDayStatusDeleteArgs} args - Arguments to delete one AttendanceDayStatus.
+     * @example
+     * // Delete one AttendanceDayStatus
+     * const AttendanceDayStatus = await prisma.attendanceDayStatus.delete({
+     *   where: {
+     *     // ... filter to delete one AttendanceDayStatus
+     *   }
+     * })
+     * 
+     */
+    delete<T extends AttendanceDayStatusDeleteArgs>(args: SelectSubset<T, AttendanceDayStatusDeleteArgs<ExtArgs>>): Prisma__AttendanceDayStatusClient<$Result.GetResult<Prisma.$AttendanceDayStatusPayload<ExtArgs>, T, "delete", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Update one AttendanceDayStatus.
+     * @param {AttendanceDayStatusUpdateArgs} args - Arguments to update one AttendanceDayStatus.
+     * @example
+     * // Update one AttendanceDayStatus
+     * const attendanceDayStatus = await prisma.attendanceDayStatus.update({
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: {
+     *     // ... provide data here
+     *   }
+     * })
+     * 
+     */
+    update<T extends AttendanceDayStatusUpdateArgs>(args: SelectSubset<T, AttendanceDayStatusUpdateArgs<ExtArgs>>): Prisma__AttendanceDayStatusClient<$Result.GetResult<Prisma.$AttendanceDayStatusPayload<ExtArgs>, T, "update", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Delete zero or more AttendanceDayStatuses.
+     * @param {AttendanceDayStatusDeleteManyArgs} args - Arguments to filter AttendanceDayStatuses to delete.
+     * @example
+     * // Delete a few AttendanceDayStatuses
+     * const { count } = await prisma.attendanceDayStatus.deleteMany({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     * 
+     */
+    deleteMany<T extends AttendanceDayStatusDeleteManyArgs>(args?: SelectSubset<T, AttendanceDayStatusDeleteManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Update zero or more AttendanceDayStatuses.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {AttendanceDayStatusUpdateManyArgs} args - Arguments to update one or more rows.
+     * @example
+     * // Update many AttendanceDayStatuses
+     * const attendanceDayStatus = await prisma.attendanceDayStatus.updateMany({
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: {
+     *     // ... provide data here
+     *   }
+     * })
+     * 
+     */
+    updateMany<T extends AttendanceDayStatusUpdateManyArgs>(args: SelectSubset<T, AttendanceDayStatusUpdateManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Create or update one AttendanceDayStatus.
+     * @param {AttendanceDayStatusUpsertArgs} args - Arguments to update or create a AttendanceDayStatus.
+     * @example
+     * // Update or create a AttendanceDayStatus
+     * const attendanceDayStatus = await prisma.attendanceDayStatus.upsert({
+     *   create: {
+     *     // ... data to create a AttendanceDayStatus
+     *   },
+     *   update: {
+     *     // ... in case it already exists, update
+     *   },
+     *   where: {
+     *     // ... the filter for the AttendanceDayStatus we want to update
+     *   }
+     * })
+     */
+    upsert<T extends AttendanceDayStatusUpsertArgs>(args: SelectSubset<T, AttendanceDayStatusUpsertArgs<ExtArgs>>): Prisma__AttendanceDayStatusClient<$Result.GetResult<Prisma.$AttendanceDayStatusPayload<ExtArgs>, T, "upsert", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+
+    /**
+     * Count the number of AttendanceDayStatuses.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {AttendanceDayStatusCountArgs} args - Arguments to filter AttendanceDayStatuses to count.
+     * @example
+     * // Count the number of AttendanceDayStatuses
+     * const count = await prisma.attendanceDayStatus.count({
+     *   where: {
+     *     // ... the filter for the AttendanceDayStatuses we want to count
+     *   }
+     * })
+    **/
+    count<T extends AttendanceDayStatusCountArgs>(
+      args?: Subset<T, AttendanceDayStatusCountArgs>,
+    ): Prisma.PrismaPromise<
+      T extends $Utils.Record<'select', any>
+        ? T['select'] extends true
+          ? number
+          : GetScalarType<T['select'], AttendanceDayStatusCountAggregateOutputType>
+        : number
+    >
+
+    /**
+     * Allows you to perform aggregations operations on a AttendanceDayStatus.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {AttendanceDayStatusAggregateArgs} args - Select which aggregations you would like to apply and on what fields.
+     * @example
+     * // Ordered by age ascending
+     * // Where email contains prisma.io
+     * // Limited to the 10 users
+     * const aggregations = await prisma.user.aggregate({
+     *   _avg: {
+     *     age: true,
+     *   },
+     *   where: {
+     *     email: {
+     *       contains: "prisma.io",
+     *     },
+     *   },
+     *   orderBy: {
+     *     age: "asc",
+     *   },
+     *   take: 10,
+     * })
+    **/
+    aggregate<T extends AttendanceDayStatusAggregateArgs>(args: Subset<T, AttendanceDayStatusAggregateArgs>): Prisma.PrismaPromise<GetAttendanceDayStatusAggregateType<T>>
+
+    /**
+     * Group by AttendanceDayStatus.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {AttendanceDayStatusGroupByArgs} args - Group by arguments.
+     * @example
+     * // Group by city, order by createdAt, get count
+     * const result = await prisma.user.groupBy({
+     *   by: ['city', 'createdAt'],
+     *   orderBy: {
+     *     createdAt: true
+     *   },
+     *   _count: {
+     *     _all: true
+     *   },
+     * })
+     * 
+    **/
+    groupBy<
+      T extends AttendanceDayStatusGroupByArgs,
+      HasSelectOrTake extends Or<
+        Extends<'skip', Keys<T>>,
+        Extends<'take', Keys<T>>
+      >,
+      OrderByArg extends True extends HasSelectOrTake
+        ? { orderBy: AttendanceDayStatusGroupByArgs['orderBy'] }
+        : { orderBy?: AttendanceDayStatusGroupByArgs['orderBy'] },
+      OrderFields extends ExcludeUnderscoreKeys<Keys<MaybeTupleToUnion<T['orderBy']>>>,
+      ByFields extends MaybeTupleToUnion<T['by']>,
+      ByValid extends Has<ByFields, OrderFields>,
+      HavingFields extends GetHavingFields<T['having']>,
+      HavingValid extends Has<ByFields, HavingFields>,
+      ByEmpty extends T['by'] extends never[] ? True : False,
+      InputErrors extends ByEmpty extends True
+      ? `Error: "by" must not be empty.`
+      : HavingValid extends False
+      ? {
+          [P in HavingFields]: P extends ByFields
+            ? never
+            : P extends string
+            ? `Error: Field "${P}" used in "having" needs to be provided in "by".`
+            : [
+                Error,
+                'Field ',
+                P,
+                ` in "having" needs to be provided in "by"`,
+              ]
+        }[HavingFields]
+      : 'take' extends Keys<T>
+      ? 'orderBy' extends Keys<T>
+        ? ByValid extends True
+          ? {}
+          : {
+              [P in OrderFields]: P extends ByFields
+                ? never
+                : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+            }[OrderFields]
+        : 'Error: If you provide "take", you also need to provide "orderBy"'
+      : 'skip' extends Keys<T>
+      ? 'orderBy' extends Keys<T>
+        ? ByValid extends True
+          ? {}
+          : {
+              [P in OrderFields]: P extends ByFields
+                ? never
+                : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+            }[OrderFields]
+        : 'Error: If you provide "skip", you also need to provide "orderBy"'
+      : ByValid extends True
+      ? {}
+      : {
+          [P in OrderFields]: P extends ByFields
+            ? never
+            : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+        }[OrderFields]
+    >(args: SubsetIntersection<T, AttendanceDayStatusGroupByArgs, OrderByArg> & InputErrors): {} extends InputErrors ? GetAttendanceDayStatusGroupByPayload<T> : Prisma.PrismaPromise<InputErrors>
+  /**
+   * Fields of the AttendanceDayStatus model
+   */
+  readonly fields: AttendanceDayStatusFieldRefs;
+  }
+
+  /**
+   * The delegate class that acts as a "Promise-like" for AttendanceDayStatus.
+   * Why is this prefixed with `Prisma__`?
+   * Because we want to prevent naming conflicts as mentioned in
+   * https://github.com/prisma/prisma-client-js/issues/707
+   */
+  export interface Prisma__AttendanceDayStatusClient<T, Null = never, ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs, GlobalOmitOptions = {}> extends Prisma.PrismaPromise<T> {
+    readonly [Symbol.toStringTag]: "PrismaPromise"
+    company<T extends CompanyDefaultArgs<ExtArgs> = {}>(args?: Subset<T, CompanyDefaultArgs<ExtArgs>>): Prisma__CompanyClient<$Result.GetResult<Prisma.$CompanyPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | Null, Null, ExtArgs, GlobalOmitOptions>
+    employee<T extends EmployeeDefaultArgs<ExtArgs> = {}>(args?: Subset<T, EmployeeDefaultArgs<ExtArgs>>): Prisma__EmployeeClient<$Result.GetResult<Prisma.$EmployeePayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | Null, Null, ExtArgs, GlobalOmitOptions>
+    /**
+     * Attaches callbacks for the resolution and/or rejection of the Promise.
+     * @param onfulfilled The callback to execute when the Promise is resolved.
+     * @param onrejected The callback to execute when the Promise is rejected.
+     * @returns A Promise for the completion of which ever callback is executed.
+     */
+    then<TResult1 = T, TResult2 = never>(onfulfilled?: ((value: T) => TResult1 | PromiseLike<TResult1>) | undefined | null, onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | undefined | null): $Utils.JsPromise<TResult1 | TResult2>
+    /**
+     * Attaches a callback for only the rejection of the Promise.
+     * @param onrejected The callback to execute when the Promise is rejected.
+     * @returns A Promise for the completion of the callback.
+     */
+    catch<TResult = never>(onrejected?: ((reason: any) => TResult | PromiseLike<TResult>) | undefined | null): $Utils.JsPromise<T | TResult>
+    /**
+     * Attaches a callback that is invoked when the Promise is settled (fulfilled or rejected). The
+     * resolved value cannot be modified from the callback.
+     * @param onfinally The callback to execute when the Promise is settled (fulfilled or rejected).
+     * @returns A Promise for the completion of the callback.
+     */
+    finally(onfinally?: (() => void) | undefined | null): $Utils.JsPromise<T>
+  }
+
+
+
+
+  /**
+   * Fields of the AttendanceDayStatus model
+   */
+  interface AttendanceDayStatusFieldRefs {
+    readonly id: FieldRef<"AttendanceDayStatus", 'String'>
+    readonly companyId: FieldRef<"AttendanceDayStatus", 'String'>
+    readonly employeeId: FieldRef<"AttendanceDayStatus", 'String'>
+    readonly date: FieldRef<"AttendanceDayStatus", 'DateTime'>
+    readonly status: FieldRef<"AttendanceDayStatus", 'DayStatusType'>
+    readonly shiftId: FieldRef<"AttendanceDayStatus", 'Int'>
+    readonly shiftName: FieldRef<"AttendanceDayStatus", 'String'>
+    readonly expectedStartTime: FieldRef<"AttendanceDayStatus", 'String'>
+    readonly expectedEndTime: FieldRef<"AttendanceDayStatus", 'String'>
+    readonly appliedToleranceMin: FieldRef<"AttendanceDayStatus", 'Int'>
+    readonly isWorkDay: FieldRef<"AttendanceDayStatus", 'Boolean'>
+    readonly lateMinutes: FieldRef<"AttendanceDayStatus", 'Int'>
+    readonly overtimeMinutes: FieldRef<"AttendanceDayStatus", 'Int'>
+    readonly earlyExitMinutes: FieldRef<"AttendanceDayStatus", 'Int'>
+    readonly notes: FieldRef<"AttendanceDayStatus", 'String'>
+    readonly attendanceRecordId: FieldRef<"AttendanceDayStatus", 'String'>
+    readonly evaluatedAt: FieldRef<"AttendanceDayStatus", 'DateTime'>
+    readonly isLocked: FieldRef<"AttendanceDayStatus", 'Boolean'>
+    readonly lastModifiedById: FieldRef<"AttendanceDayStatus", 'String'>
+    readonly lastModifiedReason: FieldRef<"AttendanceDayStatus", 'String'>
+    readonly createdAt: FieldRef<"AttendanceDayStatus", 'DateTime'>
+    readonly updatedAt: FieldRef<"AttendanceDayStatus", 'DateTime'>
+  }
+    
+
+  // Custom InputTypes
+  /**
+   * AttendanceDayStatus findUnique
+   */
+  export type AttendanceDayStatusFindUniqueArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the AttendanceDayStatus
+     */
+    select?: AttendanceDayStatusSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the AttendanceDayStatus
+     */
+    omit?: AttendanceDayStatusOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: AttendanceDayStatusInclude<ExtArgs> | null
+    /**
+     * Filter, which AttendanceDayStatus to fetch.
+     */
+    where: AttendanceDayStatusWhereUniqueInput
+  }
+
+  /**
+   * AttendanceDayStatus findUniqueOrThrow
+   */
+  export type AttendanceDayStatusFindUniqueOrThrowArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the AttendanceDayStatus
+     */
+    select?: AttendanceDayStatusSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the AttendanceDayStatus
+     */
+    omit?: AttendanceDayStatusOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: AttendanceDayStatusInclude<ExtArgs> | null
+    /**
+     * Filter, which AttendanceDayStatus to fetch.
+     */
+    where: AttendanceDayStatusWhereUniqueInput
+  }
+
+  /**
+   * AttendanceDayStatus findFirst
+   */
+  export type AttendanceDayStatusFindFirstArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the AttendanceDayStatus
+     */
+    select?: AttendanceDayStatusSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the AttendanceDayStatus
+     */
+    omit?: AttendanceDayStatusOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: AttendanceDayStatusInclude<ExtArgs> | null
+    /**
+     * Filter, which AttendanceDayStatus to fetch.
+     */
+    where?: AttendanceDayStatusWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of AttendanceDayStatuses to fetch.
+     */
+    orderBy?: AttendanceDayStatusOrderByWithRelationInput | AttendanceDayStatusOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for searching for AttendanceDayStatuses.
+     */
+    cursor?: AttendanceDayStatusWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` AttendanceDayStatuses from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` AttendanceDayStatuses.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/distinct Distinct Docs}
+     * 
+     * Filter by unique combinations of AttendanceDayStatuses.
+     */
+    distinct?: AttendanceDayStatusScalarFieldEnum | AttendanceDayStatusScalarFieldEnum[]
+  }
+
+  /**
+   * AttendanceDayStatus findFirstOrThrow
+   */
+  export type AttendanceDayStatusFindFirstOrThrowArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the AttendanceDayStatus
+     */
+    select?: AttendanceDayStatusSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the AttendanceDayStatus
+     */
+    omit?: AttendanceDayStatusOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: AttendanceDayStatusInclude<ExtArgs> | null
+    /**
+     * Filter, which AttendanceDayStatus to fetch.
+     */
+    where?: AttendanceDayStatusWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of AttendanceDayStatuses to fetch.
+     */
+    orderBy?: AttendanceDayStatusOrderByWithRelationInput | AttendanceDayStatusOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for searching for AttendanceDayStatuses.
+     */
+    cursor?: AttendanceDayStatusWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` AttendanceDayStatuses from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` AttendanceDayStatuses.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/distinct Distinct Docs}
+     * 
+     * Filter by unique combinations of AttendanceDayStatuses.
+     */
+    distinct?: AttendanceDayStatusScalarFieldEnum | AttendanceDayStatusScalarFieldEnum[]
+  }
+
+  /**
+   * AttendanceDayStatus findMany
+   */
+  export type AttendanceDayStatusFindManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the AttendanceDayStatus
+     */
+    select?: AttendanceDayStatusSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the AttendanceDayStatus
+     */
+    omit?: AttendanceDayStatusOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: AttendanceDayStatusInclude<ExtArgs> | null
+    /**
+     * Filter, which AttendanceDayStatuses to fetch.
+     */
+    where?: AttendanceDayStatusWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of AttendanceDayStatuses to fetch.
+     */
+    orderBy?: AttendanceDayStatusOrderByWithRelationInput | AttendanceDayStatusOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for listing AttendanceDayStatuses.
+     */
+    cursor?: AttendanceDayStatusWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` AttendanceDayStatuses from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` AttendanceDayStatuses.
+     */
+    skip?: number
+    distinct?: AttendanceDayStatusScalarFieldEnum | AttendanceDayStatusScalarFieldEnum[]
+  }
+
+  /**
+   * AttendanceDayStatus create
+   */
+  export type AttendanceDayStatusCreateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the AttendanceDayStatus
+     */
+    select?: AttendanceDayStatusSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the AttendanceDayStatus
+     */
+    omit?: AttendanceDayStatusOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: AttendanceDayStatusInclude<ExtArgs> | null
+    /**
+     * The data needed to create a AttendanceDayStatus.
+     */
+    data: XOR<AttendanceDayStatusCreateInput, AttendanceDayStatusUncheckedCreateInput>
+  }
+
+  /**
+   * AttendanceDayStatus createMany
+   */
+  export type AttendanceDayStatusCreateManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * The data used to create many AttendanceDayStatuses.
+     */
+    data: AttendanceDayStatusCreateManyInput | AttendanceDayStatusCreateManyInput[]
+    skipDuplicates?: boolean
+  }
+
+  /**
+   * AttendanceDayStatus update
+   */
+  export type AttendanceDayStatusUpdateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the AttendanceDayStatus
+     */
+    select?: AttendanceDayStatusSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the AttendanceDayStatus
+     */
+    omit?: AttendanceDayStatusOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: AttendanceDayStatusInclude<ExtArgs> | null
+    /**
+     * The data needed to update a AttendanceDayStatus.
+     */
+    data: XOR<AttendanceDayStatusUpdateInput, AttendanceDayStatusUncheckedUpdateInput>
+    /**
+     * Choose, which AttendanceDayStatus to update.
+     */
+    where: AttendanceDayStatusWhereUniqueInput
+  }
+
+  /**
+   * AttendanceDayStatus updateMany
+   */
+  export type AttendanceDayStatusUpdateManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * The data used to update AttendanceDayStatuses.
+     */
+    data: XOR<AttendanceDayStatusUpdateManyMutationInput, AttendanceDayStatusUncheckedUpdateManyInput>
+    /**
+     * Filter which AttendanceDayStatuses to update
+     */
+    where?: AttendanceDayStatusWhereInput
+    /**
+     * Limit how many AttendanceDayStatuses to update.
+     */
+    limit?: number
+  }
+
+  /**
+   * AttendanceDayStatus upsert
+   */
+  export type AttendanceDayStatusUpsertArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the AttendanceDayStatus
+     */
+    select?: AttendanceDayStatusSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the AttendanceDayStatus
+     */
+    omit?: AttendanceDayStatusOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: AttendanceDayStatusInclude<ExtArgs> | null
+    /**
+     * The filter to search for the AttendanceDayStatus to update in case it exists.
+     */
+    where: AttendanceDayStatusWhereUniqueInput
+    /**
+     * In case the AttendanceDayStatus found by the `where` argument doesn't exist, create a new AttendanceDayStatus with this data.
+     */
+    create: XOR<AttendanceDayStatusCreateInput, AttendanceDayStatusUncheckedCreateInput>
+    /**
+     * In case the AttendanceDayStatus was found with the provided `where` argument, update it with this data.
+     */
+    update: XOR<AttendanceDayStatusUpdateInput, AttendanceDayStatusUncheckedUpdateInput>
+  }
+
+  /**
+   * AttendanceDayStatus delete
+   */
+  export type AttendanceDayStatusDeleteArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the AttendanceDayStatus
+     */
+    select?: AttendanceDayStatusSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the AttendanceDayStatus
+     */
+    omit?: AttendanceDayStatusOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: AttendanceDayStatusInclude<ExtArgs> | null
+    /**
+     * Filter which AttendanceDayStatus to delete.
+     */
+    where: AttendanceDayStatusWhereUniqueInput
+  }
+
+  /**
+   * AttendanceDayStatus deleteMany
+   */
+  export type AttendanceDayStatusDeleteManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Filter which AttendanceDayStatuses to delete
+     */
+    where?: AttendanceDayStatusWhereInput
+    /**
+     * Limit how many AttendanceDayStatuses to delete.
+     */
+    limit?: number
+  }
+
+  /**
+   * AttendanceDayStatus without action
+   */
+  export type AttendanceDayStatusDefaultArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the AttendanceDayStatus
+     */
+    select?: AttendanceDayStatusSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the AttendanceDayStatus
+     */
+    omit?: AttendanceDayStatusOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: AttendanceDayStatusInclude<ExtArgs> | null
+  }
+
+
+  /**
+   * Model CompanyHoliday
+   */
+
+  export type AggregateCompanyHoliday = {
+    _count: CompanyHolidayCountAggregateOutputType | null
+    _min: CompanyHolidayMinAggregateOutputType | null
+    _max: CompanyHolidayMaxAggregateOutputType | null
+  }
+
+  export type CompanyHolidayMinAggregateOutputType = {
+    id: string | null
+    companyId: string | null
+    name: string | null
+    date: Date | null
+    isMandatory: boolean | null
+    createdAt: Date | null
+    updatedAt: Date | null
+  }
+
+  export type CompanyHolidayMaxAggregateOutputType = {
+    id: string | null
+    companyId: string | null
+    name: string | null
+    date: Date | null
+    isMandatory: boolean | null
+    createdAt: Date | null
+    updatedAt: Date | null
+  }
+
+  export type CompanyHolidayCountAggregateOutputType = {
+    id: number
+    companyId: number
+    name: number
+    date: number
+    isMandatory: number
+    departmentIds: number
+    createdAt: number
+    updatedAt: number
+    _all: number
+  }
+
+
+  export type CompanyHolidayMinAggregateInputType = {
+    id?: true
+    companyId?: true
+    name?: true
+    date?: true
+    isMandatory?: true
+    createdAt?: true
+    updatedAt?: true
+  }
+
+  export type CompanyHolidayMaxAggregateInputType = {
+    id?: true
+    companyId?: true
+    name?: true
+    date?: true
+    isMandatory?: true
+    createdAt?: true
+    updatedAt?: true
+  }
+
+  export type CompanyHolidayCountAggregateInputType = {
+    id?: true
+    companyId?: true
+    name?: true
+    date?: true
+    isMandatory?: true
+    departmentIds?: true
+    createdAt?: true
+    updatedAt?: true
+    _all?: true
+  }
+
+  export type CompanyHolidayAggregateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Filter which CompanyHoliday to aggregate.
+     */
+    where?: CompanyHolidayWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of CompanyHolidays to fetch.
+     */
+    orderBy?: CompanyHolidayOrderByWithRelationInput | CompanyHolidayOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the start position
+     */
+    cursor?: CompanyHolidayWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` CompanyHolidays from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` CompanyHolidays.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Count returned CompanyHolidays
+    **/
+    _count?: true | CompanyHolidayCountAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to find the minimum value
+    **/
+    _min?: CompanyHolidayMinAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to find the maximum value
+    **/
+    _max?: CompanyHolidayMaxAggregateInputType
+  }
+
+  export type GetCompanyHolidayAggregateType<T extends CompanyHolidayAggregateArgs> = {
+        [P in keyof T & keyof AggregateCompanyHoliday]: P extends '_count' | 'count'
+      ? T[P] extends true
+        ? number
+        : GetScalarType<T[P], AggregateCompanyHoliday[P]>
+      : GetScalarType<T[P], AggregateCompanyHoliday[P]>
+  }
+
+
+
+
+  export type CompanyHolidayGroupByArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    where?: CompanyHolidayWhereInput
+    orderBy?: CompanyHolidayOrderByWithAggregationInput | CompanyHolidayOrderByWithAggregationInput[]
+    by: CompanyHolidayScalarFieldEnum[] | CompanyHolidayScalarFieldEnum
+    having?: CompanyHolidayScalarWhereWithAggregatesInput
+    take?: number
+    skip?: number
+    _count?: CompanyHolidayCountAggregateInputType | true
+    _min?: CompanyHolidayMinAggregateInputType
+    _max?: CompanyHolidayMaxAggregateInputType
+  }
+
+  export type CompanyHolidayGroupByOutputType = {
+    id: string
+    companyId: string
+    name: string
+    date: Date
+    isMandatory: boolean
+    departmentIds: JsonValue | null
+    createdAt: Date
+    updatedAt: Date
+    _count: CompanyHolidayCountAggregateOutputType | null
+    _min: CompanyHolidayMinAggregateOutputType | null
+    _max: CompanyHolidayMaxAggregateOutputType | null
+  }
+
+  type GetCompanyHolidayGroupByPayload<T extends CompanyHolidayGroupByArgs> = Prisma.PrismaPromise<
+    Array<
+      PickEnumerable<CompanyHolidayGroupByOutputType, T['by']> &
+        {
+          [P in ((keyof T) & (keyof CompanyHolidayGroupByOutputType))]: P extends '_count'
+            ? T[P] extends boolean
+              ? number
+              : GetScalarType<T[P], CompanyHolidayGroupByOutputType[P]>
+            : GetScalarType<T[P], CompanyHolidayGroupByOutputType[P]>
+        }
+      >
+    >
+
+
+  export type CompanyHolidaySelect<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
+    id?: boolean
+    companyId?: boolean
+    name?: boolean
+    date?: boolean
+    isMandatory?: boolean
+    departmentIds?: boolean
+    createdAt?: boolean
+    updatedAt?: boolean
+    company?: boolean | CompanyDefaultArgs<ExtArgs>
+  }, ExtArgs["result"]["companyHoliday"]>
+
+
+
+  export type CompanyHolidaySelectScalar = {
+    id?: boolean
+    companyId?: boolean
+    name?: boolean
+    date?: boolean
+    isMandatory?: boolean
+    departmentIds?: boolean
+    createdAt?: boolean
+    updatedAt?: boolean
+  }
+
+  export type CompanyHolidayOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "companyId" | "name" | "date" | "isMandatory" | "departmentIds" | "createdAt" | "updatedAt", ExtArgs["result"]["companyHoliday"]>
+  export type CompanyHolidayInclude<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    company?: boolean | CompanyDefaultArgs<ExtArgs>
+  }
+
+  export type $CompanyHolidayPayload<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    name: "CompanyHoliday"
+    objects: {
+      company: Prisma.$CompanyPayload<ExtArgs>
+    }
+    scalars: $Extensions.GetPayloadResult<{
+      id: string
+      companyId: string
+      name: string
+      date: Date
+      isMandatory: boolean
+      departmentIds: Prisma.JsonValue | null
+      createdAt: Date
+      updatedAt: Date
+    }, ExtArgs["result"]["companyHoliday"]>
+    composites: {}
+  }
+
+  type CompanyHolidayGetPayload<S extends boolean | null | undefined | CompanyHolidayDefaultArgs> = $Result.GetResult<Prisma.$CompanyHolidayPayload, S>
+
+  type CompanyHolidayCountArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> =
+    Omit<CompanyHolidayFindManyArgs, 'select' | 'include' | 'distinct' | 'omit'> & {
+      select?: CompanyHolidayCountAggregateInputType | true
+    }
+
+  export interface CompanyHolidayDelegate<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs, GlobalOmitOptions = {}> {
+    [K: symbol]: { types: Prisma.TypeMap<ExtArgs>['model']['CompanyHoliday'], meta: { name: 'CompanyHoliday' } }
+    /**
+     * Find zero or one CompanyHoliday that matches the filter.
+     * @param {CompanyHolidayFindUniqueArgs} args - Arguments to find a CompanyHoliday
+     * @example
+     * // Get one CompanyHoliday
+     * const companyHoliday = await prisma.companyHoliday.findUnique({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findUnique<T extends CompanyHolidayFindUniqueArgs>(args: SelectSubset<T, CompanyHolidayFindUniqueArgs<ExtArgs>>): Prisma__CompanyHolidayClient<$Result.GetResult<Prisma.$CompanyHolidayPayload<ExtArgs>, T, "findUnique", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Find one CompanyHoliday that matches the filter or throw an error with `error.code='P2025'`
+     * if no matches were found.
+     * @param {CompanyHolidayFindUniqueOrThrowArgs} args - Arguments to find a CompanyHoliday
+     * @example
+     * // Get one CompanyHoliday
+     * const companyHoliday = await prisma.companyHoliday.findUniqueOrThrow({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findUniqueOrThrow<T extends CompanyHolidayFindUniqueOrThrowArgs>(args: SelectSubset<T, CompanyHolidayFindUniqueOrThrowArgs<ExtArgs>>): Prisma__CompanyHolidayClient<$Result.GetResult<Prisma.$CompanyHolidayPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Find the first CompanyHoliday that matches the filter.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {CompanyHolidayFindFirstArgs} args - Arguments to find a CompanyHoliday
+     * @example
+     * // Get one CompanyHoliday
+     * const companyHoliday = await prisma.companyHoliday.findFirst({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findFirst<T extends CompanyHolidayFindFirstArgs>(args?: SelectSubset<T, CompanyHolidayFindFirstArgs<ExtArgs>>): Prisma__CompanyHolidayClient<$Result.GetResult<Prisma.$CompanyHolidayPayload<ExtArgs>, T, "findFirst", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Find the first CompanyHoliday that matches the filter or
+     * throw `PrismaKnownClientError` with `P2025` code if no matches were found.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {CompanyHolidayFindFirstOrThrowArgs} args - Arguments to find a CompanyHoliday
+     * @example
+     * // Get one CompanyHoliday
+     * const companyHoliday = await prisma.companyHoliday.findFirstOrThrow({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findFirstOrThrow<T extends CompanyHolidayFindFirstOrThrowArgs>(args?: SelectSubset<T, CompanyHolidayFindFirstOrThrowArgs<ExtArgs>>): Prisma__CompanyHolidayClient<$Result.GetResult<Prisma.$CompanyHolidayPayload<ExtArgs>, T, "findFirstOrThrow", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Find zero or more CompanyHolidays that matches the filter.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {CompanyHolidayFindManyArgs} args - Arguments to filter and select certain fields only.
+     * @example
+     * // Get all CompanyHolidays
+     * const companyHolidays = await prisma.companyHoliday.findMany()
+     * 
+     * // Get first 10 CompanyHolidays
+     * const companyHolidays = await prisma.companyHoliday.findMany({ take: 10 })
+     * 
+     * // Only select the `id`
+     * const companyHolidayWithIdOnly = await prisma.companyHoliday.findMany({ select: { id: true } })
+     * 
+     */
+    findMany<T extends CompanyHolidayFindManyArgs>(args?: SelectSubset<T, CompanyHolidayFindManyArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$CompanyHolidayPayload<ExtArgs>, T, "findMany", GlobalOmitOptions>>
+
+    /**
+     * Create a CompanyHoliday.
+     * @param {CompanyHolidayCreateArgs} args - Arguments to create a CompanyHoliday.
+     * @example
+     * // Create one CompanyHoliday
+     * const CompanyHoliday = await prisma.companyHoliday.create({
+     *   data: {
+     *     // ... data to create a CompanyHoliday
+     *   }
+     * })
+     * 
+     */
+    create<T extends CompanyHolidayCreateArgs>(args: SelectSubset<T, CompanyHolidayCreateArgs<ExtArgs>>): Prisma__CompanyHolidayClient<$Result.GetResult<Prisma.$CompanyHolidayPayload<ExtArgs>, T, "create", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Create many CompanyHolidays.
+     * @param {CompanyHolidayCreateManyArgs} args - Arguments to create many CompanyHolidays.
+     * @example
+     * // Create many CompanyHolidays
+     * const companyHoliday = await prisma.companyHoliday.createMany({
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     *     
+     */
+    createMany<T extends CompanyHolidayCreateManyArgs>(args?: SelectSubset<T, CompanyHolidayCreateManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Delete a CompanyHoliday.
+     * @param {CompanyHolidayDeleteArgs} args - Arguments to delete one CompanyHoliday.
+     * @example
+     * // Delete one CompanyHoliday
+     * const CompanyHoliday = await prisma.companyHoliday.delete({
+     *   where: {
+     *     // ... filter to delete one CompanyHoliday
+     *   }
+     * })
+     * 
+     */
+    delete<T extends CompanyHolidayDeleteArgs>(args: SelectSubset<T, CompanyHolidayDeleteArgs<ExtArgs>>): Prisma__CompanyHolidayClient<$Result.GetResult<Prisma.$CompanyHolidayPayload<ExtArgs>, T, "delete", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Update one CompanyHoliday.
+     * @param {CompanyHolidayUpdateArgs} args - Arguments to update one CompanyHoliday.
+     * @example
+     * // Update one CompanyHoliday
+     * const companyHoliday = await prisma.companyHoliday.update({
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: {
+     *     // ... provide data here
+     *   }
+     * })
+     * 
+     */
+    update<T extends CompanyHolidayUpdateArgs>(args: SelectSubset<T, CompanyHolidayUpdateArgs<ExtArgs>>): Prisma__CompanyHolidayClient<$Result.GetResult<Prisma.$CompanyHolidayPayload<ExtArgs>, T, "update", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Delete zero or more CompanyHolidays.
+     * @param {CompanyHolidayDeleteManyArgs} args - Arguments to filter CompanyHolidays to delete.
+     * @example
+     * // Delete a few CompanyHolidays
+     * const { count } = await prisma.companyHoliday.deleteMany({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     * 
+     */
+    deleteMany<T extends CompanyHolidayDeleteManyArgs>(args?: SelectSubset<T, CompanyHolidayDeleteManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Update zero or more CompanyHolidays.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {CompanyHolidayUpdateManyArgs} args - Arguments to update one or more rows.
+     * @example
+     * // Update many CompanyHolidays
+     * const companyHoliday = await prisma.companyHoliday.updateMany({
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: {
+     *     // ... provide data here
+     *   }
+     * })
+     * 
+     */
+    updateMany<T extends CompanyHolidayUpdateManyArgs>(args: SelectSubset<T, CompanyHolidayUpdateManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Create or update one CompanyHoliday.
+     * @param {CompanyHolidayUpsertArgs} args - Arguments to update or create a CompanyHoliday.
+     * @example
+     * // Update or create a CompanyHoliday
+     * const companyHoliday = await prisma.companyHoliday.upsert({
+     *   create: {
+     *     // ... data to create a CompanyHoliday
+     *   },
+     *   update: {
+     *     // ... in case it already exists, update
+     *   },
+     *   where: {
+     *     // ... the filter for the CompanyHoliday we want to update
+     *   }
+     * })
+     */
+    upsert<T extends CompanyHolidayUpsertArgs>(args: SelectSubset<T, CompanyHolidayUpsertArgs<ExtArgs>>): Prisma__CompanyHolidayClient<$Result.GetResult<Prisma.$CompanyHolidayPayload<ExtArgs>, T, "upsert", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+
+    /**
+     * Count the number of CompanyHolidays.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {CompanyHolidayCountArgs} args - Arguments to filter CompanyHolidays to count.
+     * @example
+     * // Count the number of CompanyHolidays
+     * const count = await prisma.companyHoliday.count({
+     *   where: {
+     *     // ... the filter for the CompanyHolidays we want to count
+     *   }
+     * })
+    **/
+    count<T extends CompanyHolidayCountArgs>(
+      args?: Subset<T, CompanyHolidayCountArgs>,
+    ): Prisma.PrismaPromise<
+      T extends $Utils.Record<'select', any>
+        ? T['select'] extends true
+          ? number
+          : GetScalarType<T['select'], CompanyHolidayCountAggregateOutputType>
+        : number
+    >
+
+    /**
+     * Allows you to perform aggregations operations on a CompanyHoliday.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {CompanyHolidayAggregateArgs} args - Select which aggregations you would like to apply and on what fields.
+     * @example
+     * // Ordered by age ascending
+     * // Where email contains prisma.io
+     * // Limited to the 10 users
+     * const aggregations = await prisma.user.aggregate({
+     *   _avg: {
+     *     age: true,
+     *   },
+     *   where: {
+     *     email: {
+     *       contains: "prisma.io",
+     *     },
+     *   },
+     *   orderBy: {
+     *     age: "asc",
+     *   },
+     *   take: 10,
+     * })
+    **/
+    aggregate<T extends CompanyHolidayAggregateArgs>(args: Subset<T, CompanyHolidayAggregateArgs>): Prisma.PrismaPromise<GetCompanyHolidayAggregateType<T>>
+
+    /**
+     * Group by CompanyHoliday.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {CompanyHolidayGroupByArgs} args - Group by arguments.
+     * @example
+     * // Group by city, order by createdAt, get count
+     * const result = await prisma.user.groupBy({
+     *   by: ['city', 'createdAt'],
+     *   orderBy: {
+     *     createdAt: true
+     *   },
+     *   _count: {
+     *     _all: true
+     *   },
+     * })
+     * 
+    **/
+    groupBy<
+      T extends CompanyHolidayGroupByArgs,
+      HasSelectOrTake extends Or<
+        Extends<'skip', Keys<T>>,
+        Extends<'take', Keys<T>>
+      >,
+      OrderByArg extends True extends HasSelectOrTake
+        ? { orderBy: CompanyHolidayGroupByArgs['orderBy'] }
+        : { orderBy?: CompanyHolidayGroupByArgs['orderBy'] },
+      OrderFields extends ExcludeUnderscoreKeys<Keys<MaybeTupleToUnion<T['orderBy']>>>,
+      ByFields extends MaybeTupleToUnion<T['by']>,
+      ByValid extends Has<ByFields, OrderFields>,
+      HavingFields extends GetHavingFields<T['having']>,
+      HavingValid extends Has<ByFields, HavingFields>,
+      ByEmpty extends T['by'] extends never[] ? True : False,
+      InputErrors extends ByEmpty extends True
+      ? `Error: "by" must not be empty.`
+      : HavingValid extends False
+      ? {
+          [P in HavingFields]: P extends ByFields
+            ? never
+            : P extends string
+            ? `Error: Field "${P}" used in "having" needs to be provided in "by".`
+            : [
+                Error,
+                'Field ',
+                P,
+                ` in "having" needs to be provided in "by"`,
+              ]
+        }[HavingFields]
+      : 'take' extends Keys<T>
+      ? 'orderBy' extends Keys<T>
+        ? ByValid extends True
+          ? {}
+          : {
+              [P in OrderFields]: P extends ByFields
+                ? never
+                : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+            }[OrderFields]
+        : 'Error: If you provide "take", you also need to provide "orderBy"'
+      : 'skip' extends Keys<T>
+      ? 'orderBy' extends Keys<T>
+        ? ByValid extends True
+          ? {}
+          : {
+              [P in OrderFields]: P extends ByFields
+                ? never
+                : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+            }[OrderFields]
+        : 'Error: If you provide "skip", you also need to provide "orderBy"'
+      : ByValid extends True
+      ? {}
+      : {
+          [P in OrderFields]: P extends ByFields
+            ? never
+            : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+        }[OrderFields]
+    >(args: SubsetIntersection<T, CompanyHolidayGroupByArgs, OrderByArg> & InputErrors): {} extends InputErrors ? GetCompanyHolidayGroupByPayload<T> : Prisma.PrismaPromise<InputErrors>
+  /**
+   * Fields of the CompanyHoliday model
+   */
+  readonly fields: CompanyHolidayFieldRefs;
+  }
+
+  /**
+   * The delegate class that acts as a "Promise-like" for CompanyHoliday.
+   * Why is this prefixed with `Prisma__`?
+   * Because we want to prevent naming conflicts as mentioned in
+   * https://github.com/prisma/prisma-client-js/issues/707
+   */
+  export interface Prisma__CompanyHolidayClient<T, Null = never, ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs, GlobalOmitOptions = {}> extends Prisma.PrismaPromise<T> {
+    readonly [Symbol.toStringTag]: "PrismaPromise"
+    company<T extends CompanyDefaultArgs<ExtArgs> = {}>(args?: Subset<T, CompanyDefaultArgs<ExtArgs>>): Prisma__CompanyClient<$Result.GetResult<Prisma.$CompanyPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | Null, Null, ExtArgs, GlobalOmitOptions>
+    /**
+     * Attaches callbacks for the resolution and/or rejection of the Promise.
+     * @param onfulfilled The callback to execute when the Promise is resolved.
+     * @param onrejected The callback to execute when the Promise is rejected.
+     * @returns A Promise for the completion of which ever callback is executed.
+     */
+    then<TResult1 = T, TResult2 = never>(onfulfilled?: ((value: T) => TResult1 | PromiseLike<TResult1>) | undefined | null, onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | undefined | null): $Utils.JsPromise<TResult1 | TResult2>
+    /**
+     * Attaches a callback for only the rejection of the Promise.
+     * @param onrejected The callback to execute when the Promise is rejected.
+     * @returns A Promise for the completion of the callback.
+     */
+    catch<TResult = never>(onrejected?: ((reason: any) => TResult | PromiseLike<TResult>) | undefined | null): $Utils.JsPromise<T | TResult>
+    /**
+     * Attaches a callback that is invoked when the Promise is settled (fulfilled or rejected). The
+     * resolved value cannot be modified from the callback.
+     * @param onfinally The callback to execute when the Promise is settled (fulfilled or rejected).
+     * @returns A Promise for the completion of the callback.
+     */
+    finally(onfinally?: (() => void) | undefined | null): $Utils.JsPromise<T>
+  }
+
+
+
+
+  /**
+   * Fields of the CompanyHoliday model
+   */
+  interface CompanyHolidayFieldRefs {
+    readonly id: FieldRef<"CompanyHoliday", 'String'>
+    readonly companyId: FieldRef<"CompanyHoliday", 'String'>
+    readonly name: FieldRef<"CompanyHoliday", 'String'>
+    readonly date: FieldRef<"CompanyHoliday", 'DateTime'>
+    readonly isMandatory: FieldRef<"CompanyHoliday", 'Boolean'>
+    readonly departmentIds: FieldRef<"CompanyHoliday", 'Json'>
+    readonly createdAt: FieldRef<"CompanyHoliday", 'DateTime'>
+    readonly updatedAt: FieldRef<"CompanyHoliday", 'DateTime'>
+  }
+    
+
+  // Custom InputTypes
+  /**
+   * CompanyHoliday findUnique
+   */
+  export type CompanyHolidayFindUniqueArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the CompanyHoliday
+     */
+    select?: CompanyHolidaySelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the CompanyHoliday
+     */
+    omit?: CompanyHolidayOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: CompanyHolidayInclude<ExtArgs> | null
+    /**
+     * Filter, which CompanyHoliday to fetch.
+     */
+    where: CompanyHolidayWhereUniqueInput
+  }
+
+  /**
+   * CompanyHoliday findUniqueOrThrow
+   */
+  export type CompanyHolidayFindUniqueOrThrowArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the CompanyHoliday
+     */
+    select?: CompanyHolidaySelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the CompanyHoliday
+     */
+    omit?: CompanyHolidayOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: CompanyHolidayInclude<ExtArgs> | null
+    /**
+     * Filter, which CompanyHoliday to fetch.
+     */
+    where: CompanyHolidayWhereUniqueInput
+  }
+
+  /**
+   * CompanyHoliday findFirst
+   */
+  export type CompanyHolidayFindFirstArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the CompanyHoliday
+     */
+    select?: CompanyHolidaySelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the CompanyHoliday
+     */
+    omit?: CompanyHolidayOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: CompanyHolidayInclude<ExtArgs> | null
+    /**
+     * Filter, which CompanyHoliday to fetch.
+     */
+    where?: CompanyHolidayWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of CompanyHolidays to fetch.
+     */
+    orderBy?: CompanyHolidayOrderByWithRelationInput | CompanyHolidayOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for searching for CompanyHolidays.
+     */
+    cursor?: CompanyHolidayWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` CompanyHolidays from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` CompanyHolidays.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/distinct Distinct Docs}
+     * 
+     * Filter by unique combinations of CompanyHolidays.
+     */
+    distinct?: CompanyHolidayScalarFieldEnum | CompanyHolidayScalarFieldEnum[]
+  }
+
+  /**
+   * CompanyHoliday findFirstOrThrow
+   */
+  export type CompanyHolidayFindFirstOrThrowArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the CompanyHoliday
+     */
+    select?: CompanyHolidaySelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the CompanyHoliday
+     */
+    omit?: CompanyHolidayOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: CompanyHolidayInclude<ExtArgs> | null
+    /**
+     * Filter, which CompanyHoliday to fetch.
+     */
+    where?: CompanyHolidayWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of CompanyHolidays to fetch.
+     */
+    orderBy?: CompanyHolidayOrderByWithRelationInput | CompanyHolidayOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for searching for CompanyHolidays.
+     */
+    cursor?: CompanyHolidayWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` CompanyHolidays from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` CompanyHolidays.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/distinct Distinct Docs}
+     * 
+     * Filter by unique combinations of CompanyHolidays.
+     */
+    distinct?: CompanyHolidayScalarFieldEnum | CompanyHolidayScalarFieldEnum[]
+  }
+
+  /**
+   * CompanyHoliday findMany
+   */
+  export type CompanyHolidayFindManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the CompanyHoliday
+     */
+    select?: CompanyHolidaySelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the CompanyHoliday
+     */
+    omit?: CompanyHolidayOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: CompanyHolidayInclude<ExtArgs> | null
+    /**
+     * Filter, which CompanyHolidays to fetch.
+     */
+    where?: CompanyHolidayWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of CompanyHolidays to fetch.
+     */
+    orderBy?: CompanyHolidayOrderByWithRelationInput | CompanyHolidayOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for listing CompanyHolidays.
+     */
+    cursor?: CompanyHolidayWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` CompanyHolidays from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` CompanyHolidays.
+     */
+    skip?: number
+    distinct?: CompanyHolidayScalarFieldEnum | CompanyHolidayScalarFieldEnum[]
+  }
+
+  /**
+   * CompanyHoliday create
+   */
+  export type CompanyHolidayCreateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the CompanyHoliday
+     */
+    select?: CompanyHolidaySelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the CompanyHoliday
+     */
+    omit?: CompanyHolidayOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: CompanyHolidayInclude<ExtArgs> | null
+    /**
+     * The data needed to create a CompanyHoliday.
+     */
+    data: XOR<CompanyHolidayCreateInput, CompanyHolidayUncheckedCreateInput>
+  }
+
+  /**
+   * CompanyHoliday createMany
+   */
+  export type CompanyHolidayCreateManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * The data used to create many CompanyHolidays.
+     */
+    data: CompanyHolidayCreateManyInput | CompanyHolidayCreateManyInput[]
+    skipDuplicates?: boolean
+  }
+
+  /**
+   * CompanyHoliday update
+   */
+  export type CompanyHolidayUpdateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the CompanyHoliday
+     */
+    select?: CompanyHolidaySelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the CompanyHoliday
+     */
+    omit?: CompanyHolidayOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: CompanyHolidayInclude<ExtArgs> | null
+    /**
+     * The data needed to update a CompanyHoliday.
+     */
+    data: XOR<CompanyHolidayUpdateInput, CompanyHolidayUncheckedUpdateInput>
+    /**
+     * Choose, which CompanyHoliday to update.
+     */
+    where: CompanyHolidayWhereUniqueInput
+  }
+
+  /**
+   * CompanyHoliday updateMany
+   */
+  export type CompanyHolidayUpdateManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * The data used to update CompanyHolidays.
+     */
+    data: XOR<CompanyHolidayUpdateManyMutationInput, CompanyHolidayUncheckedUpdateManyInput>
+    /**
+     * Filter which CompanyHolidays to update
+     */
+    where?: CompanyHolidayWhereInput
+    /**
+     * Limit how many CompanyHolidays to update.
+     */
+    limit?: number
+  }
+
+  /**
+   * CompanyHoliday upsert
+   */
+  export type CompanyHolidayUpsertArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the CompanyHoliday
+     */
+    select?: CompanyHolidaySelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the CompanyHoliday
+     */
+    omit?: CompanyHolidayOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: CompanyHolidayInclude<ExtArgs> | null
+    /**
+     * The filter to search for the CompanyHoliday to update in case it exists.
+     */
+    where: CompanyHolidayWhereUniqueInput
+    /**
+     * In case the CompanyHoliday found by the `where` argument doesn't exist, create a new CompanyHoliday with this data.
+     */
+    create: XOR<CompanyHolidayCreateInput, CompanyHolidayUncheckedCreateInput>
+    /**
+     * In case the CompanyHoliday was found with the provided `where` argument, update it with this data.
+     */
+    update: XOR<CompanyHolidayUpdateInput, CompanyHolidayUncheckedUpdateInput>
+  }
+
+  /**
+   * CompanyHoliday delete
+   */
+  export type CompanyHolidayDeleteArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the CompanyHoliday
+     */
+    select?: CompanyHolidaySelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the CompanyHoliday
+     */
+    omit?: CompanyHolidayOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: CompanyHolidayInclude<ExtArgs> | null
+    /**
+     * Filter which CompanyHoliday to delete.
+     */
+    where: CompanyHolidayWhereUniqueInput
+  }
+
+  /**
+   * CompanyHoliday deleteMany
+   */
+  export type CompanyHolidayDeleteManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Filter which CompanyHolidays to delete
+     */
+    where?: CompanyHolidayWhereInput
+    /**
+     * Limit how many CompanyHolidays to delete.
+     */
+    limit?: number
+  }
+
+  /**
+   * CompanyHoliday without action
+   */
+  export type CompanyHolidayDefaultArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the CompanyHoliday
+     */
+    select?: CompanyHolidaySelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the CompanyHoliday
+     */
+    omit?: CompanyHolidayOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: CompanyHolidayInclude<ExtArgs> | null
+  }
+
+
+  /**
    * Enums
    */
 
@@ -19216,6 +21650,7 @@ export namespace Prisma {
     tolerance: 'tolerance',
     breakStartTime: 'breakStartTime',
     breakEndTime: 'breakEndTime',
+    scheduleByDay: 'scheduleByDay',
     isActive: 'isActive',
     createdAt: 'createdAt',
     updatedAt: 'updatedAt'
@@ -19393,12 +21828,62 @@ export namespace Prisma {
   export type EmployeeBranchAccessScalarFieldEnum = (typeof EmployeeBranchAccessScalarFieldEnum)[keyof typeof EmployeeBranchAccessScalarFieldEnum]
 
 
+  export const AttendanceDayStatusScalarFieldEnum: {
+    id: 'id',
+    companyId: 'companyId',
+    employeeId: 'employeeId',
+    date: 'date',
+    status: 'status',
+    shiftId: 'shiftId',
+    shiftName: 'shiftName',
+    expectedStartTime: 'expectedStartTime',
+    expectedEndTime: 'expectedEndTime',
+    appliedToleranceMin: 'appliedToleranceMin',
+    isWorkDay: 'isWorkDay',
+    lateMinutes: 'lateMinutes',
+    overtimeMinutes: 'overtimeMinutes',
+    earlyExitMinutes: 'earlyExitMinutes',
+    notes: 'notes',
+    attendanceRecordId: 'attendanceRecordId',
+    evaluatedAt: 'evaluatedAt',
+    isLocked: 'isLocked',
+    lastModifiedById: 'lastModifiedById',
+    lastModifiedReason: 'lastModifiedReason',
+    createdAt: 'createdAt',
+    updatedAt: 'updatedAt'
+  };
+
+  export type AttendanceDayStatusScalarFieldEnum = (typeof AttendanceDayStatusScalarFieldEnum)[keyof typeof AttendanceDayStatusScalarFieldEnum]
+
+
+  export const CompanyHolidayScalarFieldEnum: {
+    id: 'id',
+    companyId: 'companyId',
+    name: 'name',
+    date: 'date',
+    isMandatory: 'isMandatory',
+    departmentIds: 'departmentIds',
+    createdAt: 'createdAt',
+    updatedAt: 'updatedAt'
+  };
+
+  export type CompanyHolidayScalarFieldEnum = (typeof CompanyHolidayScalarFieldEnum)[keyof typeof CompanyHolidayScalarFieldEnum]
+
+
   export const SortOrder: {
     asc: 'asc',
     desc: 'desc'
   };
 
   export type SortOrder = (typeof SortOrder)[keyof typeof SortOrder]
+
+
+  export const NullableJsonNullValueInput: {
+    DbNull: typeof DbNull,
+    JsonNull: typeof JsonNull
+  };
+
+  export type NullableJsonNullValueInput = (typeof NullableJsonNullValueInput)[keyof typeof NullableJsonNullValueInput]
 
 
   export const NullsOrder: {
@@ -19460,6 +21945,23 @@ export namespace Prisma {
   };
 
   export type AttendanceRecordOrderByRelevanceFieldEnum = (typeof AttendanceRecordOrderByRelevanceFieldEnum)[keyof typeof AttendanceRecordOrderByRelevanceFieldEnum]
+
+
+  export const JsonNullValueFilter: {
+    DbNull: typeof DbNull,
+    JsonNull: typeof JsonNull,
+    AnyNull: typeof AnyNull
+  };
+
+  export type JsonNullValueFilter = (typeof JsonNullValueFilter)[keyof typeof JsonNullValueFilter]
+
+
+  export const QueryMode: {
+    default: 'default',
+    insensitive: 'insensitive'
+  };
+
+  export type QueryMode = (typeof QueryMode)[keyof typeof QueryMode]
 
 
   export const ShiftOrderByRelevanceFieldEnum: {
@@ -19591,6 +22093,31 @@ export namespace Prisma {
   export type EmployeeBranchAccessOrderByRelevanceFieldEnum = (typeof EmployeeBranchAccessOrderByRelevanceFieldEnum)[keyof typeof EmployeeBranchAccessOrderByRelevanceFieldEnum]
 
 
+  export const AttendanceDayStatusOrderByRelevanceFieldEnum: {
+    id: 'id',
+    companyId: 'companyId',
+    employeeId: 'employeeId',
+    shiftName: 'shiftName',
+    expectedStartTime: 'expectedStartTime',
+    expectedEndTime: 'expectedEndTime',
+    notes: 'notes',
+    attendanceRecordId: 'attendanceRecordId',
+    lastModifiedById: 'lastModifiedById',
+    lastModifiedReason: 'lastModifiedReason'
+  };
+
+  export type AttendanceDayStatusOrderByRelevanceFieldEnum = (typeof AttendanceDayStatusOrderByRelevanceFieldEnum)[keyof typeof AttendanceDayStatusOrderByRelevanceFieldEnum]
+
+
+  export const CompanyHolidayOrderByRelevanceFieldEnum: {
+    id: 'id',
+    companyId: 'companyId',
+    name: 'name'
+  };
+
+  export type CompanyHolidayOrderByRelevanceFieldEnum = (typeof CompanyHolidayOrderByRelevanceFieldEnum)[keyof typeof CompanyHolidayOrderByRelevanceFieldEnum]
+
+
   /**
    * Field references
    */
@@ -19628,6 +22155,20 @@ export namespace Prisma {
    * Reference to a field of type 'Decimal'
    */
   export type DecimalFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Decimal'>
+    
+
+
+  /**
+   * Reference to a field of type 'Json'
+   */
+  export type JsonFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Json'>
+    
+
+
+  /**
+   * Reference to a field of type 'QueryMode'
+   */
+  export type EnumQueryModeFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'QueryMode'>
     
 
 
@@ -19684,6 +22225,13 @@ export namespace Prisma {
    * Reference to a field of type 'AuthRequestStatus'
    */
   export type EnumAuthRequestStatusFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'AuthRequestStatus'>
+    
+
+
+  /**
+   * Reference to a field of type 'DayStatusType'
+   */
+  export type EnumDayStatusTypeFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'DayStatusType'>
     
   /**
    * Deep Input Types
@@ -19744,6 +22292,8 @@ export namespace Prisma {
     auditLogs?: AdminAuditLogListRelationFilter
     departmentShifts?: DepartmentShiftListRelationFilter
     employeeShifts?: EmployeeShiftListRelationFilter
+    attendanceDayStatuses?: AttendanceDayStatusListRelationFilter
+    holidays?: CompanyHolidayListRelationFilter
   }
 
   export type CompanyOrderByWithRelationInput = {
@@ -19797,6 +22347,8 @@ export namespace Prisma {
     auditLogs?: AdminAuditLogOrderByRelationAggregateInput
     departmentShifts?: DepartmentShiftOrderByRelationAggregateInput
     employeeShifts?: EmployeeShiftOrderByRelationAggregateInput
+    attendanceDayStatuses?: AttendanceDayStatusOrderByRelationAggregateInput
+    holidays?: CompanyHolidayOrderByRelationAggregateInput
     _relevance?: CompanyOrderByRelevanceInput
   }
 
@@ -19854,6 +22406,8 @@ export namespace Prisma {
     auditLogs?: AdminAuditLogListRelationFilter
     departmentShifts?: DepartmentShiftListRelationFilter
     employeeShifts?: EmployeeShiftListRelationFilter
+    attendanceDayStatuses?: AttendanceDayStatusListRelationFilter
+    holidays?: CompanyHolidayListRelationFilter
   }, "id" | "slug" | "customDomain">
 
   export type CompanyOrderByWithAggregationInput = {
@@ -20028,6 +22582,7 @@ export namespace Prisma {
     notifications?: NotificationListRelationFilter
     eventRequests?: EventRequestListRelationFilter
     branchAccesses?: EmployeeBranchAccessListRelationFilter
+    attendanceDayStatuses?: AttendanceDayStatusListRelationFilter
   }
 
   export type EmployeeOrderByWithRelationInput = {
@@ -20051,6 +22606,7 @@ export namespace Prisma {
     notifications?: NotificationOrderByRelationAggregateInput
     eventRequests?: EventRequestOrderByRelationAggregateInput
     branchAccesses?: EmployeeBranchAccessOrderByRelationAggregateInput
+    attendanceDayStatuses?: AttendanceDayStatusOrderByRelationAggregateInput
     _relevance?: EmployeeOrderByRelevanceInput
   }
 
@@ -20081,6 +22637,7 @@ export namespace Prisma {
     notifications?: NotificationListRelationFilter
     eventRequests?: EventRequestListRelationFilter
     branchAccesses?: EmployeeBranchAccessListRelationFilter
+    attendanceDayStatuses?: AttendanceDayStatusListRelationFilter
   }, "id" | "companyId_identifier" | "companyId_email" | "id_companyId">
 
   export type EmployeeOrderByWithAggregationInput = {
@@ -20268,6 +22825,7 @@ export namespace Prisma {
     tolerance?: IntNullableFilter<"Shift"> | number | null
     breakStartTime?: StringNullableFilter<"Shift"> | string | null
     breakEndTime?: StringNullableFilter<"Shift"> | string | null
+    scheduleByDay?: JsonNullableFilter<"Shift">
     isActive?: BoolFilter<"Shift"> | boolean
     createdAt?: DateTimeFilter<"Shift"> | Date | string
     updatedAt?: DateTimeFilter<"Shift"> | Date | string
@@ -20286,6 +22844,7 @@ export namespace Prisma {
     tolerance?: SortOrderInput | SortOrder
     breakStartTime?: SortOrderInput | SortOrder
     breakEndTime?: SortOrderInput | SortOrder
+    scheduleByDay?: SortOrderInput | SortOrder
     isActive?: SortOrder
     createdAt?: SortOrder
     updatedAt?: SortOrder
@@ -20310,6 +22869,7 @@ export namespace Prisma {
     tolerance?: IntNullableFilter<"Shift"> | number | null
     breakStartTime?: StringNullableFilter<"Shift"> | string | null
     breakEndTime?: StringNullableFilter<"Shift"> | string | null
+    scheduleByDay?: JsonNullableFilter<"Shift">
     isActive?: BoolFilter<"Shift"> | boolean
     createdAt?: DateTimeFilter<"Shift"> | Date | string
     updatedAt?: DateTimeFilter<"Shift"> | Date | string
@@ -20328,6 +22888,7 @@ export namespace Prisma {
     tolerance?: SortOrderInput | SortOrder
     breakStartTime?: SortOrderInput | SortOrder
     breakEndTime?: SortOrderInput | SortOrder
+    scheduleByDay?: SortOrderInput | SortOrder
     isActive?: SortOrder
     createdAt?: SortOrder
     updatedAt?: SortOrder
@@ -20350,6 +22911,7 @@ export namespace Prisma {
     tolerance?: IntNullableWithAggregatesFilter<"Shift"> | number | null
     breakStartTime?: StringNullableWithAggregatesFilter<"Shift"> | string | null
     breakEndTime?: StringNullableWithAggregatesFilter<"Shift"> | string | null
+    scheduleByDay?: JsonNullableWithAggregatesFilter<"Shift">
     isActive?: BoolWithAggregatesFilter<"Shift"> | boolean
     createdAt?: DateTimeWithAggregatesFilter<"Shift"> | Date | string
     updatedAt?: DateTimeWithAggregatesFilter<"Shift"> | Date | string
@@ -21261,6 +23823,227 @@ export namespace Prisma {
     createdAt?: DateTimeWithAggregatesFilter<"EmployeeBranchAccess"> | Date | string
   }
 
+  export type AttendanceDayStatusWhereInput = {
+    AND?: AttendanceDayStatusWhereInput | AttendanceDayStatusWhereInput[]
+    OR?: AttendanceDayStatusWhereInput[]
+    NOT?: AttendanceDayStatusWhereInput | AttendanceDayStatusWhereInput[]
+    id?: StringFilter<"AttendanceDayStatus"> | string
+    companyId?: StringFilter<"AttendanceDayStatus"> | string
+    employeeId?: StringFilter<"AttendanceDayStatus"> | string
+    date?: DateTimeFilter<"AttendanceDayStatus"> | Date | string
+    status?: EnumDayStatusTypeFilter<"AttendanceDayStatus"> | $Enums.DayStatusType
+    shiftId?: IntNullableFilter<"AttendanceDayStatus"> | number | null
+    shiftName?: StringNullableFilter<"AttendanceDayStatus"> | string | null
+    expectedStartTime?: StringNullableFilter<"AttendanceDayStatus"> | string | null
+    expectedEndTime?: StringNullableFilter<"AttendanceDayStatus"> | string | null
+    appliedToleranceMin?: IntNullableFilter<"AttendanceDayStatus"> | number | null
+    isWorkDay?: BoolFilter<"AttendanceDayStatus"> | boolean
+    lateMinutes?: IntNullableFilter<"AttendanceDayStatus"> | number | null
+    overtimeMinutes?: IntNullableFilter<"AttendanceDayStatus"> | number | null
+    earlyExitMinutes?: IntNullableFilter<"AttendanceDayStatus"> | number | null
+    notes?: StringNullableFilter<"AttendanceDayStatus"> | string | null
+    attendanceRecordId?: StringNullableFilter<"AttendanceDayStatus"> | string | null
+    evaluatedAt?: DateTimeFilter<"AttendanceDayStatus"> | Date | string
+    isLocked?: BoolFilter<"AttendanceDayStatus"> | boolean
+    lastModifiedById?: StringNullableFilter<"AttendanceDayStatus"> | string | null
+    lastModifiedReason?: StringNullableFilter<"AttendanceDayStatus"> | string | null
+    createdAt?: DateTimeFilter<"AttendanceDayStatus"> | Date | string
+    updatedAt?: DateTimeFilter<"AttendanceDayStatus"> | Date | string
+    company?: XOR<CompanyScalarRelationFilter, CompanyWhereInput>
+    employee?: XOR<EmployeeScalarRelationFilter, EmployeeWhereInput>
+  }
+
+  export type AttendanceDayStatusOrderByWithRelationInput = {
+    id?: SortOrder
+    companyId?: SortOrder
+    employeeId?: SortOrder
+    date?: SortOrder
+    status?: SortOrder
+    shiftId?: SortOrderInput | SortOrder
+    shiftName?: SortOrderInput | SortOrder
+    expectedStartTime?: SortOrderInput | SortOrder
+    expectedEndTime?: SortOrderInput | SortOrder
+    appliedToleranceMin?: SortOrderInput | SortOrder
+    isWorkDay?: SortOrder
+    lateMinutes?: SortOrderInput | SortOrder
+    overtimeMinutes?: SortOrderInput | SortOrder
+    earlyExitMinutes?: SortOrderInput | SortOrder
+    notes?: SortOrderInput | SortOrder
+    attendanceRecordId?: SortOrderInput | SortOrder
+    evaluatedAt?: SortOrder
+    isLocked?: SortOrder
+    lastModifiedById?: SortOrderInput | SortOrder
+    lastModifiedReason?: SortOrderInput | SortOrder
+    createdAt?: SortOrder
+    updatedAt?: SortOrder
+    company?: CompanyOrderByWithRelationInput
+    employee?: EmployeeOrderByWithRelationInput
+    _relevance?: AttendanceDayStatusOrderByRelevanceInput
+  }
+
+  export type AttendanceDayStatusWhereUniqueInput = Prisma.AtLeast<{
+    id?: string
+    companyId_employeeId_date?: AttendanceDayStatusCompanyIdEmployeeIdDateCompoundUniqueInput
+    id_companyId?: AttendanceDayStatusIdCompanyIdCompoundUniqueInput
+    AND?: AttendanceDayStatusWhereInput | AttendanceDayStatusWhereInput[]
+    OR?: AttendanceDayStatusWhereInput[]
+    NOT?: AttendanceDayStatusWhereInput | AttendanceDayStatusWhereInput[]
+    companyId?: StringFilter<"AttendanceDayStatus"> | string
+    employeeId?: StringFilter<"AttendanceDayStatus"> | string
+    date?: DateTimeFilter<"AttendanceDayStatus"> | Date | string
+    status?: EnumDayStatusTypeFilter<"AttendanceDayStatus"> | $Enums.DayStatusType
+    shiftId?: IntNullableFilter<"AttendanceDayStatus"> | number | null
+    shiftName?: StringNullableFilter<"AttendanceDayStatus"> | string | null
+    expectedStartTime?: StringNullableFilter<"AttendanceDayStatus"> | string | null
+    expectedEndTime?: StringNullableFilter<"AttendanceDayStatus"> | string | null
+    appliedToleranceMin?: IntNullableFilter<"AttendanceDayStatus"> | number | null
+    isWorkDay?: BoolFilter<"AttendanceDayStatus"> | boolean
+    lateMinutes?: IntNullableFilter<"AttendanceDayStatus"> | number | null
+    overtimeMinutes?: IntNullableFilter<"AttendanceDayStatus"> | number | null
+    earlyExitMinutes?: IntNullableFilter<"AttendanceDayStatus"> | number | null
+    notes?: StringNullableFilter<"AttendanceDayStatus"> | string | null
+    attendanceRecordId?: StringNullableFilter<"AttendanceDayStatus"> | string | null
+    evaluatedAt?: DateTimeFilter<"AttendanceDayStatus"> | Date | string
+    isLocked?: BoolFilter<"AttendanceDayStatus"> | boolean
+    lastModifiedById?: StringNullableFilter<"AttendanceDayStatus"> | string | null
+    lastModifiedReason?: StringNullableFilter<"AttendanceDayStatus"> | string | null
+    createdAt?: DateTimeFilter<"AttendanceDayStatus"> | Date | string
+    updatedAt?: DateTimeFilter<"AttendanceDayStatus"> | Date | string
+    company?: XOR<CompanyScalarRelationFilter, CompanyWhereInput>
+    employee?: XOR<EmployeeScalarRelationFilter, EmployeeWhereInput>
+  }, "id" | "companyId_employeeId_date" | "id_companyId">
+
+  export type AttendanceDayStatusOrderByWithAggregationInput = {
+    id?: SortOrder
+    companyId?: SortOrder
+    employeeId?: SortOrder
+    date?: SortOrder
+    status?: SortOrder
+    shiftId?: SortOrderInput | SortOrder
+    shiftName?: SortOrderInput | SortOrder
+    expectedStartTime?: SortOrderInput | SortOrder
+    expectedEndTime?: SortOrderInput | SortOrder
+    appliedToleranceMin?: SortOrderInput | SortOrder
+    isWorkDay?: SortOrder
+    lateMinutes?: SortOrderInput | SortOrder
+    overtimeMinutes?: SortOrderInput | SortOrder
+    earlyExitMinutes?: SortOrderInput | SortOrder
+    notes?: SortOrderInput | SortOrder
+    attendanceRecordId?: SortOrderInput | SortOrder
+    evaluatedAt?: SortOrder
+    isLocked?: SortOrder
+    lastModifiedById?: SortOrderInput | SortOrder
+    lastModifiedReason?: SortOrderInput | SortOrder
+    createdAt?: SortOrder
+    updatedAt?: SortOrder
+    _count?: AttendanceDayStatusCountOrderByAggregateInput
+    _avg?: AttendanceDayStatusAvgOrderByAggregateInput
+    _max?: AttendanceDayStatusMaxOrderByAggregateInput
+    _min?: AttendanceDayStatusMinOrderByAggregateInput
+    _sum?: AttendanceDayStatusSumOrderByAggregateInput
+  }
+
+  export type AttendanceDayStatusScalarWhereWithAggregatesInput = {
+    AND?: AttendanceDayStatusScalarWhereWithAggregatesInput | AttendanceDayStatusScalarWhereWithAggregatesInput[]
+    OR?: AttendanceDayStatusScalarWhereWithAggregatesInput[]
+    NOT?: AttendanceDayStatusScalarWhereWithAggregatesInput | AttendanceDayStatusScalarWhereWithAggregatesInput[]
+    id?: StringWithAggregatesFilter<"AttendanceDayStatus"> | string
+    companyId?: StringWithAggregatesFilter<"AttendanceDayStatus"> | string
+    employeeId?: StringWithAggregatesFilter<"AttendanceDayStatus"> | string
+    date?: DateTimeWithAggregatesFilter<"AttendanceDayStatus"> | Date | string
+    status?: EnumDayStatusTypeWithAggregatesFilter<"AttendanceDayStatus"> | $Enums.DayStatusType
+    shiftId?: IntNullableWithAggregatesFilter<"AttendanceDayStatus"> | number | null
+    shiftName?: StringNullableWithAggregatesFilter<"AttendanceDayStatus"> | string | null
+    expectedStartTime?: StringNullableWithAggregatesFilter<"AttendanceDayStatus"> | string | null
+    expectedEndTime?: StringNullableWithAggregatesFilter<"AttendanceDayStatus"> | string | null
+    appliedToleranceMin?: IntNullableWithAggregatesFilter<"AttendanceDayStatus"> | number | null
+    isWorkDay?: BoolWithAggregatesFilter<"AttendanceDayStatus"> | boolean
+    lateMinutes?: IntNullableWithAggregatesFilter<"AttendanceDayStatus"> | number | null
+    overtimeMinutes?: IntNullableWithAggregatesFilter<"AttendanceDayStatus"> | number | null
+    earlyExitMinutes?: IntNullableWithAggregatesFilter<"AttendanceDayStatus"> | number | null
+    notes?: StringNullableWithAggregatesFilter<"AttendanceDayStatus"> | string | null
+    attendanceRecordId?: StringNullableWithAggregatesFilter<"AttendanceDayStatus"> | string | null
+    evaluatedAt?: DateTimeWithAggregatesFilter<"AttendanceDayStatus"> | Date | string
+    isLocked?: BoolWithAggregatesFilter<"AttendanceDayStatus"> | boolean
+    lastModifiedById?: StringNullableWithAggregatesFilter<"AttendanceDayStatus"> | string | null
+    lastModifiedReason?: StringNullableWithAggregatesFilter<"AttendanceDayStatus"> | string | null
+    createdAt?: DateTimeWithAggregatesFilter<"AttendanceDayStatus"> | Date | string
+    updatedAt?: DateTimeWithAggregatesFilter<"AttendanceDayStatus"> | Date | string
+  }
+
+  export type CompanyHolidayWhereInput = {
+    AND?: CompanyHolidayWhereInput | CompanyHolidayWhereInput[]
+    OR?: CompanyHolidayWhereInput[]
+    NOT?: CompanyHolidayWhereInput | CompanyHolidayWhereInput[]
+    id?: StringFilter<"CompanyHoliday"> | string
+    companyId?: StringFilter<"CompanyHoliday"> | string
+    name?: StringFilter<"CompanyHoliday"> | string
+    date?: DateTimeFilter<"CompanyHoliday"> | Date | string
+    isMandatory?: BoolFilter<"CompanyHoliday"> | boolean
+    departmentIds?: JsonNullableFilter<"CompanyHoliday">
+    createdAt?: DateTimeFilter<"CompanyHoliday"> | Date | string
+    updatedAt?: DateTimeFilter<"CompanyHoliday"> | Date | string
+    company?: XOR<CompanyScalarRelationFilter, CompanyWhereInput>
+  }
+
+  export type CompanyHolidayOrderByWithRelationInput = {
+    id?: SortOrder
+    companyId?: SortOrder
+    name?: SortOrder
+    date?: SortOrder
+    isMandatory?: SortOrder
+    departmentIds?: SortOrderInput | SortOrder
+    createdAt?: SortOrder
+    updatedAt?: SortOrder
+    company?: CompanyOrderByWithRelationInput
+    _relevance?: CompanyHolidayOrderByRelevanceInput
+  }
+
+  export type CompanyHolidayWhereUniqueInput = Prisma.AtLeast<{
+    id?: string
+    companyId_date?: CompanyHolidayCompanyIdDateCompoundUniqueInput
+    id_companyId?: CompanyHolidayIdCompanyIdCompoundUniqueInput
+    AND?: CompanyHolidayWhereInput | CompanyHolidayWhereInput[]
+    OR?: CompanyHolidayWhereInput[]
+    NOT?: CompanyHolidayWhereInput | CompanyHolidayWhereInput[]
+    companyId?: StringFilter<"CompanyHoliday"> | string
+    name?: StringFilter<"CompanyHoliday"> | string
+    date?: DateTimeFilter<"CompanyHoliday"> | Date | string
+    isMandatory?: BoolFilter<"CompanyHoliday"> | boolean
+    departmentIds?: JsonNullableFilter<"CompanyHoliday">
+    createdAt?: DateTimeFilter<"CompanyHoliday"> | Date | string
+    updatedAt?: DateTimeFilter<"CompanyHoliday"> | Date | string
+    company?: XOR<CompanyScalarRelationFilter, CompanyWhereInput>
+  }, "id" | "companyId_date" | "id_companyId">
+
+  export type CompanyHolidayOrderByWithAggregationInput = {
+    id?: SortOrder
+    companyId?: SortOrder
+    name?: SortOrder
+    date?: SortOrder
+    isMandatory?: SortOrder
+    departmentIds?: SortOrderInput | SortOrder
+    createdAt?: SortOrder
+    updatedAt?: SortOrder
+    _count?: CompanyHolidayCountOrderByAggregateInput
+    _max?: CompanyHolidayMaxOrderByAggregateInput
+    _min?: CompanyHolidayMinOrderByAggregateInput
+  }
+
+  export type CompanyHolidayScalarWhereWithAggregatesInput = {
+    AND?: CompanyHolidayScalarWhereWithAggregatesInput | CompanyHolidayScalarWhereWithAggregatesInput[]
+    OR?: CompanyHolidayScalarWhereWithAggregatesInput[]
+    NOT?: CompanyHolidayScalarWhereWithAggregatesInput | CompanyHolidayScalarWhereWithAggregatesInput[]
+    id?: StringWithAggregatesFilter<"CompanyHoliday"> | string
+    companyId?: StringWithAggregatesFilter<"CompanyHoliday"> | string
+    name?: StringWithAggregatesFilter<"CompanyHoliday"> | string
+    date?: DateTimeWithAggregatesFilter<"CompanyHoliday"> | Date | string
+    isMandatory?: BoolWithAggregatesFilter<"CompanyHoliday"> | boolean
+    departmentIds?: JsonNullableWithAggregatesFilter<"CompanyHoliday">
+    createdAt?: DateTimeWithAggregatesFilter<"CompanyHoliday"> | Date | string
+    updatedAt?: DateTimeWithAggregatesFilter<"CompanyHoliday"> | Date | string
+  }
+
   export type CompanyCreateInput = {
     id?: string
     name: string
@@ -21311,6 +24094,8 @@ export namespace Prisma {
     auditLogs?: AdminAuditLogCreateNestedManyWithoutCompanyInput
     departmentShifts?: DepartmentShiftCreateNestedManyWithoutCompanyInput
     employeeShifts?: EmployeeShiftCreateNestedManyWithoutCompanyInput
+    attendanceDayStatuses?: AttendanceDayStatusCreateNestedManyWithoutCompanyInput
+    holidays?: CompanyHolidayCreateNestedManyWithoutCompanyInput
   }
 
   export type CompanyUncheckedCreateInput = {
@@ -21363,6 +24148,8 @@ export namespace Prisma {
     auditLogs?: AdminAuditLogUncheckedCreateNestedManyWithoutCompanyInput
     departmentShifts?: DepartmentShiftUncheckedCreateNestedManyWithoutCompanyInput
     employeeShifts?: EmployeeShiftUncheckedCreateNestedManyWithoutCompanyInput
+    attendanceDayStatuses?: AttendanceDayStatusUncheckedCreateNestedManyWithoutCompanyInput
+    holidays?: CompanyHolidayUncheckedCreateNestedManyWithoutCompanyInput
   }
 
   export type CompanyUpdateInput = {
@@ -21415,6 +24202,8 @@ export namespace Prisma {
     auditLogs?: AdminAuditLogUpdateManyWithoutCompanyNestedInput
     departmentShifts?: DepartmentShiftUpdateManyWithoutCompanyNestedInput
     employeeShifts?: EmployeeShiftUpdateManyWithoutCompanyNestedInput
+    attendanceDayStatuses?: AttendanceDayStatusUpdateManyWithoutCompanyNestedInput
+    holidays?: CompanyHolidayUpdateManyWithoutCompanyNestedInput
   }
 
   export type CompanyUncheckedUpdateInput = {
@@ -21467,6 +24256,8 @@ export namespace Prisma {
     auditLogs?: AdminAuditLogUncheckedUpdateManyWithoutCompanyNestedInput
     departmentShifts?: DepartmentShiftUncheckedUpdateManyWithoutCompanyNestedInput
     employeeShifts?: EmployeeShiftUncheckedUpdateManyWithoutCompanyNestedInput
+    attendanceDayStatuses?: AttendanceDayStatusUncheckedUpdateManyWithoutCompanyNestedInput
+    holidays?: CompanyHolidayUncheckedUpdateManyWithoutCompanyNestedInput
   }
 
   export type CompanyCreateManyInput = {
@@ -21658,6 +24449,7 @@ export namespace Prisma {
     notifications?: NotificationCreateNestedManyWithoutEmployeeInput
     eventRequests?: EventRequestCreateNestedManyWithoutEmployeeInput
     branchAccesses?: EmployeeBranchAccessCreateNestedManyWithoutEmployeeInput
+    attendanceDayStatuses?: AttendanceDayStatusCreateNestedManyWithoutEmployeeInput
   }
 
   export type EmployeeUncheckedCreateInput = {
@@ -21679,6 +24471,7 @@ export namespace Prisma {
     notifications?: NotificationUncheckedCreateNestedManyWithoutEmployeeInput
     eventRequests?: EventRequestUncheckedCreateNestedManyWithoutEmployeeInput
     branchAccesses?: EmployeeBranchAccessUncheckedCreateNestedManyWithoutEmployeeInput
+    attendanceDayStatuses?: AttendanceDayStatusUncheckedCreateNestedManyWithoutEmployeeInput
   }
 
   export type EmployeeUpdateInput = {
@@ -21700,6 +24493,7 @@ export namespace Prisma {
     notifications?: NotificationUpdateManyWithoutEmployeeNestedInput
     eventRequests?: EventRequestUpdateManyWithoutEmployeeNestedInput
     branchAccesses?: EmployeeBranchAccessUpdateManyWithoutEmployeeNestedInput
+    attendanceDayStatuses?: AttendanceDayStatusUpdateManyWithoutEmployeeNestedInput
   }
 
   export type EmployeeUncheckedUpdateInput = {
@@ -21721,6 +24515,7 @@ export namespace Prisma {
     notifications?: NotificationUncheckedUpdateManyWithoutEmployeeNestedInput
     eventRequests?: EventRequestUncheckedUpdateManyWithoutEmployeeNestedInput
     branchAccesses?: EmployeeBranchAccessUncheckedUpdateManyWithoutEmployeeNestedInput
+    attendanceDayStatuses?: AttendanceDayStatusUncheckedUpdateManyWithoutEmployeeNestedInput
   }
 
   export type EmployeeCreateManyInput = {
@@ -21919,6 +24714,7 @@ export namespace Prisma {
     tolerance?: number | null
     breakStartTime?: string | null
     breakEndTime?: string | null
+    scheduleByDay?: NullableJsonNullValueInput | InputJsonValue
     isActive?: boolean
     createdAt?: Date | string
     updatedAt?: Date | string
@@ -21937,6 +24733,7 @@ export namespace Prisma {
     tolerance?: number | null
     breakStartTime?: string | null
     breakEndTime?: string | null
+    scheduleByDay?: NullableJsonNullValueInput | InputJsonValue
     isActive?: boolean
     createdAt?: Date | string
     updatedAt?: Date | string
@@ -21952,6 +24749,7 @@ export namespace Prisma {
     tolerance?: NullableIntFieldUpdateOperationsInput | number | null
     breakStartTime?: NullableStringFieldUpdateOperationsInput | string | null
     breakEndTime?: NullableStringFieldUpdateOperationsInput | string | null
+    scheduleByDay?: NullableJsonNullValueInput | InputJsonValue
     isActive?: BoolFieldUpdateOperationsInput | boolean
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -21970,6 +24768,7 @@ export namespace Prisma {
     tolerance?: NullableIntFieldUpdateOperationsInput | number | null
     breakStartTime?: NullableStringFieldUpdateOperationsInput | string | null
     breakEndTime?: NullableStringFieldUpdateOperationsInput | string | null
+    scheduleByDay?: NullableJsonNullValueInput | InputJsonValue
     isActive?: BoolFieldUpdateOperationsInput | boolean
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -21987,6 +24786,7 @@ export namespace Prisma {
     tolerance?: number | null
     breakStartTime?: string | null
     breakEndTime?: string | null
+    scheduleByDay?: NullableJsonNullValueInput | InputJsonValue
     isActive?: boolean
     createdAt?: Date | string
     updatedAt?: Date | string
@@ -21999,6 +24799,7 @@ export namespace Prisma {
     tolerance?: NullableIntFieldUpdateOperationsInput | number | null
     breakStartTime?: NullableStringFieldUpdateOperationsInput | string | null
     breakEndTime?: NullableStringFieldUpdateOperationsInput | string | null
+    scheduleByDay?: NullableJsonNullValueInput | InputJsonValue
     isActive?: BoolFieldUpdateOperationsInput | boolean
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -22013,6 +24814,7 @@ export namespace Prisma {
     tolerance?: NullableIntFieldUpdateOperationsInput | number | null
     breakStartTime?: NullableStringFieldUpdateOperationsInput | string | null
     breakEndTime?: NullableStringFieldUpdateOperationsInput | string | null
+    scheduleByDay?: NullableJsonNullValueInput | InputJsonValue
     isActive?: BoolFieldUpdateOperationsInput | boolean
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -22977,6 +25779,255 @@ export namespace Prisma {
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
   }
 
+  export type AttendanceDayStatusCreateInput = {
+    id?: string
+    date: Date | string
+    status: $Enums.DayStatusType
+    shiftId?: number | null
+    shiftName?: string | null
+    expectedStartTime?: string | null
+    expectedEndTime?: string | null
+    appliedToleranceMin?: number | null
+    isWorkDay?: boolean
+    lateMinutes?: number | null
+    overtimeMinutes?: number | null
+    earlyExitMinutes?: number | null
+    notes?: string | null
+    attendanceRecordId?: string | null
+    evaluatedAt?: Date | string
+    isLocked?: boolean
+    lastModifiedById?: string | null
+    lastModifiedReason?: string | null
+    createdAt?: Date | string
+    updatedAt?: Date | string
+    company: CompanyCreateNestedOneWithoutAttendanceDayStatusesInput
+    employee: EmployeeCreateNestedOneWithoutAttendanceDayStatusesInput
+  }
+
+  export type AttendanceDayStatusUncheckedCreateInput = {
+    id?: string
+    companyId: string
+    employeeId: string
+    date: Date | string
+    status: $Enums.DayStatusType
+    shiftId?: number | null
+    shiftName?: string | null
+    expectedStartTime?: string | null
+    expectedEndTime?: string | null
+    appliedToleranceMin?: number | null
+    isWorkDay?: boolean
+    lateMinutes?: number | null
+    overtimeMinutes?: number | null
+    earlyExitMinutes?: number | null
+    notes?: string | null
+    attendanceRecordId?: string | null
+    evaluatedAt?: Date | string
+    isLocked?: boolean
+    lastModifiedById?: string | null
+    lastModifiedReason?: string | null
+    createdAt?: Date | string
+    updatedAt?: Date | string
+  }
+
+  export type AttendanceDayStatusUpdateInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    date?: DateTimeFieldUpdateOperationsInput | Date | string
+    status?: EnumDayStatusTypeFieldUpdateOperationsInput | $Enums.DayStatusType
+    shiftId?: NullableIntFieldUpdateOperationsInput | number | null
+    shiftName?: NullableStringFieldUpdateOperationsInput | string | null
+    expectedStartTime?: NullableStringFieldUpdateOperationsInput | string | null
+    expectedEndTime?: NullableStringFieldUpdateOperationsInput | string | null
+    appliedToleranceMin?: NullableIntFieldUpdateOperationsInput | number | null
+    isWorkDay?: BoolFieldUpdateOperationsInput | boolean
+    lateMinutes?: NullableIntFieldUpdateOperationsInput | number | null
+    overtimeMinutes?: NullableIntFieldUpdateOperationsInput | number | null
+    earlyExitMinutes?: NullableIntFieldUpdateOperationsInput | number | null
+    notes?: NullableStringFieldUpdateOperationsInput | string | null
+    attendanceRecordId?: NullableStringFieldUpdateOperationsInput | string | null
+    evaluatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    isLocked?: BoolFieldUpdateOperationsInput | boolean
+    lastModifiedById?: NullableStringFieldUpdateOperationsInput | string | null
+    lastModifiedReason?: NullableStringFieldUpdateOperationsInput | string | null
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    company?: CompanyUpdateOneRequiredWithoutAttendanceDayStatusesNestedInput
+    employee?: EmployeeUpdateOneRequiredWithoutAttendanceDayStatusesNestedInput
+  }
+
+  export type AttendanceDayStatusUncheckedUpdateInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    companyId?: StringFieldUpdateOperationsInput | string
+    employeeId?: StringFieldUpdateOperationsInput | string
+    date?: DateTimeFieldUpdateOperationsInput | Date | string
+    status?: EnumDayStatusTypeFieldUpdateOperationsInput | $Enums.DayStatusType
+    shiftId?: NullableIntFieldUpdateOperationsInput | number | null
+    shiftName?: NullableStringFieldUpdateOperationsInput | string | null
+    expectedStartTime?: NullableStringFieldUpdateOperationsInput | string | null
+    expectedEndTime?: NullableStringFieldUpdateOperationsInput | string | null
+    appliedToleranceMin?: NullableIntFieldUpdateOperationsInput | number | null
+    isWorkDay?: BoolFieldUpdateOperationsInput | boolean
+    lateMinutes?: NullableIntFieldUpdateOperationsInput | number | null
+    overtimeMinutes?: NullableIntFieldUpdateOperationsInput | number | null
+    earlyExitMinutes?: NullableIntFieldUpdateOperationsInput | number | null
+    notes?: NullableStringFieldUpdateOperationsInput | string | null
+    attendanceRecordId?: NullableStringFieldUpdateOperationsInput | string | null
+    evaluatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    isLocked?: BoolFieldUpdateOperationsInput | boolean
+    lastModifiedById?: NullableStringFieldUpdateOperationsInput | string | null
+    lastModifiedReason?: NullableStringFieldUpdateOperationsInput | string | null
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type AttendanceDayStatusCreateManyInput = {
+    id?: string
+    companyId: string
+    employeeId: string
+    date: Date | string
+    status: $Enums.DayStatusType
+    shiftId?: number | null
+    shiftName?: string | null
+    expectedStartTime?: string | null
+    expectedEndTime?: string | null
+    appliedToleranceMin?: number | null
+    isWorkDay?: boolean
+    lateMinutes?: number | null
+    overtimeMinutes?: number | null
+    earlyExitMinutes?: number | null
+    notes?: string | null
+    attendanceRecordId?: string | null
+    evaluatedAt?: Date | string
+    isLocked?: boolean
+    lastModifiedById?: string | null
+    lastModifiedReason?: string | null
+    createdAt?: Date | string
+    updatedAt?: Date | string
+  }
+
+  export type AttendanceDayStatusUpdateManyMutationInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    date?: DateTimeFieldUpdateOperationsInput | Date | string
+    status?: EnumDayStatusTypeFieldUpdateOperationsInput | $Enums.DayStatusType
+    shiftId?: NullableIntFieldUpdateOperationsInput | number | null
+    shiftName?: NullableStringFieldUpdateOperationsInput | string | null
+    expectedStartTime?: NullableStringFieldUpdateOperationsInput | string | null
+    expectedEndTime?: NullableStringFieldUpdateOperationsInput | string | null
+    appliedToleranceMin?: NullableIntFieldUpdateOperationsInput | number | null
+    isWorkDay?: BoolFieldUpdateOperationsInput | boolean
+    lateMinutes?: NullableIntFieldUpdateOperationsInput | number | null
+    overtimeMinutes?: NullableIntFieldUpdateOperationsInput | number | null
+    earlyExitMinutes?: NullableIntFieldUpdateOperationsInput | number | null
+    notes?: NullableStringFieldUpdateOperationsInput | string | null
+    attendanceRecordId?: NullableStringFieldUpdateOperationsInput | string | null
+    evaluatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    isLocked?: BoolFieldUpdateOperationsInput | boolean
+    lastModifiedById?: NullableStringFieldUpdateOperationsInput | string | null
+    lastModifiedReason?: NullableStringFieldUpdateOperationsInput | string | null
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type AttendanceDayStatusUncheckedUpdateManyInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    companyId?: StringFieldUpdateOperationsInput | string
+    employeeId?: StringFieldUpdateOperationsInput | string
+    date?: DateTimeFieldUpdateOperationsInput | Date | string
+    status?: EnumDayStatusTypeFieldUpdateOperationsInput | $Enums.DayStatusType
+    shiftId?: NullableIntFieldUpdateOperationsInput | number | null
+    shiftName?: NullableStringFieldUpdateOperationsInput | string | null
+    expectedStartTime?: NullableStringFieldUpdateOperationsInput | string | null
+    expectedEndTime?: NullableStringFieldUpdateOperationsInput | string | null
+    appliedToleranceMin?: NullableIntFieldUpdateOperationsInput | number | null
+    isWorkDay?: BoolFieldUpdateOperationsInput | boolean
+    lateMinutes?: NullableIntFieldUpdateOperationsInput | number | null
+    overtimeMinutes?: NullableIntFieldUpdateOperationsInput | number | null
+    earlyExitMinutes?: NullableIntFieldUpdateOperationsInput | number | null
+    notes?: NullableStringFieldUpdateOperationsInput | string | null
+    attendanceRecordId?: NullableStringFieldUpdateOperationsInput | string | null
+    evaluatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    isLocked?: BoolFieldUpdateOperationsInput | boolean
+    lastModifiedById?: NullableStringFieldUpdateOperationsInput | string | null
+    lastModifiedReason?: NullableStringFieldUpdateOperationsInput | string | null
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type CompanyHolidayCreateInput = {
+    id?: string
+    name: string
+    date: Date | string
+    isMandatory?: boolean
+    departmentIds?: NullableJsonNullValueInput | InputJsonValue
+    createdAt?: Date | string
+    updatedAt?: Date | string
+    company: CompanyCreateNestedOneWithoutHolidaysInput
+  }
+
+  export type CompanyHolidayUncheckedCreateInput = {
+    id?: string
+    companyId: string
+    name: string
+    date: Date | string
+    isMandatory?: boolean
+    departmentIds?: NullableJsonNullValueInput | InputJsonValue
+    createdAt?: Date | string
+    updatedAt?: Date | string
+  }
+
+  export type CompanyHolidayUpdateInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    name?: StringFieldUpdateOperationsInput | string
+    date?: DateTimeFieldUpdateOperationsInput | Date | string
+    isMandatory?: BoolFieldUpdateOperationsInput | boolean
+    departmentIds?: NullableJsonNullValueInput | InputJsonValue
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    company?: CompanyUpdateOneRequiredWithoutHolidaysNestedInput
+  }
+
+  export type CompanyHolidayUncheckedUpdateInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    companyId?: StringFieldUpdateOperationsInput | string
+    name?: StringFieldUpdateOperationsInput | string
+    date?: DateTimeFieldUpdateOperationsInput | Date | string
+    isMandatory?: BoolFieldUpdateOperationsInput | boolean
+    departmentIds?: NullableJsonNullValueInput | InputJsonValue
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type CompanyHolidayCreateManyInput = {
+    id?: string
+    companyId: string
+    name: string
+    date: Date | string
+    isMandatory?: boolean
+    departmentIds?: NullableJsonNullValueInput | InputJsonValue
+    createdAt?: Date | string
+    updatedAt?: Date | string
+  }
+
+  export type CompanyHolidayUpdateManyMutationInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    name?: StringFieldUpdateOperationsInput | string
+    date?: DateTimeFieldUpdateOperationsInput | Date | string
+    isMandatory?: BoolFieldUpdateOperationsInput | boolean
+    departmentIds?: NullableJsonNullValueInput | InputJsonValue
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type CompanyHolidayUncheckedUpdateManyInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    companyId?: StringFieldUpdateOperationsInput | string
+    name?: StringFieldUpdateOperationsInput | string
+    date?: DateTimeFieldUpdateOperationsInput | Date | string
+    isMandatory?: BoolFieldUpdateOperationsInput | boolean
+    departmentIds?: NullableJsonNullValueInput | InputJsonValue
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
   export type StringFilter<$PrismaModel = never> = {
     equals?: string | StringFieldRefInput<$PrismaModel>
     in?: string[]
@@ -23161,6 +26212,18 @@ export namespace Prisma {
     none?: EmployeeShiftWhereInput
   }
 
+  export type AttendanceDayStatusListRelationFilter = {
+    every?: AttendanceDayStatusWhereInput
+    some?: AttendanceDayStatusWhereInput
+    none?: AttendanceDayStatusWhereInput
+  }
+
+  export type CompanyHolidayListRelationFilter = {
+    every?: CompanyHolidayWhereInput
+    some?: CompanyHolidayWhereInput
+    none?: CompanyHolidayWhereInput
+  }
+
   export type SortOrderInput = {
     sort: SortOrder
     nulls?: NullsOrder
@@ -23219,6 +26282,14 @@ export namespace Prisma {
   }
 
   export type EmployeeShiftOrderByRelationAggregateInput = {
+    _count?: SortOrder
+  }
+
+  export type AttendanceDayStatusOrderByRelationAggregateInput = {
+    _count?: SortOrder
+  }
+
+  export type CompanyHolidayOrderByRelationAggregateInput = {
     _count?: SortOrder
   }
 
@@ -23714,6 +26785,29 @@ export namespace Prisma {
     overtimeMinutes?: SortOrder
     lateMinutes?: SortOrder
   }
+  export type JsonNullableFilter<$PrismaModel = never> =
+    | PatchUndefined<
+        Either<Required<JsonNullableFilterBase<$PrismaModel>>, Exclude<keyof Required<JsonNullableFilterBase<$PrismaModel>>, 'path'>>,
+        Required<JsonNullableFilterBase<$PrismaModel>>
+      >
+    | OptionalFlat<Omit<Required<JsonNullableFilterBase<$PrismaModel>>, 'path'>>
+
+  export type JsonNullableFilterBase<$PrismaModel = never> = {
+    equals?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | JsonNullValueFilter
+    path?: string
+    mode?: QueryMode | EnumQueryModeFieldRefInput<$PrismaModel>
+    string_contains?: string | StringFieldRefInput<$PrismaModel>
+    string_starts_with?: string | StringFieldRefInput<$PrismaModel>
+    string_ends_with?: string | StringFieldRefInput<$PrismaModel>
+    array_starts_with?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | null
+    array_ends_with?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | null
+    array_contains?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | null
+    lt?: InputJsonValue
+    lte?: InputJsonValue
+    gt?: InputJsonValue
+    gte?: InputJsonValue
+    not?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | JsonNullValueFilter
+  }
 
   export type ShiftOrderByRelevanceInput = {
     fields: ShiftOrderByRelevanceFieldEnum | ShiftOrderByRelevanceFieldEnum[]
@@ -23740,6 +26834,7 @@ export namespace Prisma {
     tolerance?: SortOrder
     breakStartTime?: SortOrder
     breakEndTime?: SortOrder
+    scheduleByDay?: SortOrder
     isActive?: SortOrder
     createdAt?: SortOrder
     updatedAt?: SortOrder
@@ -23781,6 +26876,32 @@ export namespace Prisma {
   export type ShiftSumOrderByAggregateInput = {
     id?: SortOrder
     tolerance?: SortOrder
+  }
+  export type JsonNullableWithAggregatesFilter<$PrismaModel = never> =
+    | PatchUndefined<
+        Either<Required<JsonNullableWithAggregatesFilterBase<$PrismaModel>>, Exclude<keyof Required<JsonNullableWithAggregatesFilterBase<$PrismaModel>>, 'path'>>,
+        Required<JsonNullableWithAggregatesFilterBase<$PrismaModel>>
+      >
+    | OptionalFlat<Omit<Required<JsonNullableWithAggregatesFilterBase<$PrismaModel>>, 'path'>>
+
+  export type JsonNullableWithAggregatesFilterBase<$PrismaModel = never> = {
+    equals?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | JsonNullValueFilter
+    path?: string
+    mode?: QueryMode | EnumQueryModeFieldRefInput<$PrismaModel>
+    string_contains?: string | StringFieldRefInput<$PrismaModel>
+    string_starts_with?: string | StringFieldRefInput<$PrismaModel>
+    string_ends_with?: string | StringFieldRefInput<$PrismaModel>
+    array_starts_with?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | null
+    array_ends_with?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | null
+    array_contains?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | null
+    lt?: InputJsonValue
+    lte?: InputJsonValue
+    gt?: InputJsonValue
+    gte?: InputJsonValue
+    not?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | JsonNullValueFilter
+    _count?: NestedIntNullableFilter<$PrismaModel>
+    _min?: NestedJsonNullableFilter<$PrismaModel>
+    _max?: NestedJsonNullableFilter<$PrismaModel>
   }
 
   export type DepartmentScalarRelationFilter = {
@@ -24524,6 +27645,178 @@ export namespace Prisma {
     createdAt?: SortOrder
   }
 
+  export type EnumDayStatusTypeFilter<$PrismaModel = never> = {
+    equals?: $Enums.DayStatusType | EnumDayStatusTypeFieldRefInput<$PrismaModel>
+    in?: $Enums.DayStatusType[]
+    notIn?: $Enums.DayStatusType[]
+    not?: NestedEnumDayStatusTypeFilter<$PrismaModel> | $Enums.DayStatusType
+  }
+
+  export type AttendanceDayStatusOrderByRelevanceInput = {
+    fields: AttendanceDayStatusOrderByRelevanceFieldEnum | AttendanceDayStatusOrderByRelevanceFieldEnum[]
+    sort: SortOrder
+    search: string
+  }
+
+  export type AttendanceDayStatusCompanyIdEmployeeIdDateCompoundUniqueInput = {
+    companyId: string
+    employeeId: string
+    date: Date | string
+  }
+
+  export type AttendanceDayStatusIdCompanyIdCompoundUniqueInput = {
+    id: string
+    companyId: string
+  }
+
+  export type AttendanceDayStatusCountOrderByAggregateInput = {
+    id?: SortOrder
+    companyId?: SortOrder
+    employeeId?: SortOrder
+    date?: SortOrder
+    status?: SortOrder
+    shiftId?: SortOrder
+    shiftName?: SortOrder
+    expectedStartTime?: SortOrder
+    expectedEndTime?: SortOrder
+    appliedToleranceMin?: SortOrder
+    isWorkDay?: SortOrder
+    lateMinutes?: SortOrder
+    overtimeMinutes?: SortOrder
+    earlyExitMinutes?: SortOrder
+    notes?: SortOrder
+    attendanceRecordId?: SortOrder
+    evaluatedAt?: SortOrder
+    isLocked?: SortOrder
+    lastModifiedById?: SortOrder
+    lastModifiedReason?: SortOrder
+    createdAt?: SortOrder
+    updatedAt?: SortOrder
+  }
+
+  export type AttendanceDayStatusAvgOrderByAggregateInput = {
+    shiftId?: SortOrder
+    appliedToleranceMin?: SortOrder
+    lateMinutes?: SortOrder
+    overtimeMinutes?: SortOrder
+    earlyExitMinutes?: SortOrder
+  }
+
+  export type AttendanceDayStatusMaxOrderByAggregateInput = {
+    id?: SortOrder
+    companyId?: SortOrder
+    employeeId?: SortOrder
+    date?: SortOrder
+    status?: SortOrder
+    shiftId?: SortOrder
+    shiftName?: SortOrder
+    expectedStartTime?: SortOrder
+    expectedEndTime?: SortOrder
+    appliedToleranceMin?: SortOrder
+    isWorkDay?: SortOrder
+    lateMinutes?: SortOrder
+    overtimeMinutes?: SortOrder
+    earlyExitMinutes?: SortOrder
+    notes?: SortOrder
+    attendanceRecordId?: SortOrder
+    evaluatedAt?: SortOrder
+    isLocked?: SortOrder
+    lastModifiedById?: SortOrder
+    lastModifiedReason?: SortOrder
+    createdAt?: SortOrder
+    updatedAt?: SortOrder
+  }
+
+  export type AttendanceDayStatusMinOrderByAggregateInput = {
+    id?: SortOrder
+    companyId?: SortOrder
+    employeeId?: SortOrder
+    date?: SortOrder
+    status?: SortOrder
+    shiftId?: SortOrder
+    shiftName?: SortOrder
+    expectedStartTime?: SortOrder
+    expectedEndTime?: SortOrder
+    appliedToleranceMin?: SortOrder
+    isWorkDay?: SortOrder
+    lateMinutes?: SortOrder
+    overtimeMinutes?: SortOrder
+    earlyExitMinutes?: SortOrder
+    notes?: SortOrder
+    attendanceRecordId?: SortOrder
+    evaluatedAt?: SortOrder
+    isLocked?: SortOrder
+    lastModifiedById?: SortOrder
+    lastModifiedReason?: SortOrder
+    createdAt?: SortOrder
+    updatedAt?: SortOrder
+  }
+
+  export type AttendanceDayStatusSumOrderByAggregateInput = {
+    shiftId?: SortOrder
+    appliedToleranceMin?: SortOrder
+    lateMinutes?: SortOrder
+    overtimeMinutes?: SortOrder
+    earlyExitMinutes?: SortOrder
+  }
+
+  export type EnumDayStatusTypeWithAggregatesFilter<$PrismaModel = never> = {
+    equals?: $Enums.DayStatusType | EnumDayStatusTypeFieldRefInput<$PrismaModel>
+    in?: $Enums.DayStatusType[]
+    notIn?: $Enums.DayStatusType[]
+    not?: NestedEnumDayStatusTypeWithAggregatesFilter<$PrismaModel> | $Enums.DayStatusType
+    _count?: NestedIntFilter<$PrismaModel>
+    _min?: NestedEnumDayStatusTypeFilter<$PrismaModel>
+    _max?: NestedEnumDayStatusTypeFilter<$PrismaModel>
+  }
+
+  export type CompanyHolidayOrderByRelevanceInput = {
+    fields: CompanyHolidayOrderByRelevanceFieldEnum | CompanyHolidayOrderByRelevanceFieldEnum[]
+    sort: SortOrder
+    search: string
+  }
+
+  export type CompanyHolidayCompanyIdDateCompoundUniqueInput = {
+    companyId: string
+    date: Date | string
+  }
+
+  export type CompanyHolidayIdCompanyIdCompoundUniqueInput = {
+    id: string
+    companyId: string
+  }
+
+  export type CompanyHolidayCountOrderByAggregateInput = {
+    id?: SortOrder
+    companyId?: SortOrder
+    name?: SortOrder
+    date?: SortOrder
+    isMandatory?: SortOrder
+    departmentIds?: SortOrder
+    createdAt?: SortOrder
+    updatedAt?: SortOrder
+  }
+
+  export type CompanyHolidayMaxOrderByAggregateInput = {
+    id?: SortOrder
+    companyId?: SortOrder
+    name?: SortOrder
+    date?: SortOrder
+    isMandatory?: SortOrder
+    createdAt?: SortOrder
+    updatedAt?: SortOrder
+  }
+
+  export type CompanyHolidayMinOrderByAggregateInput = {
+    id?: SortOrder
+    companyId?: SortOrder
+    name?: SortOrder
+    date?: SortOrder
+    isMandatory?: SortOrder
+    createdAt?: SortOrder
+    updatedAt?: SortOrder
+  }
+
   export type CompanyCreateNestedOneWithoutBranchesInput = {
     create?: XOR<CompanyCreateWithoutBranchesInput, CompanyUncheckedCreateWithoutBranchesInput>
     connectOrCreate?: CompanyCreateOrConnectWithoutBranchesInput
@@ -24634,6 +27927,20 @@ export namespace Prisma {
     connect?: EmployeeShiftWhereUniqueInput | EmployeeShiftWhereUniqueInput[]
   }
 
+  export type AttendanceDayStatusCreateNestedManyWithoutCompanyInput = {
+    create?: XOR<AttendanceDayStatusCreateWithoutCompanyInput, AttendanceDayStatusUncheckedCreateWithoutCompanyInput> | AttendanceDayStatusCreateWithoutCompanyInput[] | AttendanceDayStatusUncheckedCreateWithoutCompanyInput[]
+    connectOrCreate?: AttendanceDayStatusCreateOrConnectWithoutCompanyInput | AttendanceDayStatusCreateOrConnectWithoutCompanyInput[]
+    createMany?: AttendanceDayStatusCreateManyCompanyInputEnvelope
+    connect?: AttendanceDayStatusWhereUniqueInput | AttendanceDayStatusWhereUniqueInput[]
+  }
+
+  export type CompanyHolidayCreateNestedManyWithoutCompanyInput = {
+    create?: XOR<CompanyHolidayCreateWithoutCompanyInput, CompanyHolidayUncheckedCreateWithoutCompanyInput> | CompanyHolidayCreateWithoutCompanyInput[] | CompanyHolidayUncheckedCreateWithoutCompanyInput[]
+    connectOrCreate?: CompanyHolidayCreateOrConnectWithoutCompanyInput | CompanyHolidayCreateOrConnectWithoutCompanyInput[]
+    createMany?: CompanyHolidayCreateManyCompanyInputEnvelope
+    connect?: CompanyHolidayWhereUniqueInput | CompanyHolidayWhereUniqueInput[]
+  }
+
   export type CompanyUncheckedCreateNestedManyWithoutParentCompanyInput = {
     create?: XOR<CompanyCreateWithoutParentCompanyInput, CompanyUncheckedCreateWithoutParentCompanyInput> | CompanyCreateWithoutParentCompanyInput[] | CompanyUncheckedCreateWithoutParentCompanyInput[]
     connectOrCreate?: CompanyCreateOrConnectWithoutParentCompanyInput | CompanyCreateOrConnectWithoutParentCompanyInput[]
@@ -24736,6 +28043,20 @@ export namespace Prisma {
     connectOrCreate?: EmployeeShiftCreateOrConnectWithoutCompanyInput | EmployeeShiftCreateOrConnectWithoutCompanyInput[]
     createMany?: EmployeeShiftCreateManyCompanyInputEnvelope
     connect?: EmployeeShiftWhereUniqueInput | EmployeeShiftWhereUniqueInput[]
+  }
+
+  export type AttendanceDayStatusUncheckedCreateNestedManyWithoutCompanyInput = {
+    create?: XOR<AttendanceDayStatusCreateWithoutCompanyInput, AttendanceDayStatusUncheckedCreateWithoutCompanyInput> | AttendanceDayStatusCreateWithoutCompanyInput[] | AttendanceDayStatusUncheckedCreateWithoutCompanyInput[]
+    connectOrCreate?: AttendanceDayStatusCreateOrConnectWithoutCompanyInput | AttendanceDayStatusCreateOrConnectWithoutCompanyInput[]
+    createMany?: AttendanceDayStatusCreateManyCompanyInputEnvelope
+    connect?: AttendanceDayStatusWhereUniqueInput | AttendanceDayStatusWhereUniqueInput[]
+  }
+
+  export type CompanyHolidayUncheckedCreateNestedManyWithoutCompanyInput = {
+    create?: XOR<CompanyHolidayCreateWithoutCompanyInput, CompanyHolidayUncheckedCreateWithoutCompanyInput> | CompanyHolidayCreateWithoutCompanyInput[] | CompanyHolidayUncheckedCreateWithoutCompanyInput[]
+    connectOrCreate?: CompanyHolidayCreateOrConnectWithoutCompanyInput | CompanyHolidayCreateOrConnectWithoutCompanyInput[]
+    createMany?: CompanyHolidayCreateManyCompanyInputEnvelope
+    connect?: CompanyHolidayWhereUniqueInput | CompanyHolidayWhereUniqueInput[]
   }
 
   export type StringFieldUpdateOperationsInput = {
@@ -24998,6 +28319,34 @@ export namespace Prisma {
     deleteMany?: EmployeeShiftScalarWhereInput | EmployeeShiftScalarWhereInput[]
   }
 
+  export type AttendanceDayStatusUpdateManyWithoutCompanyNestedInput = {
+    create?: XOR<AttendanceDayStatusCreateWithoutCompanyInput, AttendanceDayStatusUncheckedCreateWithoutCompanyInput> | AttendanceDayStatusCreateWithoutCompanyInput[] | AttendanceDayStatusUncheckedCreateWithoutCompanyInput[]
+    connectOrCreate?: AttendanceDayStatusCreateOrConnectWithoutCompanyInput | AttendanceDayStatusCreateOrConnectWithoutCompanyInput[]
+    upsert?: AttendanceDayStatusUpsertWithWhereUniqueWithoutCompanyInput | AttendanceDayStatusUpsertWithWhereUniqueWithoutCompanyInput[]
+    createMany?: AttendanceDayStatusCreateManyCompanyInputEnvelope
+    set?: AttendanceDayStatusWhereUniqueInput | AttendanceDayStatusWhereUniqueInput[]
+    disconnect?: AttendanceDayStatusWhereUniqueInput | AttendanceDayStatusWhereUniqueInput[]
+    delete?: AttendanceDayStatusWhereUniqueInput | AttendanceDayStatusWhereUniqueInput[]
+    connect?: AttendanceDayStatusWhereUniqueInput | AttendanceDayStatusWhereUniqueInput[]
+    update?: AttendanceDayStatusUpdateWithWhereUniqueWithoutCompanyInput | AttendanceDayStatusUpdateWithWhereUniqueWithoutCompanyInput[]
+    updateMany?: AttendanceDayStatusUpdateManyWithWhereWithoutCompanyInput | AttendanceDayStatusUpdateManyWithWhereWithoutCompanyInput[]
+    deleteMany?: AttendanceDayStatusScalarWhereInput | AttendanceDayStatusScalarWhereInput[]
+  }
+
+  export type CompanyHolidayUpdateManyWithoutCompanyNestedInput = {
+    create?: XOR<CompanyHolidayCreateWithoutCompanyInput, CompanyHolidayUncheckedCreateWithoutCompanyInput> | CompanyHolidayCreateWithoutCompanyInput[] | CompanyHolidayUncheckedCreateWithoutCompanyInput[]
+    connectOrCreate?: CompanyHolidayCreateOrConnectWithoutCompanyInput | CompanyHolidayCreateOrConnectWithoutCompanyInput[]
+    upsert?: CompanyHolidayUpsertWithWhereUniqueWithoutCompanyInput | CompanyHolidayUpsertWithWhereUniqueWithoutCompanyInput[]
+    createMany?: CompanyHolidayCreateManyCompanyInputEnvelope
+    set?: CompanyHolidayWhereUniqueInput | CompanyHolidayWhereUniqueInput[]
+    disconnect?: CompanyHolidayWhereUniqueInput | CompanyHolidayWhereUniqueInput[]
+    delete?: CompanyHolidayWhereUniqueInput | CompanyHolidayWhereUniqueInput[]
+    connect?: CompanyHolidayWhereUniqueInput | CompanyHolidayWhereUniqueInput[]
+    update?: CompanyHolidayUpdateWithWhereUniqueWithoutCompanyInput | CompanyHolidayUpdateWithWhereUniqueWithoutCompanyInput[]
+    updateMany?: CompanyHolidayUpdateManyWithWhereWithoutCompanyInput | CompanyHolidayUpdateManyWithWhereWithoutCompanyInput[]
+    deleteMany?: CompanyHolidayScalarWhereInput | CompanyHolidayScalarWhereInput[]
+  }
+
   export type CompanyUncheckedUpdateManyWithoutParentCompanyNestedInput = {
     create?: XOR<CompanyCreateWithoutParentCompanyInput, CompanyUncheckedCreateWithoutParentCompanyInput> | CompanyCreateWithoutParentCompanyInput[] | CompanyUncheckedCreateWithoutParentCompanyInput[]
     connectOrCreate?: CompanyCreateOrConnectWithoutParentCompanyInput | CompanyCreateOrConnectWithoutParentCompanyInput[]
@@ -25204,6 +28553,34 @@ export namespace Prisma {
     deleteMany?: EmployeeShiftScalarWhereInput | EmployeeShiftScalarWhereInput[]
   }
 
+  export type AttendanceDayStatusUncheckedUpdateManyWithoutCompanyNestedInput = {
+    create?: XOR<AttendanceDayStatusCreateWithoutCompanyInput, AttendanceDayStatusUncheckedCreateWithoutCompanyInput> | AttendanceDayStatusCreateWithoutCompanyInput[] | AttendanceDayStatusUncheckedCreateWithoutCompanyInput[]
+    connectOrCreate?: AttendanceDayStatusCreateOrConnectWithoutCompanyInput | AttendanceDayStatusCreateOrConnectWithoutCompanyInput[]
+    upsert?: AttendanceDayStatusUpsertWithWhereUniqueWithoutCompanyInput | AttendanceDayStatusUpsertWithWhereUniqueWithoutCompanyInput[]
+    createMany?: AttendanceDayStatusCreateManyCompanyInputEnvelope
+    set?: AttendanceDayStatusWhereUniqueInput | AttendanceDayStatusWhereUniqueInput[]
+    disconnect?: AttendanceDayStatusWhereUniqueInput | AttendanceDayStatusWhereUniqueInput[]
+    delete?: AttendanceDayStatusWhereUniqueInput | AttendanceDayStatusWhereUniqueInput[]
+    connect?: AttendanceDayStatusWhereUniqueInput | AttendanceDayStatusWhereUniqueInput[]
+    update?: AttendanceDayStatusUpdateWithWhereUniqueWithoutCompanyInput | AttendanceDayStatusUpdateWithWhereUniqueWithoutCompanyInput[]
+    updateMany?: AttendanceDayStatusUpdateManyWithWhereWithoutCompanyInput | AttendanceDayStatusUpdateManyWithWhereWithoutCompanyInput[]
+    deleteMany?: AttendanceDayStatusScalarWhereInput | AttendanceDayStatusScalarWhereInput[]
+  }
+
+  export type CompanyHolidayUncheckedUpdateManyWithoutCompanyNestedInput = {
+    create?: XOR<CompanyHolidayCreateWithoutCompanyInput, CompanyHolidayUncheckedCreateWithoutCompanyInput> | CompanyHolidayCreateWithoutCompanyInput[] | CompanyHolidayUncheckedCreateWithoutCompanyInput[]
+    connectOrCreate?: CompanyHolidayCreateOrConnectWithoutCompanyInput | CompanyHolidayCreateOrConnectWithoutCompanyInput[]
+    upsert?: CompanyHolidayUpsertWithWhereUniqueWithoutCompanyInput | CompanyHolidayUpsertWithWhereUniqueWithoutCompanyInput[]
+    createMany?: CompanyHolidayCreateManyCompanyInputEnvelope
+    set?: CompanyHolidayWhereUniqueInput | CompanyHolidayWhereUniqueInput[]
+    disconnect?: CompanyHolidayWhereUniqueInput | CompanyHolidayWhereUniqueInput[]
+    delete?: CompanyHolidayWhereUniqueInput | CompanyHolidayWhereUniqueInput[]
+    connect?: CompanyHolidayWhereUniqueInput | CompanyHolidayWhereUniqueInput[]
+    update?: CompanyHolidayUpdateWithWhereUniqueWithoutCompanyInput | CompanyHolidayUpdateWithWhereUniqueWithoutCompanyInput[]
+    updateMany?: CompanyHolidayUpdateManyWithWhereWithoutCompanyInput | CompanyHolidayUpdateManyWithWhereWithoutCompanyInput[]
+    deleteMany?: CompanyHolidayScalarWhereInput | CompanyHolidayScalarWhereInput[]
+  }
+
   export type CompanyCreateNestedOneWithoutDepartmentsInput = {
     create?: XOR<CompanyCreateWithoutDepartmentsInput, CompanyUncheckedCreateWithoutDepartmentsInput>
     connectOrCreate?: CompanyCreateOrConnectWithoutDepartmentsInput
@@ -25349,6 +28726,13 @@ export namespace Prisma {
     connect?: EmployeeBranchAccessWhereUniqueInput | EmployeeBranchAccessWhereUniqueInput[]
   }
 
+  export type AttendanceDayStatusCreateNestedManyWithoutEmployeeInput = {
+    create?: XOR<AttendanceDayStatusCreateWithoutEmployeeInput, AttendanceDayStatusUncheckedCreateWithoutEmployeeInput> | AttendanceDayStatusCreateWithoutEmployeeInput[] | AttendanceDayStatusUncheckedCreateWithoutEmployeeInput[]
+    connectOrCreate?: AttendanceDayStatusCreateOrConnectWithoutEmployeeInput | AttendanceDayStatusCreateOrConnectWithoutEmployeeInput[]
+    createMany?: AttendanceDayStatusCreateManyEmployeeInputEnvelope
+    connect?: AttendanceDayStatusWhereUniqueInput | AttendanceDayStatusWhereUniqueInput[]
+  }
+
   export type AttendanceRecordUncheckedCreateNestedManyWithoutEmployeeInput = {
     create?: XOR<AttendanceRecordCreateWithoutEmployeeInput, AttendanceRecordUncheckedCreateWithoutEmployeeInput> | AttendanceRecordCreateWithoutEmployeeInput[] | AttendanceRecordUncheckedCreateWithoutEmployeeInput[]
     connectOrCreate?: AttendanceRecordCreateOrConnectWithoutEmployeeInput | AttendanceRecordCreateOrConnectWithoutEmployeeInput[]
@@ -25382,6 +28766,13 @@ export namespace Prisma {
     connectOrCreate?: EmployeeBranchAccessCreateOrConnectWithoutEmployeeInput | EmployeeBranchAccessCreateOrConnectWithoutEmployeeInput[]
     createMany?: EmployeeBranchAccessCreateManyEmployeeInputEnvelope
     connect?: EmployeeBranchAccessWhereUniqueInput | EmployeeBranchAccessWhereUniqueInput[]
+  }
+
+  export type AttendanceDayStatusUncheckedCreateNestedManyWithoutEmployeeInput = {
+    create?: XOR<AttendanceDayStatusCreateWithoutEmployeeInput, AttendanceDayStatusUncheckedCreateWithoutEmployeeInput> | AttendanceDayStatusCreateWithoutEmployeeInput[] | AttendanceDayStatusUncheckedCreateWithoutEmployeeInput[]
+    connectOrCreate?: AttendanceDayStatusCreateOrConnectWithoutEmployeeInput | AttendanceDayStatusCreateOrConnectWithoutEmployeeInput[]
+    createMany?: AttendanceDayStatusCreateManyEmployeeInputEnvelope
+    connect?: AttendanceDayStatusWhereUniqueInput | AttendanceDayStatusWhereUniqueInput[]
   }
 
   export type CompanyUpdateOneRequiredWithoutEmployeesNestedInput = {
@@ -25472,6 +28863,20 @@ export namespace Prisma {
     deleteMany?: EmployeeBranchAccessScalarWhereInput | EmployeeBranchAccessScalarWhereInput[]
   }
 
+  export type AttendanceDayStatusUpdateManyWithoutEmployeeNestedInput = {
+    create?: XOR<AttendanceDayStatusCreateWithoutEmployeeInput, AttendanceDayStatusUncheckedCreateWithoutEmployeeInput> | AttendanceDayStatusCreateWithoutEmployeeInput[] | AttendanceDayStatusUncheckedCreateWithoutEmployeeInput[]
+    connectOrCreate?: AttendanceDayStatusCreateOrConnectWithoutEmployeeInput | AttendanceDayStatusCreateOrConnectWithoutEmployeeInput[]
+    upsert?: AttendanceDayStatusUpsertWithWhereUniqueWithoutEmployeeInput | AttendanceDayStatusUpsertWithWhereUniqueWithoutEmployeeInput[]
+    createMany?: AttendanceDayStatusCreateManyEmployeeInputEnvelope
+    set?: AttendanceDayStatusWhereUniqueInput | AttendanceDayStatusWhereUniqueInput[]
+    disconnect?: AttendanceDayStatusWhereUniqueInput | AttendanceDayStatusWhereUniqueInput[]
+    delete?: AttendanceDayStatusWhereUniqueInput | AttendanceDayStatusWhereUniqueInput[]
+    connect?: AttendanceDayStatusWhereUniqueInput | AttendanceDayStatusWhereUniqueInput[]
+    update?: AttendanceDayStatusUpdateWithWhereUniqueWithoutEmployeeInput | AttendanceDayStatusUpdateWithWhereUniqueWithoutEmployeeInput[]
+    updateMany?: AttendanceDayStatusUpdateManyWithWhereWithoutEmployeeInput | AttendanceDayStatusUpdateManyWithWhereWithoutEmployeeInput[]
+    deleteMany?: AttendanceDayStatusScalarWhereInput | AttendanceDayStatusScalarWhereInput[]
+  }
+
   export type AttendanceRecordUncheckedUpdateManyWithoutEmployeeNestedInput = {
     create?: XOR<AttendanceRecordCreateWithoutEmployeeInput, AttendanceRecordUncheckedCreateWithoutEmployeeInput> | AttendanceRecordCreateWithoutEmployeeInput[] | AttendanceRecordUncheckedCreateWithoutEmployeeInput[]
     connectOrCreate?: AttendanceRecordCreateOrConnectWithoutEmployeeInput | AttendanceRecordCreateOrConnectWithoutEmployeeInput[]
@@ -25540,6 +28945,20 @@ export namespace Prisma {
     update?: EmployeeBranchAccessUpdateWithWhereUniqueWithoutEmployeeInput | EmployeeBranchAccessUpdateWithWhereUniqueWithoutEmployeeInput[]
     updateMany?: EmployeeBranchAccessUpdateManyWithWhereWithoutEmployeeInput | EmployeeBranchAccessUpdateManyWithWhereWithoutEmployeeInput[]
     deleteMany?: EmployeeBranchAccessScalarWhereInput | EmployeeBranchAccessScalarWhereInput[]
+  }
+
+  export type AttendanceDayStatusUncheckedUpdateManyWithoutEmployeeNestedInput = {
+    create?: XOR<AttendanceDayStatusCreateWithoutEmployeeInput, AttendanceDayStatusUncheckedCreateWithoutEmployeeInput> | AttendanceDayStatusCreateWithoutEmployeeInput[] | AttendanceDayStatusUncheckedCreateWithoutEmployeeInput[]
+    connectOrCreate?: AttendanceDayStatusCreateOrConnectWithoutEmployeeInput | AttendanceDayStatusCreateOrConnectWithoutEmployeeInput[]
+    upsert?: AttendanceDayStatusUpsertWithWhereUniqueWithoutEmployeeInput | AttendanceDayStatusUpsertWithWhereUniqueWithoutEmployeeInput[]
+    createMany?: AttendanceDayStatusCreateManyEmployeeInputEnvelope
+    set?: AttendanceDayStatusWhereUniqueInput | AttendanceDayStatusWhereUniqueInput[]
+    disconnect?: AttendanceDayStatusWhereUniqueInput | AttendanceDayStatusWhereUniqueInput[]
+    delete?: AttendanceDayStatusWhereUniqueInput | AttendanceDayStatusWhereUniqueInput[]
+    connect?: AttendanceDayStatusWhereUniqueInput | AttendanceDayStatusWhereUniqueInput[]
+    update?: AttendanceDayStatusUpdateWithWhereUniqueWithoutEmployeeInput | AttendanceDayStatusUpdateWithWhereUniqueWithoutEmployeeInput[]
+    updateMany?: AttendanceDayStatusUpdateManyWithWhereWithoutEmployeeInput | AttendanceDayStatusUpdateManyWithWhereWithoutEmployeeInput[]
+    deleteMany?: AttendanceDayStatusScalarWhereInput | AttendanceDayStatusScalarWhereInput[]
   }
 
   export type CompanyCreateNestedOneWithoutAttendancesInput = {
@@ -26180,6 +29599,52 @@ export namespace Prisma {
     update?: XOR<XOR<CompanyUpdateToOneWithWhereWithoutBranchAccessesInput, CompanyUpdateWithoutBranchAccessesInput>, CompanyUncheckedUpdateWithoutBranchAccessesInput>
   }
 
+  export type CompanyCreateNestedOneWithoutAttendanceDayStatusesInput = {
+    create?: XOR<CompanyCreateWithoutAttendanceDayStatusesInput, CompanyUncheckedCreateWithoutAttendanceDayStatusesInput>
+    connectOrCreate?: CompanyCreateOrConnectWithoutAttendanceDayStatusesInput
+    connect?: CompanyWhereUniqueInput
+  }
+
+  export type EmployeeCreateNestedOneWithoutAttendanceDayStatusesInput = {
+    create?: XOR<EmployeeCreateWithoutAttendanceDayStatusesInput, EmployeeUncheckedCreateWithoutAttendanceDayStatusesInput>
+    connectOrCreate?: EmployeeCreateOrConnectWithoutAttendanceDayStatusesInput
+    connect?: EmployeeWhereUniqueInput
+  }
+
+  export type EnumDayStatusTypeFieldUpdateOperationsInput = {
+    set?: $Enums.DayStatusType
+  }
+
+  export type CompanyUpdateOneRequiredWithoutAttendanceDayStatusesNestedInput = {
+    create?: XOR<CompanyCreateWithoutAttendanceDayStatusesInput, CompanyUncheckedCreateWithoutAttendanceDayStatusesInput>
+    connectOrCreate?: CompanyCreateOrConnectWithoutAttendanceDayStatusesInput
+    upsert?: CompanyUpsertWithoutAttendanceDayStatusesInput
+    connect?: CompanyWhereUniqueInput
+    update?: XOR<XOR<CompanyUpdateToOneWithWhereWithoutAttendanceDayStatusesInput, CompanyUpdateWithoutAttendanceDayStatusesInput>, CompanyUncheckedUpdateWithoutAttendanceDayStatusesInput>
+  }
+
+  export type EmployeeUpdateOneRequiredWithoutAttendanceDayStatusesNestedInput = {
+    create?: XOR<EmployeeCreateWithoutAttendanceDayStatusesInput, EmployeeUncheckedCreateWithoutAttendanceDayStatusesInput>
+    connectOrCreate?: EmployeeCreateOrConnectWithoutAttendanceDayStatusesInput
+    upsert?: EmployeeUpsertWithoutAttendanceDayStatusesInput
+    connect?: EmployeeWhereUniqueInput
+    update?: XOR<XOR<EmployeeUpdateToOneWithWhereWithoutAttendanceDayStatusesInput, EmployeeUpdateWithoutAttendanceDayStatusesInput>, EmployeeUncheckedUpdateWithoutAttendanceDayStatusesInput>
+  }
+
+  export type CompanyCreateNestedOneWithoutHolidaysInput = {
+    create?: XOR<CompanyCreateWithoutHolidaysInput, CompanyUncheckedCreateWithoutHolidaysInput>
+    connectOrCreate?: CompanyCreateOrConnectWithoutHolidaysInput
+    connect?: CompanyWhereUniqueInput
+  }
+
+  export type CompanyUpdateOneRequiredWithoutHolidaysNestedInput = {
+    create?: XOR<CompanyCreateWithoutHolidaysInput, CompanyUncheckedCreateWithoutHolidaysInput>
+    connectOrCreate?: CompanyCreateOrConnectWithoutHolidaysInput
+    upsert?: CompanyUpsertWithoutHolidaysInput
+    connect?: CompanyWhereUniqueInput
+    update?: XOR<XOR<CompanyUpdateToOneWithWhereWithoutHolidaysInput, CompanyUpdateWithoutHolidaysInput>, CompanyUncheckedUpdateWithoutHolidaysInput>
+  }
+
   export type NestedStringFilter<$PrismaModel = never> = {
     equals?: string | StringFieldRefInput<$PrismaModel>
     in?: string[]
@@ -26411,6 +29876,29 @@ export namespace Prisma {
     _min?: NestedDecimalNullableFilter<$PrismaModel>
     _max?: NestedDecimalNullableFilter<$PrismaModel>
   }
+  export type NestedJsonNullableFilter<$PrismaModel = never> =
+    | PatchUndefined<
+        Either<Required<NestedJsonNullableFilterBase<$PrismaModel>>, Exclude<keyof Required<NestedJsonNullableFilterBase<$PrismaModel>>, 'path'>>,
+        Required<NestedJsonNullableFilterBase<$PrismaModel>>
+      >
+    | OptionalFlat<Omit<Required<NestedJsonNullableFilterBase<$PrismaModel>>, 'path'>>
+
+  export type NestedJsonNullableFilterBase<$PrismaModel = never> = {
+    equals?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | JsonNullValueFilter
+    path?: string
+    mode?: QueryMode | EnumQueryModeFieldRefInput<$PrismaModel>
+    string_contains?: string | StringFieldRefInput<$PrismaModel>
+    string_starts_with?: string | StringFieldRefInput<$PrismaModel>
+    string_ends_with?: string | StringFieldRefInput<$PrismaModel>
+    array_starts_with?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | null
+    array_ends_with?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | null
+    array_contains?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | null
+    lt?: InputJsonValue
+    lte?: InputJsonValue
+    gt?: InputJsonValue
+    gte?: InputJsonValue
+    not?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | JsonNullValueFilter
+  }
 
   export type NestedEnumAdminRoleFilter<$PrismaModel = never> = {
     equals?: $Enums.AdminRole | EnumAdminRoleFieldRefInput<$PrismaModel>
@@ -26547,6 +30035,23 @@ export namespace Prisma {
     _max?: NestedEnumAuthRequestStatusFilter<$PrismaModel>
   }
 
+  export type NestedEnumDayStatusTypeFilter<$PrismaModel = never> = {
+    equals?: $Enums.DayStatusType | EnumDayStatusTypeFieldRefInput<$PrismaModel>
+    in?: $Enums.DayStatusType[]
+    notIn?: $Enums.DayStatusType[]
+    not?: NestedEnumDayStatusTypeFilter<$PrismaModel> | $Enums.DayStatusType
+  }
+
+  export type NestedEnumDayStatusTypeWithAggregatesFilter<$PrismaModel = never> = {
+    equals?: $Enums.DayStatusType | EnumDayStatusTypeFieldRefInput<$PrismaModel>
+    in?: $Enums.DayStatusType[]
+    notIn?: $Enums.DayStatusType[]
+    not?: NestedEnumDayStatusTypeWithAggregatesFilter<$PrismaModel> | $Enums.DayStatusType
+    _count?: NestedIntFilter<$PrismaModel>
+    _min?: NestedEnumDayStatusTypeFilter<$PrismaModel>
+    _max?: NestedEnumDayStatusTypeFilter<$PrismaModel>
+  }
+
   export type CompanyCreateWithoutBranchesInput = {
     id?: string
     name: string
@@ -26596,6 +30101,8 @@ export namespace Prisma {
     auditLogs?: AdminAuditLogCreateNestedManyWithoutCompanyInput
     departmentShifts?: DepartmentShiftCreateNestedManyWithoutCompanyInput
     employeeShifts?: EmployeeShiftCreateNestedManyWithoutCompanyInput
+    attendanceDayStatuses?: AttendanceDayStatusCreateNestedManyWithoutCompanyInput
+    holidays?: CompanyHolidayCreateNestedManyWithoutCompanyInput
   }
 
   export type CompanyUncheckedCreateWithoutBranchesInput = {
@@ -26647,6 +30154,8 @@ export namespace Prisma {
     auditLogs?: AdminAuditLogUncheckedCreateNestedManyWithoutCompanyInput
     departmentShifts?: DepartmentShiftUncheckedCreateNestedManyWithoutCompanyInput
     employeeShifts?: EmployeeShiftUncheckedCreateNestedManyWithoutCompanyInput
+    attendanceDayStatuses?: AttendanceDayStatusUncheckedCreateNestedManyWithoutCompanyInput
+    holidays?: CompanyHolidayUncheckedCreateNestedManyWithoutCompanyInput
   }
 
   export type CompanyCreateOrConnectWithoutBranchesInput = {
@@ -26703,6 +30212,8 @@ export namespace Prisma {
     auditLogs?: AdminAuditLogCreateNestedManyWithoutCompanyInput
     departmentShifts?: DepartmentShiftCreateNestedManyWithoutCompanyInput
     employeeShifts?: EmployeeShiftCreateNestedManyWithoutCompanyInput
+    attendanceDayStatuses?: AttendanceDayStatusCreateNestedManyWithoutCompanyInput
+    holidays?: CompanyHolidayCreateNestedManyWithoutCompanyInput
   }
 
   export type CompanyUncheckedCreateWithoutParentCompanyInput = {
@@ -26754,6 +30265,8 @@ export namespace Prisma {
     auditLogs?: AdminAuditLogUncheckedCreateNestedManyWithoutCompanyInput
     departmentShifts?: DepartmentShiftUncheckedCreateNestedManyWithoutCompanyInput
     employeeShifts?: EmployeeShiftUncheckedCreateNestedManyWithoutCompanyInput
+    attendanceDayStatuses?: AttendanceDayStatusUncheckedCreateNestedManyWithoutCompanyInput
+    holidays?: CompanyHolidayUncheckedCreateNestedManyWithoutCompanyInput
   }
 
   export type CompanyCreateOrConnectWithoutParentCompanyInput = {
@@ -26806,6 +30319,7 @@ export namespace Prisma {
     notifications?: NotificationCreateNestedManyWithoutEmployeeInput
     eventRequests?: EventRequestCreateNestedManyWithoutEmployeeInput
     branchAccesses?: EmployeeBranchAccessCreateNestedManyWithoutEmployeeInput
+    attendanceDayStatuses?: AttendanceDayStatusCreateNestedManyWithoutEmployeeInput
   }
 
   export type EmployeeUncheckedCreateWithoutCompanyInput = {
@@ -26826,6 +30340,7 @@ export namespace Prisma {
     notifications?: NotificationUncheckedCreateNestedManyWithoutEmployeeInput
     eventRequests?: EventRequestUncheckedCreateNestedManyWithoutEmployeeInput
     branchAccesses?: EmployeeBranchAccessUncheckedCreateNestedManyWithoutEmployeeInput
+    attendanceDayStatuses?: AttendanceDayStatusUncheckedCreateNestedManyWithoutEmployeeInput
   }
 
   export type EmployeeCreateOrConnectWithoutCompanyInput = {
@@ -26872,6 +30387,7 @@ export namespace Prisma {
     tolerance?: number | null
     breakStartTime?: string | null
     breakEndTime?: string | null
+    scheduleByDay?: NullableJsonNullValueInput | InputJsonValue
     isActive?: boolean
     createdAt?: Date | string
     updatedAt?: Date | string
@@ -26888,6 +30404,7 @@ export namespace Prisma {
     tolerance?: number | null
     breakStartTime?: string | null
     breakEndTime?: string | null
+    scheduleByDay?: NullableJsonNullValueInput | InputJsonValue
     isActive?: boolean
     createdAt?: Date | string
     updatedAt?: Date | string
@@ -27290,6 +30807,94 @@ export namespace Prisma {
     skipDuplicates?: boolean
   }
 
+  export type AttendanceDayStatusCreateWithoutCompanyInput = {
+    id?: string
+    date: Date | string
+    status: $Enums.DayStatusType
+    shiftId?: number | null
+    shiftName?: string | null
+    expectedStartTime?: string | null
+    expectedEndTime?: string | null
+    appliedToleranceMin?: number | null
+    isWorkDay?: boolean
+    lateMinutes?: number | null
+    overtimeMinutes?: number | null
+    earlyExitMinutes?: number | null
+    notes?: string | null
+    attendanceRecordId?: string | null
+    evaluatedAt?: Date | string
+    isLocked?: boolean
+    lastModifiedById?: string | null
+    lastModifiedReason?: string | null
+    createdAt?: Date | string
+    updatedAt?: Date | string
+    employee: EmployeeCreateNestedOneWithoutAttendanceDayStatusesInput
+  }
+
+  export type AttendanceDayStatusUncheckedCreateWithoutCompanyInput = {
+    id?: string
+    employeeId: string
+    date: Date | string
+    status: $Enums.DayStatusType
+    shiftId?: number | null
+    shiftName?: string | null
+    expectedStartTime?: string | null
+    expectedEndTime?: string | null
+    appliedToleranceMin?: number | null
+    isWorkDay?: boolean
+    lateMinutes?: number | null
+    overtimeMinutes?: number | null
+    earlyExitMinutes?: number | null
+    notes?: string | null
+    attendanceRecordId?: string | null
+    evaluatedAt?: Date | string
+    isLocked?: boolean
+    lastModifiedById?: string | null
+    lastModifiedReason?: string | null
+    createdAt?: Date | string
+    updatedAt?: Date | string
+  }
+
+  export type AttendanceDayStatusCreateOrConnectWithoutCompanyInput = {
+    where: AttendanceDayStatusWhereUniqueInput
+    create: XOR<AttendanceDayStatusCreateWithoutCompanyInput, AttendanceDayStatusUncheckedCreateWithoutCompanyInput>
+  }
+
+  export type AttendanceDayStatusCreateManyCompanyInputEnvelope = {
+    data: AttendanceDayStatusCreateManyCompanyInput | AttendanceDayStatusCreateManyCompanyInput[]
+    skipDuplicates?: boolean
+  }
+
+  export type CompanyHolidayCreateWithoutCompanyInput = {
+    id?: string
+    name: string
+    date: Date | string
+    isMandatory?: boolean
+    departmentIds?: NullableJsonNullValueInput | InputJsonValue
+    createdAt?: Date | string
+    updatedAt?: Date | string
+  }
+
+  export type CompanyHolidayUncheckedCreateWithoutCompanyInput = {
+    id?: string
+    name: string
+    date: Date | string
+    isMandatory?: boolean
+    departmentIds?: NullableJsonNullValueInput | InputJsonValue
+    createdAt?: Date | string
+    updatedAt?: Date | string
+  }
+
+  export type CompanyHolidayCreateOrConnectWithoutCompanyInput = {
+    where: CompanyHolidayWhereUniqueInput
+    create: XOR<CompanyHolidayCreateWithoutCompanyInput, CompanyHolidayUncheckedCreateWithoutCompanyInput>
+  }
+
+  export type CompanyHolidayCreateManyCompanyInputEnvelope = {
+    data: CompanyHolidayCreateManyCompanyInput | CompanyHolidayCreateManyCompanyInput[]
+    skipDuplicates?: boolean
+  }
+
   export type CompanyUpsertWithoutBranchesInput = {
     update: XOR<CompanyUpdateWithoutBranchesInput, CompanyUncheckedUpdateWithoutBranchesInput>
     create: XOR<CompanyCreateWithoutBranchesInput, CompanyUncheckedCreateWithoutBranchesInput>
@@ -27350,6 +30955,8 @@ export namespace Prisma {
     auditLogs?: AdminAuditLogUpdateManyWithoutCompanyNestedInput
     departmentShifts?: DepartmentShiftUpdateManyWithoutCompanyNestedInput
     employeeShifts?: EmployeeShiftUpdateManyWithoutCompanyNestedInput
+    attendanceDayStatuses?: AttendanceDayStatusUpdateManyWithoutCompanyNestedInput
+    holidays?: CompanyHolidayUpdateManyWithoutCompanyNestedInput
   }
 
   export type CompanyUncheckedUpdateWithoutBranchesInput = {
@@ -27401,6 +31008,8 @@ export namespace Prisma {
     auditLogs?: AdminAuditLogUncheckedUpdateManyWithoutCompanyNestedInput
     departmentShifts?: DepartmentShiftUncheckedUpdateManyWithoutCompanyNestedInput
     employeeShifts?: EmployeeShiftUncheckedUpdateManyWithoutCompanyNestedInput
+    attendanceDayStatuses?: AttendanceDayStatusUncheckedUpdateManyWithoutCompanyNestedInput
+    holidays?: CompanyHolidayUncheckedUpdateManyWithoutCompanyNestedInput
   }
 
   export type CompanyUpsertWithWhereUniqueWithoutParentCompanyInput = {
@@ -27575,6 +31184,7 @@ export namespace Prisma {
     tolerance?: IntNullableFilter<"Shift"> | number | null
     breakStartTime?: StringNullableFilter<"Shift"> | string | null
     breakEndTime?: StringNullableFilter<"Shift"> | string | null
+    scheduleByDay?: JsonNullableFilter<"Shift">
     isActive?: BoolFilter<"Shift"> | boolean
     createdAt?: DateTimeFilter<"Shift"> | Date | string
     updatedAt?: DateTimeFilter<"Shift"> | Date | string
@@ -27940,6 +31550,80 @@ export namespace Prisma {
     shiftId?: IntFilter<"EmployeeShift"> | number
   }
 
+  export type AttendanceDayStatusUpsertWithWhereUniqueWithoutCompanyInput = {
+    where: AttendanceDayStatusWhereUniqueInput
+    update: XOR<AttendanceDayStatusUpdateWithoutCompanyInput, AttendanceDayStatusUncheckedUpdateWithoutCompanyInput>
+    create: XOR<AttendanceDayStatusCreateWithoutCompanyInput, AttendanceDayStatusUncheckedCreateWithoutCompanyInput>
+  }
+
+  export type AttendanceDayStatusUpdateWithWhereUniqueWithoutCompanyInput = {
+    where: AttendanceDayStatusWhereUniqueInput
+    data: XOR<AttendanceDayStatusUpdateWithoutCompanyInput, AttendanceDayStatusUncheckedUpdateWithoutCompanyInput>
+  }
+
+  export type AttendanceDayStatusUpdateManyWithWhereWithoutCompanyInput = {
+    where: AttendanceDayStatusScalarWhereInput
+    data: XOR<AttendanceDayStatusUpdateManyMutationInput, AttendanceDayStatusUncheckedUpdateManyWithoutCompanyInput>
+  }
+
+  export type AttendanceDayStatusScalarWhereInput = {
+    AND?: AttendanceDayStatusScalarWhereInput | AttendanceDayStatusScalarWhereInput[]
+    OR?: AttendanceDayStatusScalarWhereInput[]
+    NOT?: AttendanceDayStatusScalarWhereInput | AttendanceDayStatusScalarWhereInput[]
+    id?: StringFilter<"AttendanceDayStatus"> | string
+    companyId?: StringFilter<"AttendanceDayStatus"> | string
+    employeeId?: StringFilter<"AttendanceDayStatus"> | string
+    date?: DateTimeFilter<"AttendanceDayStatus"> | Date | string
+    status?: EnumDayStatusTypeFilter<"AttendanceDayStatus"> | $Enums.DayStatusType
+    shiftId?: IntNullableFilter<"AttendanceDayStatus"> | number | null
+    shiftName?: StringNullableFilter<"AttendanceDayStatus"> | string | null
+    expectedStartTime?: StringNullableFilter<"AttendanceDayStatus"> | string | null
+    expectedEndTime?: StringNullableFilter<"AttendanceDayStatus"> | string | null
+    appliedToleranceMin?: IntNullableFilter<"AttendanceDayStatus"> | number | null
+    isWorkDay?: BoolFilter<"AttendanceDayStatus"> | boolean
+    lateMinutes?: IntNullableFilter<"AttendanceDayStatus"> | number | null
+    overtimeMinutes?: IntNullableFilter<"AttendanceDayStatus"> | number | null
+    earlyExitMinutes?: IntNullableFilter<"AttendanceDayStatus"> | number | null
+    notes?: StringNullableFilter<"AttendanceDayStatus"> | string | null
+    attendanceRecordId?: StringNullableFilter<"AttendanceDayStatus"> | string | null
+    evaluatedAt?: DateTimeFilter<"AttendanceDayStatus"> | Date | string
+    isLocked?: BoolFilter<"AttendanceDayStatus"> | boolean
+    lastModifiedById?: StringNullableFilter<"AttendanceDayStatus"> | string | null
+    lastModifiedReason?: StringNullableFilter<"AttendanceDayStatus"> | string | null
+    createdAt?: DateTimeFilter<"AttendanceDayStatus"> | Date | string
+    updatedAt?: DateTimeFilter<"AttendanceDayStatus"> | Date | string
+  }
+
+  export type CompanyHolidayUpsertWithWhereUniqueWithoutCompanyInput = {
+    where: CompanyHolidayWhereUniqueInput
+    update: XOR<CompanyHolidayUpdateWithoutCompanyInput, CompanyHolidayUncheckedUpdateWithoutCompanyInput>
+    create: XOR<CompanyHolidayCreateWithoutCompanyInput, CompanyHolidayUncheckedCreateWithoutCompanyInput>
+  }
+
+  export type CompanyHolidayUpdateWithWhereUniqueWithoutCompanyInput = {
+    where: CompanyHolidayWhereUniqueInput
+    data: XOR<CompanyHolidayUpdateWithoutCompanyInput, CompanyHolidayUncheckedUpdateWithoutCompanyInput>
+  }
+
+  export type CompanyHolidayUpdateManyWithWhereWithoutCompanyInput = {
+    where: CompanyHolidayScalarWhereInput
+    data: XOR<CompanyHolidayUpdateManyMutationInput, CompanyHolidayUncheckedUpdateManyWithoutCompanyInput>
+  }
+
+  export type CompanyHolidayScalarWhereInput = {
+    AND?: CompanyHolidayScalarWhereInput | CompanyHolidayScalarWhereInput[]
+    OR?: CompanyHolidayScalarWhereInput[]
+    NOT?: CompanyHolidayScalarWhereInput | CompanyHolidayScalarWhereInput[]
+    id?: StringFilter<"CompanyHoliday"> | string
+    companyId?: StringFilter<"CompanyHoliday"> | string
+    name?: StringFilter<"CompanyHoliday"> | string
+    date?: DateTimeFilter<"CompanyHoliday"> | Date | string
+    isMandatory?: BoolFilter<"CompanyHoliday"> | boolean
+    departmentIds?: JsonNullableFilter<"CompanyHoliday">
+    createdAt?: DateTimeFilter<"CompanyHoliday"> | Date | string
+    updatedAt?: DateTimeFilter<"CompanyHoliday"> | Date | string
+  }
+
   export type CompanyCreateWithoutDepartmentsInput = {
     id?: string
     name: string
@@ -27989,6 +31673,8 @@ export namespace Prisma {
     auditLogs?: AdminAuditLogCreateNestedManyWithoutCompanyInput
     departmentShifts?: DepartmentShiftCreateNestedManyWithoutCompanyInput
     employeeShifts?: EmployeeShiftCreateNestedManyWithoutCompanyInput
+    attendanceDayStatuses?: AttendanceDayStatusCreateNestedManyWithoutCompanyInput
+    holidays?: CompanyHolidayCreateNestedManyWithoutCompanyInput
   }
 
   export type CompanyUncheckedCreateWithoutDepartmentsInput = {
@@ -28040,6 +31726,8 @@ export namespace Prisma {
     auditLogs?: AdminAuditLogUncheckedCreateNestedManyWithoutCompanyInput
     departmentShifts?: DepartmentShiftUncheckedCreateNestedManyWithoutCompanyInput
     employeeShifts?: EmployeeShiftUncheckedCreateNestedManyWithoutCompanyInput
+    attendanceDayStatuses?: AttendanceDayStatusUncheckedCreateNestedManyWithoutCompanyInput
+    holidays?: CompanyHolidayUncheckedCreateNestedManyWithoutCompanyInput
   }
 
   export type CompanyCreateOrConnectWithoutDepartmentsInput = {
@@ -28065,6 +31753,7 @@ export namespace Prisma {
     notifications?: NotificationCreateNestedManyWithoutEmployeeInput
     eventRequests?: EventRequestCreateNestedManyWithoutEmployeeInput
     branchAccesses?: EmployeeBranchAccessCreateNestedManyWithoutEmployeeInput
+    attendanceDayStatuses?: AttendanceDayStatusCreateNestedManyWithoutEmployeeInput
   }
 
   export type EmployeeUncheckedCreateWithoutDepartmentInput = {
@@ -28084,6 +31773,7 @@ export namespace Prisma {
     notifications?: NotificationUncheckedCreateNestedManyWithoutEmployeeInput
     eventRequests?: EventRequestUncheckedCreateNestedManyWithoutEmployeeInput
     branchAccesses?: EmployeeBranchAccessUncheckedCreateNestedManyWithoutEmployeeInput
+    attendanceDayStatuses?: AttendanceDayStatusUncheckedCreateNestedManyWithoutEmployeeInput
   }
 
   export type EmployeeCreateOrConnectWithoutDepartmentInput = {
@@ -28176,6 +31866,8 @@ export namespace Prisma {
     auditLogs?: AdminAuditLogUpdateManyWithoutCompanyNestedInput
     departmentShifts?: DepartmentShiftUpdateManyWithoutCompanyNestedInput
     employeeShifts?: EmployeeShiftUpdateManyWithoutCompanyNestedInput
+    attendanceDayStatuses?: AttendanceDayStatusUpdateManyWithoutCompanyNestedInput
+    holidays?: CompanyHolidayUpdateManyWithoutCompanyNestedInput
   }
 
   export type CompanyUncheckedUpdateWithoutDepartmentsInput = {
@@ -28227,6 +31919,8 @@ export namespace Prisma {
     auditLogs?: AdminAuditLogUncheckedUpdateManyWithoutCompanyNestedInput
     departmentShifts?: DepartmentShiftUncheckedUpdateManyWithoutCompanyNestedInput
     employeeShifts?: EmployeeShiftUncheckedUpdateManyWithoutCompanyNestedInput
+    attendanceDayStatuses?: AttendanceDayStatusUncheckedUpdateManyWithoutCompanyNestedInput
+    holidays?: CompanyHolidayUncheckedUpdateManyWithoutCompanyNestedInput
   }
 
   export type EmployeeUpsertWithWhereUniqueWithoutDepartmentInput = {
@@ -28310,6 +32004,8 @@ export namespace Prisma {
     auditLogs?: AdminAuditLogCreateNestedManyWithoutCompanyInput
     departmentShifts?: DepartmentShiftCreateNestedManyWithoutCompanyInput
     employeeShifts?: EmployeeShiftCreateNestedManyWithoutCompanyInput
+    attendanceDayStatuses?: AttendanceDayStatusCreateNestedManyWithoutCompanyInput
+    holidays?: CompanyHolidayCreateNestedManyWithoutCompanyInput
   }
 
   export type CompanyUncheckedCreateWithoutEmployeesInput = {
@@ -28361,6 +32057,8 @@ export namespace Prisma {
     auditLogs?: AdminAuditLogUncheckedCreateNestedManyWithoutCompanyInput
     departmentShifts?: DepartmentShiftUncheckedCreateNestedManyWithoutCompanyInput
     employeeShifts?: EmployeeShiftUncheckedCreateNestedManyWithoutCompanyInput
+    attendanceDayStatuses?: AttendanceDayStatusUncheckedCreateNestedManyWithoutCompanyInput
+    holidays?: CompanyHolidayUncheckedCreateNestedManyWithoutCompanyInput
   }
 
   export type CompanyCreateOrConnectWithoutEmployeesInput = {
@@ -28561,6 +32259,63 @@ export namespace Prisma {
     skipDuplicates?: boolean
   }
 
+  export type AttendanceDayStatusCreateWithoutEmployeeInput = {
+    id?: string
+    date: Date | string
+    status: $Enums.DayStatusType
+    shiftId?: number | null
+    shiftName?: string | null
+    expectedStartTime?: string | null
+    expectedEndTime?: string | null
+    appliedToleranceMin?: number | null
+    isWorkDay?: boolean
+    lateMinutes?: number | null
+    overtimeMinutes?: number | null
+    earlyExitMinutes?: number | null
+    notes?: string | null
+    attendanceRecordId?: string | null
+    evaluatedAt?: Date | string
+    isLocked?: boolean
+    lastModifiedById?: string | null
+    lastModifiedReason?: string | null
+    createdAt?: Date | string
+    updatedAt?: Date | string
+    company: CompanyCreateNestedOneWithoutAttendanceDayStatusesInput
+  }
+
+  export type AttendanceDayStatusUncheckedCreateWithoutEmployeeInput = {
+    id?: string
+    date: Date | string
+    status: $Enums.DayStatusType
+    shiftId?: number | null
+    shiftName?: string | null
+    expectedStartTime?: string | null
+    expectedEndTime?: string | null
+    appliedToleranceMin?: number | null
+    isWorkDay?: boolean
+    lateMinutes?: number | null
+    overtimeMinutes?: number | null
+    earlyExitMinutes?: number | null
+    notes?: string | null
+    attendanceRecordId?: string | null
+    evaluatedAt?: Date | string
+    isLocked?: boolean
+    lastModifiedById?: string | null
+    lastModifiedReason?: string | null
+    createdAt?: Date | string
+    updatedAt?: Date | string
+  }
+
+  export type AttendanceDayStatusCreateOrConnectWithoutEmployeeInput = {
+    where: AttendanceDayStatusWhereUniqueInput
+    create: XOR<AttendanceDayStatusCreateWithoutEmployeeInput, AttendanceDayStatusUncheckedCreateWithoutEmployeeInput>
+  }
+
+  export type AttendanceDayStatusCreateManyEmployeeInputEnvelope = {
+    data: AttendanceDayStatusCreateManyEmployeeInput | AttendanceDayStatusCreateManyEmployeeInput[]
+    skipDuplicates?: boolean
+  }
+
   export type CompanyUpsertWithoutEmployeesInput = {
     update: XOR<CompanyUpdateWithoutEmployeesInput, CompanyUncheckedUpdateWithoutEmployeesInput>
     create: XOR<CompanyCreateWithoutEmployeesInput, CompanyUncheckedCreateWithoutEmployeesInput>
@@ -28621,6 +32376,8 @@ export namespace Prisma {
     auditLogs?: AdminAuditLogUpdateManyWithoutCompanyNestedInput
     departmentShifts?: DepartmentShiftUpdateManyWithoutCompanyNestedInput
     employeeShifts?: EmployeeShiftUpdateManyWithoutCompanyNestedInput
+    attendanceDayStatuses?: AttendanceDayStatusUpdateManyWithoutCompanyNestedInput
+    holidays?: CompanyHolidayUpdateManyWithoutCompanyNestedInput
   }
 
   export type CompanyUncheckedUpdateWithoutEmployeesInput = {
@@ -28672,6 +32429,8 @@ export namespace Prisma {
     auditLogs?: AdminAuditLogUncheckedUpdateManyWithoutCompanyNestedInput
     departmentShifts?: DepartmentShiftUncheckedUpdateManyWithoutCompanyNestedInput
     employeeShifts?: EmployeeShiftUncheckedUpdateManyWithoutCompanyNestedInput
+    attendanceDayStatuses?: AttendanceDayStatusUncheckedUpdateManyWithoutCompanyNestedInput
+    holidays?: CompanyHolidayUncheckedUpdateManyWithoutCompanyNestedInput
   }
 
   export type DepartmentUpsertWithoutEmployeesInput = {
@@ -28782,6 +32541,22 @@ export namespace Prisma {
     data: XOR<EmployeeBranchAccessUpdateManyMutationInput, EmployeeBranchAccessUncheckedUpdateManyWithoutEmployeeInput>
   }
 
+  export type AttendanceDayStatusUpsertWithWhereUniqueWithoutEmployeeInput = {
+    where: AttendanceDayStatusWhereUniqueInput
+    update: XOR<AttendanceDayStatusUpdateWithoutEmployeeInput, AttendanceDayStatusUncheckedUpdateWithoutEmployeeInput>
+    create: XOR<AttendanceDayStatusCreateWithoutEmployeeInput, AttendanceDayStatusUncheckedCreateWithoutEmployeeInput>
+  }
+
+  export type AttendanceDayStatusUpdateWithWhereUniqueWithoutEmployeeInput = {
+    where: AttendanceDayStatusWhereUniqueInput
+    data: XOR<AttendanceDayStatusUpdateWithoutEmployeeInput, AttendanceDayStatusUncheckedUpdateWithoutEmployeeInput>
+  }
+
+  export type AttendanceDayStatusUpdateManyWithWhereWithoutEmployeeInput = {
+    where: AttendanceDayStatusScalarWhereInput
+    data: XOR<AttendanceDayStatusUpdateManyMutationInput, AttendanceDayStatusUncheckedUpdateManyWithoutEmployeeInput>
+  }
+
   export type CompanyCreateWithoutAttendancesInput = {
     id?: string
     name: string
@@ -28831,6 +32606,8 @@ export namespace Prisma {
     auditLogs?: AdminAuditLogCreateNestedManyWithoutCompanyInput
     departmentShifts?: DepartmentShiftCreateNestedManyWithoutCompanyInput
     employeeShifts?: EmployeeShiftCreateNestedManyWithoutCompanyInput
+    attendanceDayStatuses?: AttendanceDayStatusCreateNestedManyWithoutCompanyInput
+    holidays?: CompanyHolidayCreateNestedManyWithoutCompanyInput
   }
 
   export type CompanyUncheckedCreateWithoutAttendancesInput = {
@@ -28882,6 +32659,8 @@ export namespace Prisma {
     auditLogs?: AdminAuditLogUncheckedCreateNestedManyWithoutCompanyInput
     departmentShifts?: DepartmentShiftUncheckedCreateNestedManyWithoutCompanyInput
     employeeShifts?: EmployeeShiftUncheckedCreateNestedManyWithoutCompanyInput
+    attendanceDayStatuses?: AttendanceDayStatusUncheckedCreateNestedManyWithoutCompanyInput
+    holidays?: CompanyHolidayUncheckedCreateNestedManyWithoutCompanyInput
   }
 
   export type CompanyCreateOrConnectWithoutAttendancesInput = {
@@ -28907,6 +32686,7 @@ export namespace Prisma {
     notifications?: NotificationCreateNestedManyWithoutEmployeeInput
     eventRequests?: EventRequestCreateNestedManyWithoutEmployeeInput
     branchAccesses?: EmployeeBranchAccessCreateNestedManyWithoutEmployeeInput
+    attendanceDayStatuses?: AttendanceDayStatusCreateNestedManyWithoutEmployeeInput
   }
 
   export type EmployeeUncheckedCreateWithoutAttendancesInput = {
@@ -28927,6 +32707,7 @@ export namespace Prisma {
     notifications?: NotificationUncheckedCreateNestedManyWithoutEmployeeInput
     eventRequests?: EventRequestUncheckedCreateNestedManyWithoutEmployeeInput
     branchAccesses?: EmployeeBranchAccessUncheckedCreateNestedManyWithoutEmployeeInput
+    attendanceDayStatuses?: AttendanceDayStatusUncheckedCreateNestedManyWithoutEmployeeInput
   }
 
   export type EmployeeCreateOrConnectWithoutAttendancesInput = {
@@ -28941,6 +32722,7 @@ export namespace Prisma {
     tolerance?: number | null
     breakStartTime?: string | null
     breakEndTime?: string | null
+    scheduleByDay?: NullableJsonNullValueInput | InputJsonValue
     isActive?: boolean
     createdAt?: Date | string
     updatedAt?: Date | string
@@ -28958,6 +32740,7 @@ export namespace Prisma {
     tolerance?: number | null
     breakStartTime?: string | null
     breakEndTime?: string | null
+    scheduleByDay?: NullableJsonNullValueInput | InputJsonValue
     isActive?: boolean
     createdAt?: Date | string
     updatedAt?: Date | string
@@ -29077,6 +32860,8 @@ export namespace Prisma {
     auditLogs?: AdminAuditLogUpdateManyWithoutCompanyNestedInput
     departmentShifts?: DepartmentShiftUpdateManyWithoutCompanyNestedInput
     employeeShifts?: EmployeeShiftUpdateManyWithoutCompanyNestedInput
+    attendanceDayStatuses?: AttendanceDayStatusUpdateManyWithoutCompanyNestedInput
+    holidays?: CompanyHolidayUpdateManyWithoutCompanyNestedInput
   }
 
   export type CompanyUncheckedUpdateWithoutAttendancesInput = {
@@ -29128,6 +32913,8 @@ export namespace Prisma {
     auditLogs?: AdminAuditLogUncheckedUpdateManyWithoutCompanyNestedInput
     departmentShifts?: DepartmentShiftUncheckedUpdateManyWithoutCompanyNestedInput
     employeeShifts?: EmployeeShiftUncheckedUpdateManyWithoutCompanyNestedInput
+    attendanceDayStatuses?: AttendanceDayStatusUncheckedUpdateManyWithoutCompanyNestedInput
+    holidays?: CompanyHolidayUncheckedUpdateManyWithoutCompanyNestedInput
   }
 
   export type EmployeeUpsertWithoutAttendancesInput = {
@@ -29159,6 +32946,7 @@ export namespace Prisma {
     notifications?: NotificationUpdateManyWithoutEmployeeNestedInput
     eventRequests?: EventRequestUpdateManyWithoutEmployeeNestedInput
     branchAccesses?: EmployeeBranchAccessUpdateManyWithoutEmployeeNestedInput
+    attendanceDayStatuses?: AttendanceDayStatusUpdateManyWithoutEmployeeNestedInput
   }
 
   export type EmployeeUncheckedUpdateWithoutAttendancesInput = {
@@ -29179,6 +32967,7 @@ export namespace Prisma {
     notifications?: NotificationUncheckedUpdateManyWithoutEmployeeNestedInput
     eventRequests?: EventRequestUncheckedUpdateManyWithoutEmployeeNestedInput
     branchAccesses?: EmployeeBranchAccessUncheckedUpdateManyWithoutEmployeeNestedInput
+    attendanceDayStatuses?: AttendanceDayStatusUncheckedUpdateManyWithoutEmployeeNestedInput
   }
 
   export type ShiftUpsertWithoutAttendancesInput = {
@@ -29199,6 +32988,7 @@ export namespace Prisma {
     tolerance?: NullableIntFieldUpdateOperationsInput | number | null
     breakStartTime?: NullableStringFieldUpdateOperationsInput | string | null
     breakEndTime?: NullableStringFieldUpdateOperationsInput | string | null
+    scheduleByDay?: NullableJsonNullValueInput | InputJsonValue
     isActive?: BoolFieldUpdateOperationsInput | boolean
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -29216,6 +33006,7 @@ export namespace Prisma {
     tolerance?: NullableIntFieldUpdateOperationsInput | number | null
     breakStartTime?: NullableStringFieldUpdateOperationsInput | string | null
     breakEndTime?: NullableStringFieldUpdateOperationsInput | string | null
+    scheduleByDay?: NullableJsonNullValueInput | InputJsonValue
     isActive?: BoolFieldUpdateOperationsInput | boolean
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -29325,6 +33116,8 @@ export namespace Prisma {
     auditLogs?: AdminAuditLogCreateNestedManyWithoutCompanyInput
     departmentShifts?: DepartmentShiftCreateNestedManyWithoutCompanyInput
     employeeShifts?: EmployeeShiftCreateNestedManyWithoutCompanyInput
+    attendanceDayStatuses?: AttendanceDayStatusCreateNestedManyWithoutCompanyInput
+    holidays?: CompanyHolidayCreateNestedManyWithoutCompanyInput
   }
 
   export type CompanyUncheckedCreateWithoutShiftsInput = {
@@ -29376,6 +33169,8 @@ export namespace Prisma {
     auditLogs?: AdminAuditLogUncheckedCreateNestedManyWithoutCompanyInput
     departmentShifts?: DepartmentShiftUncheckedCreateNestedManyWithoutCompanyInput
     employeeShifts?: EmployeeShiftUncheckedCreateNestedManyWithoutCompanyInput
+    attendanceDayStatuses?: AttendanceDayStatusUncheckedCreateNestedManyWithoutCompanyInput
+    holidays?: CompanyHolidayUncheckedCreateNestedManyWithoutCompanyInput
   }
 
   export type CompanyCreateOrConnectWithoutShiftsInput = {
@@ -29532,6 +33327,8 @@ export namespace Prisma {
     auditLogs?: AdminAuditLogUpdateManyWithoutCompanyNestedInput
     departmentShifts?: DepartmentShiftUpdateManyWithoutCompanyNestedInput
     employeeShifts?: EmployeeShiftUpdateManyWithoutCompanyNestedInput
+    attendanceDayStatuses?: AttendanceDayStatusUpdateManyWithoutCompanyNestedInput
+    holidays?: CompanyHolidayUpdateManyWithoutCompanyNestedInput
   }
 
   export type CompanyUncheckedUpdateWithoutShiftsInput = {
@@ -29583,6 +33380,8 @@ export namespace Prisma {
     auditLogs?: AdminAuditLogUncheckedUpdateManyWithoutCompanyNestedInput
     departmentShifts?: DepartmentShiftUncheckedUpdateManyWithoutCompanyNestedInput
     employeeShifts?: EmployeeShiftUncheckedUpdateManyWithoutCompanyNestedInput
+    attendanceDayStatuses?: AttendanceDayStatusUncheckedUpdateManyWithoutCompanyNestedInput
+    holidays?: CompanyHolidayUncheckedUpdateManyWithoutCompanyNestedInput
   }
 
   export type DepartmentShiftUpsertWithWhereUniqueWithoutShiftInput = {
@@ -29682,6 +33481,8 @@ export namespace Prisma {
     notifications?: NotificationCreateNestedManyWithoutCompanyInput
     auditLogs?: AdminAuditLogCreateNestedManyWithoutCompanyInput
     employeeShifts?: EmployeeShiftCreateNestedManyWithoutCompanyInput
+    attendanceDayStatuses?: AttendanceDayStatusCreateNestedManyWithoutCompanyInput
+    holidays?: CompanyHolidayCreateNestedManyWithoutCompanyInput
   }
 
   export type CompanyUncheckedCreateWithoutDepartmentShiftsInput = {
@@ -29733,6 +33534,8 @@ export namespace Prisma {
     notifications?: NotificationUncheckedCreateNestedManyWithoutCompanyInput
     auditLogs?: AdminAuditLogUncheckedCreateNestedManyWithoutCompanyInput
     employeeShifts?: EmployeeShiftUncheckedCreateNestedManyWithoutCompanyInput
+    attendanceDayStatuses?: AttendanceDayStatusUncheckedCreateNestedManyWithoutCompanyInput
+    holidays?: CompanyHolidayUncheckedCreateNestedManyWithoutCompanyInput
   }
 
   export type CompanyCreateOrConnectWithoutDepartmentShiftsInput = {
@@ -29769,6 +33572,7 @@ export namespace Prisma {
     tolerance?: number | null
     breakStartTime?: string | null
     breakEndTime?: string | null
+    scheduleByDay?: NullableJsonNullValueInput | InputJsonValue
     isActive?: boolean
     createdAt?: Date | string
     updatedAt?: Date | string
@@ -29786,6 +33590,7 @@ export namespace Prisma {
     tolerance?: number | null
     breakStartTime?: string | null
     breakEndTime?: string | null
+    scheduleByDay?: NullableJsonNullValueInput | InputJsonValue
     isActive?: boolean
     createdAt?: Date | string
     updatedAt?: Date | string
@@ -29858,6 +33663,8 @@ export namespace Prisma {
     notifications?: NotificationUpdateManyWithoutCompanyNestedInput
     auditLogs?: AdminAuditLogUpdateManyWithoutCompanyNestedInput
     employeeShifts?: EmployeeShiftUpdateManyWithoutCompanyNestedInput
+    attendanceDayStatuses?: AttendanceDayStatusUpdateManyWithoutCompanyNestedInput
+    holidays?: CompanyHolidayUpdateManyWithoutCompanyNestedInput
   }
 
   export type CompanyUncheckedUpdateWithoutDepartmentShiftsInput = {
@@ -29909,6 +33716,8 @@ export namespace Prisma {
     notifications?: NotificationUncheckedUpdateManyWithoutCompanyNestedInput
     auditLogs?: AdminAuditLogUncheckedUpdateManyWithoutCompanyNestedInput
     employeeShifts?: EmployeeShiftUncheckedUpdateManyWithoutCompanyNestedInput
+    attendanceDayStatuses?: AttendanceDayStatusUncheckedUpdateManyWithoutCompanyNestedInput
+    holidays?: CompanyHolidayUncheckedUpdateManyWithoutCompanyNestedInput
   }
 
   export type DepartmentUpsertWithoutShiftsInput = {
@@ -29957,6 +33766,7 @@ export namespace Prisma {
     tolerance?: NullableIntFieldUpdateOperationsInput | number | null
     breakStartTime?: NullableStringFieldUpdateOperationsInput | string | null
     breakEndTime?: NullableStringFieldUpdateOperationsInput | string | null
+    scheduleByDay?: NullableJsonNullValueInput | InputJsonValue
     isActive?: BoolFieldUpdateOperationsInput | boolean
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -29974,6 +33784,7 @@ export namespace Prisma {
     tolerance?: NullableIntFieldUpdateOperationsInput | number | null
     breakStartTime?: NullableStringFieldUpdateOperationsInput | string | null
     breakEndTime?: NullableStringFieldUpdateOperationsInput | string | null
+    scheduleByDay?: NullableJsonNullValueInput | InputJsonValue
     isActive?: BoolFieldUpdateOperationsInput | boolean
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -30030,6 +33841,8 @@ export namespace Prisma {
     notifications?: NotificationCreateNestedManyWithoutCompanyInput
     auditLogs?: AdminAuditLogCreateNestedManyWithoutCompanyInput
     departmentShifts?: DepartmentShiftCreateNestedManyWithoutCompanyInput
+    attendanceDayStatuses?: AttendanceDayStatusCreateNestedManyWithoutCompanyInput
+    holidays?: CompanyHolidayCreateNestedManyWithoutCompanyInput
   }
 
   export type CompanyUncheckedCreateWithoutEmployeeShiftsInput = {
@@ -30081,6 +33894,8 @@ export namespace Prisma {
     notifications?: NotificationUncheckedCreateNestedManyWithoutCompanyInput
     auditLogs?: AdminAuditLogUncheckedCreateNestedManyWithoutCompanyInput
     departmentShifts?: DepartmentShiftUncheckedCreateNestedManyWithoutCompanyInput
+    attendanceDayStatuses?: AttendanceDayStatusUncheckedCreateNestedManyWithoutCompanyInput
+    holidays?: CompanyHolidayUncheckedCreateNestedManyWithoutCompanyInput
   }
 
   export type CompanyCreateOrConnectWithoutEmployeeShiftsInput = {
@@ -30106,6 +33921,7 @@ export namespace Prisma {
     notifications?: NotificationCreateNestedManyWithoutEmployeeInput
     eventRequests?: EventRequestCreateNestedManyWithoutEmployeeInput
     branchAccesses?: EmployeeBranchAccessCreateNestedManyWithoutEmployeeInput
+    attendanceDayStatuses?: AttendanceDayStatusCreateNestedManyWithoutEmployeeInput
   }
 
   export type EmployeeUncheckedCreateWithoutShiftsInput = {
@@ -30126,6 +33942,7 @@ export namespace Prisma {
     notifications?: NotificationUncheckedCreateNestedManyWithoutEmployeeInput
     eventRequests?: EventRequestUncheckedCreateNestedManyWithoutEmployeeInput
     branchAccesses?: EmployeeBranchAccessUncheckedCreateNestedManyWithoutEmployeeInput
+    attendanceDayStatuses?: AttendanceDayStatusUncheckedCreateNestedManyWithoutEmployeeInput
   }
 
   export type EmployeeCreateOrConnectWithoutShiftsInput = {
@@ -30140,6 +33957,7 @@ export namespace Prisma {
     tolerance?: number | null
     breakStartTime?: string | null
     breakEndTime?: string | null
+    scheduleByDay?: NullableJsonNullValueInput | InputJsonValue
     isActive?: boolean
     createdAt?: Date | string
     updatedAt?: Date | string
@@ -30157,6 +33975,7 @@ export namespace Prisma {
     tolerance?: number | null
     breakStartTime?: string | null
     breakEndTime?: string | null
+    scheduleByDay?: NullableJsonNullValueInput | InputJsonValue
     isActive?: boolean
     createdAt?: Date | string
     updatedAt?: Date | string
@@ -30229,6 +34048,8 @@ export namespace Prisma {
     notifications?: NotificationUpdateManyWithoutCompanyNestedInput
     auditLogs?: AdminAuditLogUpdateManyWithoutCompanyNestedInput
     departmentShifts?: DepartmentShiftUpdateManyWithoutCompanyNestedInput
+    attendanceDayStatuses?: AttendanceDayStatusUpdateManyWithoutCompanyNestedInput
+    holidays?: CompanyHolidayUpdateManyWithoutCompanyNestedInput
   }
 
   export type CompanyUncheckedUpdateWithoutEmployeeShiftsInput = {
@@ -30280,6 +34101,8 @@ export namespace Prisma {
     notifications?: NotificationUncheckedUpdateManyWithoutCompanyNestedInput
     auditLogs?: AdminAuditLogUncheckedUpdateManyWithoutCompanyNestedInput
     departmentShifts?: DepartmentShiftUncheckedUpdateManyWithoutCompanyNestedInput
+    attendanceDayStatuses?: AttendanceDayStatusUncheckedUpdateManyWithoutCompanyNestedInput
+    holidays?: CompanyHolidayUncheckedUpdateManyWithoutCompanyNestedInput
   }
 
   export type EmployeeUpsertWithoutShiftsInput = {
@@ -30311,6 +34134,7 @@ export namespace Prisma {
     notifications?: NotificationUpdateManyWithoutEmployeeNestedInput
     eventRequests?: EventRequestUpdateManyWithoutEmployeeNestedInput
     branchAccesses?: EmployeeBranchAccessUpdateManyWithoutEmployeeNestedInput
+    attendanceDayStatuses?: AttendanceDayStatusUpdateManyWithoutEmployeeNestedInput
   }
 
   export type EmployeeUncheckedUpdateWithoutShiftsInput = {
@@ -30331,6 +34155,7 @@ export namespace Prisma {
     notifications?: NotificationUncheckedUpdateManyWithoutEmployeeNestedInput
     eventRequests?: EventRequestUncheckedUpdateManyWithoutEmployeeNestedInput
     branchAccesses?: EmployeeBranchAccessUncheckedUpdateManyWithoutEmployeeNestedInput
+    attendanceDayStatuses?: AttendanceDayStatusUncheckedUpdateManyWithoutEmployeeNestedInput
   }
 
   export type ShiftUpsertWithoutEmployeesInput = {
@@ -30351,6 +34176,7 @@ export namespace Prisma {
     tolerance?: NullableIntFieldUpdateOperationsInput | number | null
     breakStartTime?: NullableStringFieldUpdateOperationsInput | string | null
     breakEndTime?: NullableStringFieldUpdateOperationsInput | string | null
+    scheduleByDay?: NullableJsonNullValueInput | InputJsonValue
     isActive?: BoolFieldUpdateOperationsInput | boolean
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -30368,6 +34194,7 @@ export namespace Prisma {
     tolerance?: NullableIntFieldUpdateOperationsInput | number | null
     breakStartTime?: NullableStringFieldUpdateOperationsInput | string | null
     breakEndTime?: NullableStringFieldUpdateOperationsInput | string | null
+    scheduleByDay?: NullableJsonNullValueInput | InputJsonValue
     isActive?: BoolFieldUpdateOperationsInput | boolean
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -30424,6 +34251,8 @@ export namespace Prisma {
     auditLogs?: AdminAuditLogCreateNestedManyWithoutCompanyInput
     departmentShifts?: DepartmentShiftCreateNestedManyWithoutCompanyInput
     employeeShifts?: EmployeeShiftCreateNestedManyWithoutCompanyInput
+    attendanceDayStatuses?: AttendanceDayStatusCreateNestedManyWithoutCompanyInput
+    holidays?: CompanyHolidayCreateNestedManyWithoutCompanyInput
   }
 
   export type CompanyUncheckedCreateWithoutAdminUsersInput = {
@@ -30475,6 +34304,8 @@ export namespace Prisma {
     auditLogs?: AdminAuditLogUncheckedCreateNestedManyWithoutCompanyInput
     departmentShifts?: DepartmentShiftUncheckedCreateNestedManyWithoutCompanyInput
     employeeShifts?: EmployeeShiftUncheckedCreateNestedManyWithoutCompanyInput
+    attendanceDayStatuses?: AttendanceDayStatusUncheckedCreateNestedManyWithoutCompanyInput
+    holidays?: CompanyHolidayUncheckedCreateNestedManyWithoutCompanyInput
   }
 
   export type CompanyCreateOrConnectWithoutAdminUsersInput = {
@@ -30657,6 +34488,8 @@ export namespace Prisma {
     auditLogs?: AdminAuditLogUpdateManyWithoutCompanyNestedInput
     departmentShifts?: DepartmentShiftUpdateManyWithoutCompanyNestedInput
     employeeShifts?: EmployeeShiftUpdateManyWithoutCompanyNestedInput
+    attendanceDayStatuses?: AttendanceDayStatusUpdateManyWithoutCompanyNestedInput
+    holidays?: CompanyHolidayUpdateManyWithoutCompanyNestedInput
   }
 
   export type CompanyUncheckedUpdateWithoutAdminUsersInput = {
@@ -30708,6 +34541,8 @@ export namespace Prisma {
     auditLogs?: AdminAuditLogUncheckedUpdateManyWithoutCompanyNestedInput
     departmentShifts?: DepartmentShiftUncheckedUpdateManyWithoutCompanyNestedInput
     employeeShifts?: EmployeeShiftUncheckedUpdateManyWithoutCompanyNestedInput
+    attendanceDayStatuses?: AttendanceDayStatusUncheckedUpdateManyWithoutCompanyNestedInput
+    holidays?: CompanyHolidayUncheckedUpdateManyWithoutCompanyNestedInput
   }
 
   export type AdminUserUpsertWithoutCreatedUsersInput = {
@@ -30828,6 +34663,8 @@ export namespace Prisma {
     notifications?: NotificationCreateNestedManyWithoutCompanyInput
     departmentShifts?: DepartmentShiftCreateNestedManyWithoutCompanyInput
     employeeShifts?: EmployeeShiftCreateNestedManyWithoutCompanyInput
+    attendanceDayStatuses?: AttendanceDayStatusCreateNestedManyWithoutCompanyInput
+    holidays?: CompanyHolidayCreateNestedManyWithoutCompanyInput
   }
 
   export type CompanyUncheckedCreateWithoutAuditLogsInput = {
@@ -30879,6 +34716,8 @@ export namespace Prisma {
     notifications?: NotificationUncheckedCreateNestedManyWithoutCompanyInput
     departmentShifts?: DepartmentShiftUncheckedCreateNestedManyWithoutCompanyInput
     employeeShifts?: EmployeeShiftUncheckedCreateNestedManyWithoutCompanyInput
+    attendanceDayStatuses?: AttendanceDayStatusUncheckedCreateNestedManyWithoutCompanyInput
+    holidays?: CompanyHolidayUncheckedCreateNestedManyWithoutCompanyInput
   }
 
   export type CompanyCreateOrConnectWithoutAuditLogsInput = {
@@ -30946,6 +34785,8 @@ export namespace Prisma {
     notifications?: NotificationUpdateManyWithoutCompanyNestedInput
     departmentShifts?: DepartmentShiftUpdateManyWithoutCompanyNestedInput
     employeeShifts?: EmployeeShiftUpdateManyWithoutCompanyNestedInput
+    attendanceDayStatuses?: AttendanceDayStatusUpdateManyWithoutCompanyNestedInput
+    holidays?: CompanyHolidayUpdateManyWithoutCompanyNestedInput
   }
 
   export type CompanyUncheckedUpdateWithoutAuditLogsInput = {
@@ -30997,6 +34838,8 @@ export namespace Prisma {
     notifications?: NotificationUncheckedUpdateManyWithoutCompanyNestedInput
     departmentShifts?: DepartmentShiftUncheckedUpdateManyWithoutCompanyNestedInput
     employeeShifts?: EmployeeShiftUncheckedUpdateManyWithoutCompanyNestedInput
+    attendanceDayStatuses?: AttendanceDayStatusUncheckedUpdateManyWithoutCompanyNestedInput
+    holidays?: CompanyHolidayUncheckedUpdateManyWithoutCompanyNestedInput
   }
 
   export type CompanyCreateWithoutNotificationsInput = {
@@ -31048,6 +34891,8 @@ export namespace Prisma {
     auditLogs?: AdminAuditLogCreateNestedManyWithoutCompanyInput
     departmentShifts?: DepartmentShiftCreateNestedManyWithoutCompanyInput
     employeeShifts?: EmployeeShiftCreateNestedManyWithoutCompanyInput
+    attendanceDayStatuses?: AttendanceDayStatusCreateNestedManyWithoutCompanyInput
+    holidays?: CompanyHolidayCreateNestedManyWithoutCompanyInput
   }
 
   export type CompanyUncheckedCreateWithoutNotificationsInput = {
@@ -31099,6 +34944,8 @@ export namespace Prisma {
     auditLogs?: AdminAuditLogUncheckedCreateNestedManyWithoutCompanyInput
     departmentShifts?: DepartmentShiftUncheckedCreateNestedManyWithoutCompanyInput
     employeeShifts?: EmployeeShiftUncheckedCreateNestedManyWithoutCompanyInput
+    attendanceDayStatuses?: AttendanceDayStatusUncheckedCreateNestedManyWithoutCompanyInput
+    holidays?: CompanyHolidayUncheckedCreateNestedManyWithoutCompanyInput
   }
 
   export type CompanyCreateOrConnectWithoutNotificationsInput = {
@@ -31124,6 +34971,7 @@ export namespace Prisma {
     shifts?: EmployeeShiftCreateNestedManyWithoutEmployeeInput
     eventRequests?: EventRequestCreateNestedManyWithoutEmployeeInput
     branchAccesses?: EmployeeBranchAccessCreateNestedManyWithoutEmployeeInput
+    attendanceDayStatuses?: AttendanceDayStatusCreateNestedManyWithoutEmployeeInput
   }
 
   export type EmployeeUncheckedCreateWithoutNotificationsInput = {
@@ -31144,6 +34992,7 @@ export namespace Prisma {
     shifts?: EmployeeShiftUncheckedCreateNestedManyWithoutEmployeeInput
     eventRequests?: EventRequestUncheckedCreateNestedManyWithoutEmployeeInput
     branchAccesses?: EmployeeBranchAccessUncheckedCreateNestedManyWithoutEmployeeInput
+    attendanceDayStatuses?: AttendanceDayStatusUncheckedCreateNestedManyWithoutEmployeeInput
   }
 
   export type EmployeeCreateOrConnectWithoutNotificationsInput = {
@@ -31211,6 +35060,8 @@ export namespace Prisma {
     auditLogs?: AdminAuditLogUpdateManyWithoutCompanyNestedInput
     departmentShifts?: DepartmentShiftUpdateManyWithoutCompanyNestedInput
     employeeShifts?: EmployeeShiftUpdateManyWithoutCompanyNestedInput
+    attendanceDayStatuses?: AttendanceDayStatusUpdateManyWithoutCompanyNestedInput
+    holidays?: CompanyHolidayUpdateManyWithoutCompanyNestedInput
   }
 
   export type CompanyUncheckedUpdateWithoutNotificationsInput = {
@@ -31262,6 +35113,8 @@ export namespace Prisma {
     auditLogs?: AdminAuditLogUncheckedUpdateManyWithoutCompanyNestedInput
     departmentShifts?: DepartmentShiftUncheckedUpdateManyWithoutCompanyNestedInput
     employeeShifts?: EmployeeShiftUncheckedUpdateManyWithoutCompanyNestedInput
+    attendanceDayStatuses?: AttendanceDayStatusUncheckedUpdateManyWithoutCompanyNestedInput
+    holidays?: CompanyHolidayUncheckedUpdateManyWithoutCompanyNestedInput
   }
 
   export type EmployeeUpsertWithoutNotificationsInput = {
@@ -31293,6 +35146,7 @@ export namespace Prisma {
     shifts?: EmployeeShiftUpdateManyWithoutEmployeeNestedInput
     eventRequests?: EventRequestUpdateManyWithoutEmployeeNestedInput
     branchAccesses?: EmployeeBranchAccessUpdateManyWithoutEmployeeNestedInput
+    attendanceDayStatuses?: AttendanceDayStatusUpdateManyWithoutEmployeeNestedInput
   }
 
   export type EmployeeUncheckedUpdateWithoutNotificationsInput = {
@@ -31313,6 +35167,7 @@ export namespace Prisma {
     shifts?: EmployeeShiftUncheckedUpdateManyWithoutEmployeeNestedInput
     eventRequests?: EventRequestUncheckedUpdateManyWithoutEmployeeNestedInput
     branchAccesses?: EmployeeBranchAccessUncheckedUpdateManyWithoutEmployeeNestedInput
+    attendanceDayStatuses?: AttendanceDayStatusUncheckedUpdateManyWithoutEmployeeNestedInput
   }
 
   export type CompanyCreateWithoutEventsInput = {
@@ -31364,6 +35219,8 @@ export namespace Prisma {
     auditLogs?: AdminAuditLogCreateNestedManyWithoutCompanyInput
     departmentShifts?: DepartmentShiftCreateNestedManyWithoutCompanyInput
     employeeShifts?: EmployeeShiftCreateNestedManyWithoutCompanyInput
+    attendanceDayStatuses?: AttendanceDayStatusCreateNestedManyWithoutCompanyInput
+    holidays?: CompanyHolidayCreateNestedManyWithoutCompanyInput
   }
 
   export type CompanyUncheckedCreateWithoutEventsInput = {
@@ -31415,6 +35272,8 @@ export namespace Prisma {
     auditLogs?: AdminAuditLogUncheckedCreateNestedManyWithoutCompanyInput
     departmentShifts?: DepartmentShiftUncheckedCreateNestedManyWithoutCompanyInput
     employeeShifts?: EmployeeShiftUncheckedCreateNestedManyWithoutCompanyInput
+    attendanceDayStatuses?: AttendanceDayStatusUncheckedCreateNestedManyWithoutCompanyInput
+    holidays?: CompanyHolidayUncheckedCreateNestedManyWithoutCompanyInput
   }
 
   export type CompanyCreateOrConnectWithoutEventsInput = {
@@ -31440,6 +35299,7 @@ export namespace Prisma {
     shifts?: EmployeeShiftCreateNestedManyWithoutEmployeeInput
     notifications?: NotificationCreateNestedManyWithoutEmployeeInput
     branchAccesses?: EmployeeBranchAccessCreateNestedManyWithoutEmployeeInput
+    attendanceDayStatuses?: AttendanceDayStatusCreateNestedManyWithoutEmployeeInput
   }
 
   export type EmployeeUncheckedCreateWithoutEventRequestsInput = {
@@ -31460,6 +35320,7 @@ export namespace Prisma {
     shifts?: EmployeeShiftUncheckedCreateNestedManyWithoutEmployeeInput
     notifications?: NotificationUncheckedCreateNestedManyWithoutEmployeeInput
     branchAccesses?: EmployeeBranchAccessUncheckedCreateNestedManyWithoutEmployeeInput
+    attendanceDayStatuses?: AttendanceDayStatusUncheckedCreateNestedManyWithoutEmployeeInput
   }
 
   export type EmployeeCreateOrConnectWithoutEventRequestsInput = {
@@ -31558,6 +35419,8 @@ export namespace Prisma {
     auditLogs?: AdminAuditLogUpdateManyWithoutCompanyNestedInput
     departmentShifts?: DepartmentShiftUpdateManyWithoutCompanyNestedInput
     employeeShifts?: EmployeeShiftUpdateManyWithoutCompanyNestedInput
+    attendanceDayStatuses?: AttendanceDayStatusUpdateManyWithoutCompanyNestedInput
+    holidays?: CompanyHolidayUpdateManyWithoutCompanyNestedInput
   }
 
   export type CompanyUncheckedUpdateWithoutEventsInput = {
@@ -31609,6 +35472,8 @@ export namespace Prisma {
     auditLogs?: AdminAuditLogUncheckedUpdateManyWithoutCompanyNestedInput
     departmentShifts?: DepartmentShiftUncheckedUpdateManyWithoutCompanyNestedInput
     employeeShifts?: EmployeeShiftUncheckedUpdateManyWithoutCompanyNestedInput
+    attendanceDayStatuses?: AttendanceDayStatusUncheckedUpdateManyWithoutCompanyNestedInput
+    holidays?: CompanyHolidayUncheckedUpdateManyWithoutCompanyNestedInput
   }
 
   export type EmployeeUpsertWithoutEventRequestsInput = {
@@ -31640,6 +35505,7 @@ export namespace Prisma {
     shifts?: EmployeeShiftUpdateManyWithoutEmployeeNestedInput
     notifications?: NotificationUpdateManyWithoutEmployeeNestedInput
     branchAccesses?: EmployeeBranchAccessUpdateManyWithoutEmployeeNestedInput
+    attendanceDayStatuses?: AttendanceDayStatusUpdateManyWithoutEmployeeNestedInput
   }
 
   export type EmployeeUncheckedUpdateWithoutEventRequestsInput = {
@@ -31660,6 +35526,7 @@ export namespace Prisma {
     shifts?: EmployeeShiftUncheckedUpdateManyWithoutEmployeeNestedInput
     notifications?: NotificationUncheckedUpdateManyWithoutEmployeeNestedInput
     branchAccesses?: EmployeeBranchAccessUncheckedUpdateManyWithoutEmployeeNestedInput
+    attendanceDayStatuses?: AttendanceDayStatusUncheckedUpdateManyWithoutEmployeeNestedInput
   }
 
   export type AdminUserUpsertWithoutEventRequestsInput = {
@@ -31748,6 +35615,8 @@ export namespace Prisma {
     auditLogs?: AdminAuditLogCreateNestedManyWithoutCompanyInput
     departmentShifts?: DepartmentShiftCreateNestedManyWithoutCompanyInput
     employeeShifts?: EmployeeShiftCreateNestedManyWithoutCompanyInput
+    attendanceDayStatuses?: AttendanceDayStatusCreateNestedManyWithoutCompanyInput
+    holidays?: CompanyHolidayCreateNestedManyWithoutCompanyInput
   }
 
   export type CompanyUncheckedCreateWithoutSettingsInput = {
@@ -31799,6 +35668,8 @@ export namespace Prisma {
     auditLogs?: AdminAuditLogUncheckedCreateNestedManyWithoutCompanyInput
     departmentShifts?: DepartmentShiftUncheckedCreateNestedManyWithoutCompanyInput
     employeeShifts?: EmployeeShiftUncheckedCreateNestedManyWithoutCompanyInput
+    attendanceDayStatuses?: AttendanceDayStatusUncheckedCreateNestedManyWithoutCompanyInput
+    holidays?: CompanyHolidayUncheckedCreateNestedManyWithoutCompanyInput
   }
 
   export type CompanyCreateOrConnectWithoutSettingsInput = {
@@ -31866,6 +35737,8 @@ export namespace Prisma {
     auditLogs?: AdminAuditLogUpdateManyWithoutCompanyNestedInput
     departmentShifts?: DepartmentShiftUpdateManyWithoutCompanyNestedInput
     employeeShifts?: EmployeeShiftUpdateManyWithoutCompanyNestedInput
+    attendanceDayStatuses?: AttendanceDayStatusUpdateManyWithoutCompanyNestedInput
+    holidays?: CompanyHolidayUpdateManyWithoutCompanyNestedInput
   }
 
   export type CompanyUncheckedUpdateWithoutSettingsInput = {
@@ -31917,6 +35790,8 @@ export namespace Prisma {
     auditLogs?: AdminAuditLogUncheckedUpdateManyWithoutCompanyNestedInput
     departmentShifts?: DepartmentShiftUncheckedUpdateManyWithoutCompanyNestedInput
     employeeShifts?: EmployeeShiftUncheckedUpdateManyWithoutCompanyNestedInput
+    attendanceDayStatuses?: AttendanceDayStatusUncheckedUpdateManyWithoutCompanyNestedInput
+    holidays?: CompanyHolidayUncheckedUpdateManyWithoutCompanyNestedInput
   }
 
   export type CompanyCreateWithoutDevicesInput = {
@@ -31968,6 +35843,8 @@ export namespace Prisma {
     auditLogs?: AdminAuditLogCreateNestedManyWithoutCompanyInput
     departmentShifts?: DepartmentShiftCreateNestedManyWithoutCompanyInput
     employeeShifts?: EmployeeShiftCreateNestedManyWithoutCompanyInput
+    attendanceDayStatuses?: AttendanceDayStatusCreateNestedManyWithoutCompanyInput
+    holidays?: CompanyHolidayCreateNestedManyWithoutCompanyInput
   }
 
   export type CompanyUncheckedCreateWithoutDevicesInput = {
@@ -32019,6 +35896,8 @@ export namespace Prisma {
     auditLogs?: AdminAuditLogUncheckedCreateNestedManyWithoutCompanyInput
     departmentShifts?: DepartmentShiftUncheckedCreateNestedManyWithoutCompanyInput
     employeeShifts?: EmployeeShiftUncheckedCreateNestedManyWithoutCompanyInput
+    attendanceDayStatuses?: AttendanceDayStatusUncheckedCreateNestedManyWithoutCompanyInput
+    holidays?: CompanyHolidayUncheckedCreateNestedManyWithoutCompanyInput
   }
 
   export type CompanyCreateOrConnectWithoutDevicesInput = {
@@ -32135,6 +36014,8 @@ export namespace Prisma {
     auditLogs?: AdminAuditLogUpdateManyWithoutCompanyNestedInput
     departmentShifts?: DepartmentShiftUpdateManyWithoutCompanyNestedInput
     employeeShifts?: EmployeeShiftUpdateManyWithoutCompanyNestedInput
+    attendanceDayStatuses?: AttendanceDayStatusUpdateManyWithoutCompanyNestedInput
+    holidays?: CompanyHolidayUpdateManyWithoutCompanyNestedInput
   }
 
   export type CompanyUncheckedUpdateWithoutDevicesInput = {
@@ -32186,6 +36067,8 @@ export namespace Prisma {
     auditLogs?: AdminAuditLogUncheckedUpdateManyWithoutCompanyNestedInput
     departmentShifts?: DepartmentShiftUncheckedUpdateManyWithoutCompanyNestedInput
     employeeShifts?: EmployeeShiftUncheckedUpdateManyWithoutCompanyNestedInput
+    attendanceDayStatuses?: AttendanceDayStatusUncheckedUpdateManyWithoutCompanyNestedInput
+    holidays?: CompanyHolidayUncheckedUpdateManyWithoutCompanyNestedInput
   }
 
   export type AttendanceRecordUpsertWithWhereUniqueWithoutDeviceInput = {
@@ -32253,6 +36136,8 @@ export namespace Prisma {
     auditLogs?: AdminAuditLogCreateNestedManyWithoutCompanyInput
     departmentShifts?: DepartmentShiftCreateNestedManyWithoutCompanyInput
     employeeShifts?: EmployeeShiftCreateNestedManyWithoutCompanyInput
+    attendanceDayStatuses?: AttendanceDayStatusCreateNestedManyWithoutCompanyInput
+    holidays?: CompanyHolidayCreateNestedManyWithoutCompanyInput
   }
 
   export type CompanyUncheckedCreateWithoutAuthRequestsInput = {
@@ -32304,6 +36189,8 @@ export namespace Prisma {
     auditLogs?: AdminAuditLogUncheckedCreateNestedManyWithoutCompanyInput
     departmentShifts?: DepartmentShiftUncheckedCreateNestedManyWithoutCompanyInput
     employeeShifts?: EmployeeShiftUncheckedCreateNestedManyWithoutCompanyInput
+    attendanceDayStatuses?: AttendanceDayStatusUncheckedCreateNestedManyWithoutCompanyInput
+    holidays?: CompanyHolidayUncheckedCreateNestedManyWithoutCompanyInput
   }
 
   export type CompanyCreateOrConnectWithoutAuthRequestsInput = {
@@ -32371,6 +36258,8 @@ export namespace Prisma {
     auditLogs?: AdminAuditLogUpdateManyWithoutCompanyNestedInput
     departmentShifts?: DepartmentShiftUpdateManyWithoutCompanyNestedInput
     employeeShifts?: EmployeeShiftUpdateManyWithoutCompanyNestedInput
+    attendanceDayStatuses?: AttendanceDayStatusUpdateManyWithoutCompanyNestedInput
+    holidays?: CompanyHolidayUpdateManyWithoutCompanyNestedInput
   }
 
   export type CompanyUncheckedUpdateWithoutAuthRequestsInput = {
@@ -32422,6 +36311,8 @@ export namespace Prisma {
     auditLogs?: AdminAuditLogUncheckedUpdateManyWithoutCompanyNestedInput
     departmentShifts?: DepartmentShiftUncheckedUpdateManyWithoutCompanyNestedInput
     employeeShifts?: EmployeeShiftUncheckedUpdateManyWithoutCompanyNestedInput
+    attendanceDayStatuses?: AttendanceDayStatusUncheckedUpdateManyWithoutCompanyNestedInput
+    holidays?: CompanyHolidayUncheckedUpdateManyWithoutCompanyNestedInput
   }
 
   export type EmployeeCreateWithoutBranchAccessesInput = {
@@ -32442,6 +36333,7 @@ export namespace Prisma {
     shifts?: EmployeeShiftCreateNestedManyWithoutEmployeeInput
     notifications?: NotificationCreateNestedManyWithoutEmployeeInput
     eventRequests?: EventRequestCreateNestedManyWithoutEmployeeInput
+    attendanceDayStatuses?: AttendanceDayStatusCreateNestedManyWithoutEmployeeInput
   }
 
   export type EmployeeUncheckedCreateWithoutBranchAccessesInput = {
@@ -32462,6 +36354,7 @@ export namespace Prisma {
     shifts?: EmployeeShiftUncheckedCreateNestedManyWithoutEmployeeInput
     notifications?: NotificationUncheckedCreateNestedManyWithoutEmployeeInput
     eventRequests?: EventRequestUncheckedCreateNestedManyWithoutEmployeeInput
+    attendanceDayStatuses?: AttendanceDayStatusUncheckedCreateNestedManyWithoutEmployeeInput
   }
 
   export type EmployeeCreateOrConnectWithoutBranchAccessesInput = {
@@ -32518,6 +36411,8 @@ export namespace Prisma {
     auditLogs?: AdminAuditLogCreateNestedManyWithoutCompanyInput
     departmentShifts?: DepartmentShiftCreateNestedManyWithoutCompanyInput
     employeeShifts?: EmployeeShiftCreateNestedManyWithoutCompanyInput
+    attendanceDayStatuses?: AttendanceDayStatusCreateNestedManyWithoutCompanyInput
+    holidays?: CompanyHolidayCreateNestedManyWithoutCompanyInput
   }
 
   export type CompanyUncheckedCreateWithoutBranchAccessesInput = {
@@ -32569,6 +36464,8 @@ export namespace Prisma {
     auditLogs?: AdminAuditLogUncheckedCreateNestedManyWithoutCompanyInput
     departmentShifts?: DepartmentShiftUncheckedCreateNestedManyWithoutCompanyInput
     employeeShifts?: EmployeeShiftUncheckedCreateNestedManyWithoutCompanyInput
+    attendanceDayStatuses?: AttendanceDayStatusUncheckedCreateNestedManyWithoutCompanyInput
+    holidays?: CompanyHolidayUncheckedCreateNestedManyWithoutCompanyInput
   }
 
   export type CompanyCreateOrConnectWithoutBranchAccessesInput = {
@@ -32605,6 +36502,7 @@ export namespace Prisma {
     shifts?: EmployeeShiftUpdateManyWithoutEmployeeNestedInput
     notifications?: NotificationUpdateManyWithoutEmployeeNestedInput
     eventRequests?: EventRequestUpdateManyWithoutEmployeeNestedInput
+    attendanceDayStatuses?: AttendanceDayStatusUpdateManyWithoutEmployeeNestedInput
   }
 
   export type EmployeeUncheckedUpdateWithoutBranchAccessesInput = {
@@ -32625,6 +36523,7 @@ export namespace Prisma {
     shifts?: EmployeeShiftUncheckedUpdateManyWithoutEmployeeNestedInput
     notifications?: NotificationUncheckedUpdateManyWithoutEmployeeNestedInput
     eventRequests?: EventRequestUncheckedUpdateManyWithoutEmployeeNestedInput
+    attendanceDayStatuses?: AttendanceDayStatusUncheckedUpdateManyWithoutEmployeeNestedInput
   }
 
   export type CompanyUpsertWithoutBranchAccessesInput = {
@@ -32687,6 +36586,8 @@ export namespace Prisma {
     auditLogs?: AdminAuditLogUpdateManyWithoutCompanyNestedInput
     departmentShifts?: DepartmentShiftUpdateManyWithoutCompanyNestedInput
     employeeShifts?: EmployeeShiftUpdateManyWithoutCompanyNestedInput
+    attendanceDayStatuses?: AttendanceDayStatusUpdateManyWithoutCompanyNestedInput
+    holidays?: CompanyHolidayUpdateManyWithoutCompanyNestedInput
   }
 
   export type CompanyUncheckedUpdateWithoutBranchAccessesInput = {
@@ -32738,6 +36639,564 @@ export namespace Prisma {
     auditLogs?: AdminAuditLogUncheckedUpdateManyWithoutCompanyNestedInput
     departmentShifts?: DepartmentShiftUncheckedUpdateManyWithoutCompanyNestedInput
     employeeShifts?: EmployeeShiftUncheckedUpdateManyWithoutCompanyNestedInput
+    attendanceDayStatuses?: AttendanceDayStatusUncheckedUpdateManyWithoutCompanyNestedInput
+    holidays?: CompanyHolidayUncheckedUpdateManyWithoutCompanyNestedInput
+  }
+
+  export type CompanyCreateWithoutAttendanceDayStatusesInput = {
+    id?: string
+    name: string
+    slug: string
+    customDomain?: string | null
+    plan?: string
+    isActive?: boolean
+    suspendedAt?: Date | string | null
+    suspensionReason?: string | null
+    suspendedById?: string | null
+    suspendedByName?: string | null
+    suspensionGraceDays?: number | null
+    suspensionExpiresAt?: Date | string | null
+    deletionAlertSent?: boolean
+    deletionAlertAt?: Date | string | null
+    maxEmployees?: number
+    maxDevices?: number
+    timezone?: string
+    lastAbsenceDateRun?: Date | string | null
+    descriptorsVersion?: number
+    createdAt?: Date | string
+    updatedAt?: Date | string
+    isHolding?: boolean
+    maxBranches?: number | null
+    customPrice?: Decimal | DecimalJsLike | number | string | null
+    billingCycle?: string
+    licenseStartDate?: Date | string | null
+    nextBillingDate?: Date | string | null
+    isExempt?: boolean
+    billingEmail?: string | null
+    billingPhone?: string | null
+    billingContactName?: string | null
+    billingNoticeDays?: number
+    lastReminderSentAt?: Date | string | null
+    parentCompany?: CompanyCreateNestedOneWithoutBranchesInput
+    branches?: CompanyCreateNestedManyWithoutParentCompanyInput
+    branchAccesses?: EmployeeBranchAccessCreateNestedManyWithoutBranchInput
+    employees?: EmployeeCreateNestedManyWithoutCompanyInput
+    departments?: DepartmentCreateNestedManyWithoutCompanyInput
+    shifts?: ShiftCreateNestedManyWithoutCompanyInput
+    devices?: DeviceCreateNestedManyWithoutCompanyInput
+    authRequests?: DeviceAuthRequestCreateNestedManyWithoutCompanyInput
+    adminUsers?: AdminUserCreateNestedManyWithoutCompanyInput
+    settings?: SystemSettingsCreateNestedOneWithoutCompanyInput
+    attendances?: AttendanceRecordCreateNestedManyWithoutCompanyInput
+    events?: EventRequestCreateNestedManyWithoutCompanyInput
+    notifications?: NotificationCreateNestedManyWithoutCompanyInput
+    auditLogs?: AdminAuditLogCreateNestedManyWithoutCompanyInput
+    departmentShifts?: DepartmentShiftCreateNestedManyWithoutCompanyInput
+    employeeShifts?: EmployeeShiftCreateNestedManyWithoutCompanyInput
+    holidays?: CompanyHolidayCreateNestedManyWithoutCompanyInput
+  }
+
+  export type CompanyUncheckedCreateWithoutAttendanceDayStatusesInput = {
+    id?: string
+    name: string
+    slug: string
+    customDomain?: string | null
+    plan?: string
+    isActive?: boolean
+    suspendedAt?: Date | string | null
+    suspensionReason?: string | null
+    suspendedById?: string | null
+    suspendedByName?: string | null
+    suspensionGraceDays?: number | null
+    suspensionExpiresAt?: Date | string | null
+    deletionAlertSent?: boolean
+    deletionAlertAt?: Date | string | null
+    maxEmployees?: number
+    maxDevices?: number
+    timezone?: string
+    lastAbsenceDateRun?: Date | string | null
+    descriptorsVersion?: number
+    createdAt?: Date | string
+    updatedAt?: Date | string
+    parentCompanyId?: string | null
+    isHolding?: boolean
+    maxBranches?: number | null
+    customPrice?: Decimal | DecimalJsLike | number | string | null
+    billingCycle?: string
+    licenseStartDate?: Date | string | null
+    nextBillingDate?: Date | string | null
+    isExempt?: boolean
+    billingEmail?: string | null
+    billingPhone?: string | null
+    billingContactName?: string | null
+    billingNoticeDays?: number
+    lastReminderSentAt?: Date | string | null
+    branches?: CompanyUncheckedCreateNestedManyWithoutParentCompanyInput
+    branchAccesses?: EmployeeBranchAccessUncheckedCreateNestedManyWithoutBranchInput
+    employees?: EmployeeUncheckedCreateNestedManyWithoutCompanyInput
+    departments?: DepartmentUncheckedCreateNestedManyWithoutCompanyInput
+    shifts?: ShiftUncheckedCreateNestedManyWithoutCompanyInput
+    devices?: DeviceUncheckedCreateNestedManyWithoutCompanyInput
+    authRequests?: DeviceAuthRequestUncheckedCreateNestedManyWithoutCompanyInput
+    adminUsers?: AdminUserUncheckedCreateNestedManyWithoutCompanyInput
+    settings?: SystemSettingsUncheckedCreateNestedOneWithoutCompanyInput
+    attendances?: AttendanceRecordUncheckedCreateNestedManyWithoutCompanyInput
+    events?: EventRequestUncheckedCreateNestedManyWithoutCompanyInput
+    notifications?: NotificationUncheckedCreateNestedManyWithoutCompanyInput
+    auditLogs?: AdminAuditLogUncheckedCreateNestedManyWithoutCompanyInput
+    departmentShifts?: DepartmentShiftUncheckedCreateNestedManyWithoutCompanyInput
+    employeeShifts?: EmployeeShiftUncheckedCreateNestedManyWithoutCompanyInput
+    holidays?: CompanyHolidayUncheckedCreateNestedManyWithoutCompanyInput
+  }
+
+  export type CompanyCreateOrConnectWithoutAttendanceDayStatusesInput = {
+    where: CompanyWhereUniqueInput
+    create: XOR<CompanyCreateWithoutAttendanceDayStatusesInput, CompanyUncheckedCreateWithoutAttendanceDayStatusesInput>
+  }
+
+  export type EmployeeCreateWithoutAttendanceDayStatusesInput = {
+    id?: string
+    firstName: string
+    lastName: string
+    identifier: string
+    email?: string | null
+    position?: string | null
+    faceDescriptor?: string | null
+    enrolledAt?: Date | string | null
+    isActive?: boolean
+    createdAt?: Date | string
+    updatedAt?: Date | string
+    company: CompanyCreateNestedOneWithoutEmployeesInput
+    department?: DepartmentCreateNestedOneWithoutEmployeesInput
+    attendances?: AttendanceRecordCreateNestedManyWithoutEmployeeInput
+    shifts?: EmployeeShiftCreateNestedManyWithoutEmployeeInput
+    notifications?: NotificationCreateNestedManyWithoutEmployeeInput
+    eventRequests?: EventRequestCreateNestedManyWithoutEmployeeInput
+    branchAccesses?: EmployeeBranchAccessCreateNestedManyWithoutEmployeeInput
+  }
+
+  export type EmployeeUncheckedCreateWithoutAttendanceDayStatusesInput = {
+    id?: string
+    companyId: string
+    firstName: string
+    lastName: string
+    identifier: string
+    email?: string | null
+    position?: string | null
+    departmentId?: number | null
+    faceDescriptor?: string | null
+    enrolledAt?: Date | string | null
+    isActive?: boolean
+    createdAt?: Date | string
+    updatedAt?: Date | string
+    attendances?: AttendanceRecordUncheckedCreateNestedManyWithoutEmployeeInput
+    shifts?: EmployeeShiftUncheckedCreateNestedManyWithoutEmployeeInput
+    notifications?: NotificationUncheckedCreateNestedManyWithoutEmployeeInput
+    eventRequests?: EventRequestUncheckedCreateNestedManyWithoutEmployeeInput
+    branchAccesses?: EmployeeBranchAccessUncheckedCreateNestedManyWithoutEmployeeInput
+  }
+
+  export type EmployeeCreateOrConnectWithoutAttendanceDayStatusesInput = {
+    where: EmployeeWhereUniqueInput
+    create: XOR<EmployeeCreateWithoutAttendanceDayStatusesInput, EmployeeUncheckedCreateWithoutAttendanceDayStatusesInput>
+  }
+
+  export type CompanyUpsertWithoutAttendanceDayStatusesInput = {
+    update: XOR<CompanyUpdateWithoutAttendanceDayStatusesInput, CompanyUncheckedUpdateWithoutAttendanceDayStatusesInput>
+    create: XOR<CompanyCreateWithoutAttendanceDayStatusesInput, CompanyUncheckedCreateWithoutAttendanceDayStatusesInput>
+    where?: CompanyWhereInput
+  }
+
+  export type CompanyUpdateToOneWithWhereWithoutAttendanceDayStatusesInput = {
+    where?: CompanyWhereInput
+    data: XOR<CompanyUpdateWithoutAttendanceDayStatusesInput, CompanyUncheckedUpdateWithoutAttendanceDayStatusesInput>
+  }
+
+  export type CompanyUpdateWithoutAttendanceDayStatusesInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    name?: StringFieldUpdateOperationsInput | string
+    slug?: StringFieldUpdateOperationsInput | string
+    customDomain?: NullableStringFieldUpdateOperationsInput | string | null
+    plan?: StringFieldUpdateOperationsInput | string
+    isActive?: BoolFieldUpdateOperationsInput | boolean
+    suspendedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    suspensionReason?: NullableStringFieldUpdateOperationsInput | string | null
+    suspendedById?: NullableStringFieldUpdateOperationsInput | string | null
+    suspendedByName?: NullableStringFieldUpdateOperationsInput | string | null
+    suspensionGraceDays?: NullableIntFieldUpdateOperationsInput | number | null
+    suspensionExpiresAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    deletionAlertSent?: BoolFieldUpdateOperationsInput | boolean
+    deletionAlertAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    maxEmployees?: IntFieldUpdateOperationsInput | number
+    maxDevices?: IntFieldUpdateOperationsInput | number
+    timezone?: StringFieldUpdateOperationsInput | string
+    lastAbsenceDateRun?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    descriptorsVersion?: IntFieldUpdateOperationsInput | number
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    isHolding?: BoolFieldUpdateOperationsInput | boolean
+    maxBranches?: NullableIntFieldUpdateOperationsInput | number | null
+    customPrice?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    billingCycle?: StringFieldUpdateOperationsInput | string
+    licenseStartDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    nextBillingDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    isExempt?: BoolFieldUpdateOperationsInput | boolean
+    billingEmail?: NullableStringFieldUpdateOperationsInput | string | null
+    billingPhone?: NullableStringFieldUpdateOperationsInput | string | null
+    billingContactName?: NullableStringFieldUpdateOperationsInput | string | null
+    billingNoticeDays?: IntFieldUpdateOperationsInput | number
+    lastReminderSentAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    parentCompany?: CompanyUpdateOneWithoutBranchesNestedInput
+    branches?: CompanyUpdateManyWithoutParentCompanyNestedInput
+    branchAccesses?: EmployeeBranchAccessUpdateManyWithoutBranchNestedInput
+    employees?: EmployeeUpdateManyWithoutCompanyNestedInput
+    departments?: DepartmentUpdateManyWithoutCompanyNestedInput
+    shifts?: ShiftUpdateManyWithoutCompanyNestedInput
+    devices?: DeviceUpdateManyWithoutCompanyNestedInput
+    authRequests?: DeviceAuthRequestUpdateManyWithoutCompanyNestedInput
+    adminUsers?: AdminUserUpdateManyWithoutCompanyNestedInput
+    settings?: SystemSettingsUpdateOneWithoutCompanyNestedInput
+    attendances?: AttendanceRecordUpdateManyWithoutCompanyNestedInput
+    events?: EventRequestUpdateManyWithoutCompanyNestedInput
+    notifications?: NotificationUpdateManyWithoutCompanyNestedInput
+    auditLogs?: AdminAuditLogUpdateManyWithoutCompanyNestedInput
+    departmentShifts?: DepartmentShiftUpdateManyWithoutCompanyNestedInput
+    employeeShifts?: EmployeeShiftUpdateManyWithoutCompanyNestedInput
+    holidays?: CompanyHolidayUpdateManyWithoutCompanyNestedInput
+  }
+
+  export type CompanyUncheckedUpdateWithoutAttendanceDayStatusesInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    name?: StringFieldUpdateOperationsInput | string
+    slug?: StringFieldUpdateOperationsInput | string
+    customDomain?: NullableStringFieldUpdateOperationsInput | string | null
+    plan?: StringFieldUpdateOperationsInput | string
+    isActive?: BoolFieldUpdateOperationsInput | boolean
+    suspendedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    suspensionReason?: NullableStringFieldUpdateOperationsInput | string | null
+    suspendedById?: NullableStringFieldUpdateOperationsInput | string | null
+    suspendedByName?: NullableStringFieldUpdateOperationsInput | string | null
+    suspensionGraceDays?: NullableIntFieldUpdateOperationsInput | number | null
+    suspensionExpiresAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    deletionAlertSent?: BoolFieldUpdateOperationsInput | boolean
+    deletionAlertAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    maxEmployees?: IntFieldUpdateOperationsInput | number
+    maxDevices?: IntFieldUpdateOperationsInput | number
+    timezone?: StringFieldUpdateOperationsInput | string
+    lastAbsenceDateRun?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    descriptorsVersion?: IntFieldUpdateOperationsInput | number
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    parentCompanyId?: NullableStringFieldUpdateOperationsInput | string | null
+    isHolding?: BoolFieldUpdateOperationsInput | boolean
+    maxBranches?: NullableIntFieldUpdateOperationsInput | number | null
+    customPrice?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    billingCycle?: StringFieldUpdateOperationsInput | string
+    licenseStartDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    nextBillingDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    isExempt?: BoolFieldUpdateOperationsInput | boolean
+    billingEmail?: NullableStringFieldUpdateOperationsInput | string | null
+    billingPhone?: NullableStringFieldUpdateOperationsInput | string | null
+    billingContactName?: NullableStringFieldUpdateOperationsInput | string | null
+    billingNoticeDays?: IntFieldUpdateOperationsInput | number
+    lastReminderSentAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    branches?: CompanyUncheckedUpdateManyWithoutParentCompanyNestedInput
+    branchAccesses?: EmployeeBranchAccessUncheckedUpdateManyWithoutBranchNestedInput
+    employees?: EmployeeUncheckedUpdateManyWithoutCompanyNestedInput
+    departments?: DepartmentUncheckedUpdateManyWithoutCompanyNestedInput
+    shifts?: ShiftUncheckedUpdateManyWithoutCompanyNestedInput
+    devices?: DeviceUncheckedUpdateManyWithoutCompanyNestedInput
+    authRequests?: DeviceAuthRequestUncheckedUpdateManyWithoutCompanyNestedInput
+    adminUsers?: AdminUserUncheckedUpdateManyWithoutCompanyNestedInput
+    settings?: SystemSettingsUncheckedUpdateOneWithoutCompanyNestedInput
+    attendances?: AttendanceRecordUncheckedUpdateManyWithoutCompanyNestedInput
+    events?: EventRequestUncheckedUpdateManyWithoutCompanyNestedInput
+    notifications?: NotificationUncheckedUpdateManyWithoutCompanyNestedInput
+    auditLogs?: AdminAuditLogUncheckedUpdateManyWithoutCompanyNestedInput
+    departmentShifts?: DepartmentShiftUncheckedUpdateManyWithoutCompanyNestedInput
+    employeeShifts?: EmployeeShiftUncheckedUpdateManyWithoutCompanyNestedInput
+    holidays?: CompanyHolidayUncheckedUpdateManyWithoutCompanyNestedInput
+  }
+
+  export type EmployeeUpsertWithoutAttendanceDayStatusesInput = {
+    update: XOR<EmployeeUpdateWithoutAttendanceDayStatusesInput, EmployeeUncheckedUpdateWithoutAttendanceDayStatusesInput>
+    create: XOR<EmployeeCreateWithoutAttendanceDayStatusesInput, EmployeeUncheckedCreateWithoutAttendanceDayStatusesInput>
+    where?: EmployeeWhereInput
+  }
+
+  export type EmployeeUpdateToOneWithWhereWithoutAttendanceDayStatusesInput = {
+    where?: EmployeeWhereInput
+    data: XOR<EmployeeUpdateWithoutAttendanceDayStatusesInput, EmployeeUncheckedUpdateWithoutAttendanceDayStatusesInput>
+  }
+
+  export type EmployeeUpdateWithoutAttendanceDayStatusesInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    firstName?: StringFieldUpdateOperationsInput | string
+    lastName?: StringFieldUpdateOperationsInput | string
+    identifier?: StringFieldUpdateOperationsInput | string
+    email?: NullableStringFieldUpdateOperationsInput | string | null
+    position?: NullableStringFieldUpdateOperationsInput | string | null
+    faceDescriptor?: NullableStringFieldUpdateOperationsInput | string | null
+    enrolledAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    isActive?: BoolFieldUpdateOperationsInput | boolean
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    company?: CompanyUpdateOneRequiredWithoutEmployeesNestedInput
+    department?: DepartmentUpdateOneWithoutEmployeesNestedInput
+    attendances?: AttendanceRecordUpdateManyWithoutEmployeeNestedInput
+    shifts?: EmployeeShiftUpdateManyWithoutEmployeeNestedInput
+    notifications?: NotificationUpdateManyWithoutEmployeeNestedInput
+    eventRequests?: EventRequestUpdateManyWithoutEmployeeNestedInput
+    branchAccesses?: EmployeeBranchAccessUpdateManyWithoutEmployeeNestedInput
+  }
+
+  export type EmployeeUncheckedUpdateWithoutAttendanceDayStatusesInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    companyId?: StringFieldUpdateOperationsInput | string
+    firstName?: StringFieldUpdateOperationsInput | string
+    lastName?: StringFieldUpdateOperationsInput | string
+    identifier?: StringFieldUpdateOperationsInput | string
+    email?: NullableStringFieldUpdateOperationsInput | string | null
+    position?: NullableStringFieldUpdateOperationsInput | string | null
+    departmentId?: NullableIntFieldUpdateOperationsInput | number | null
+    faceDescriptor?: NullableStringFieldUpdateOperationsInput | string | null
+    enrolledAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    isActive?: BoolFieldUpdateOperationsInput | boolean
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    attendances?: AttendanceRecordUncheckedUpdateManyWithoutEmployeeNestedInput
+    shifts?: EmployeeShiftUncheckedUpdateManyWithoutEmployeeNestedInput
+    notifications?: NotificationUncheckedUpdateManyWithoutEmployeeNestedInput
+    eventRequests?: EventRequestUncheckedUpdateManyWithoutEmployeeNestedInput
+    branchAccesses?: EmployeeBranchAccessUncheckedUpdateManyWithoutEmployeeNestedInput
+  }
+
+  export type CompanyCreateWithoutHolidaysInput = {
+    id?: string
+    name: string
+    slug: string
+    customDomain?: string | null
+    plan?: string
+    isActive?: boolean
+    suspendedAt?: Date | string | null
+    suspensionReason?: string | null
+    suspendedById?: string | null
+    suspendedByName?: string | null
+    suspensionGraceDays?: number | null
+    suspensionExpiresAt?: Date | string | null
+    deletionAlertSent?: boolean
+    deletionAlertAt?: Date | string | null
+    maxEmployees?: number
+    maxDevices?: number
+    timezone?: string
+    lastAbsenceDateRun?: Date | string | null
+    descriptorsVersion?: number
+    createdAt?: Date | string
+    updatedAt?: Date | string
+    isHolding?: boolean
+    maxBranches?: number | null
+    customPrice?: Decimal | DecimalJsLike | number | string | null
+    billingCycle?: string
+    licenseStartDate?: Date | string | null
+    nextBillingDate?: Date | string | null
+    isExempt?: boolean
+    billingEmail?: string | null
+    billingPhone?: string | null
+    billingContactName?: string | null
+    billingNoticeDays?: number
+    lastReminderSentAt?: Date | string | null
+    parentCompany?: CompanyCreateNestedOneWithoutBranchesInput
+    branches?: CompanyCreateNestedManyWithoutParentCompanyInput
+    branchAccesses?: EmployeeBranchAccessCreateNestedManyWithoutBranchInput
+    employees?: EmployeeCreateNestedManyWithoutCompanyInput
+    departments?: DepartmentCreateNestedManyWithoutCompanyInput
+    shifts?: ShiftCreateNestedManyWithoutCompanyInput
+    devices?: DeviceCreateNestedManyWithoutCompanyInput
+    authRequests?: DeviceAuthRequestCreateNestedManyWithoutCompanyInput
+    adminUsers?: AdminUserCreateNestedManyWithoutCompanyInput
+    settings?: SystemSettingsCreateNestedOneWithoutCompanyInput
+    attendances?: AttendanceRecordCreateNestedManyWithoutCompanyInput
+    events?: EventRequestCreateNestedManyWithoutCompanyInput
+    notifications?: NotificationCreateNestedManyWithoutCompanyInput
+    auditLogs?: AdminAuditLogCreateNestedManyWithoutCompanyInput
+    departmentShifts?: DepartmentShiftCreateNestedManyWithoutCompanyInput
+    employeeShifts?: EmployeeShiftCreateNestedManyWithoutCompanyInput
+    attendanceDayStatuses?: AttendanceDayStatusCreateNestedManyWithoutCompanyInput
+  }
+
+  export type CompanyUncheckedCreateWithoutHolidaysInput = {
+    id?: string
+    name: string
+    slug: string
+    customDomain?: string | null
+    plan?: string
+    isActive?: boolean
+    suspendedAt?: Date | string | null
+    suspensionReason?: string | null
+    suspendedById?: string | null
+    suspendedByName?: string | null
+    suspensionGraceDays?: number | null
+    suspensionExpiresAt?: Date | string | null
+    deletionAlertSent?: boolean
+    deletionAlertAt?: Date | string | null
+    maxEmployees?: number
+    maxDevices?: number
+    timezone?: string
+    lastAbsenceDateRun?: Date | string | null
+    descriptorsVersion?: number
+    createdAt?: Date | string
+    updatedAt?: Date | string
+    parentCompanyId?: string | null
+    isHolding?: boolean
+    maxBranches?: number | null
+    customPrice?: Decimal | DecimalJsLike | number | string | null
+    billingCycle?: string
+    licenseStartDate?: Date | string | null
+    nextBillingDate?: Date | string | null
+    isExempt?: boolean
+    billingEmail?: string | null
+    billingPhone?: string | null
+    billingContactName?: string | null
+    billingNoticeDays?: number
+    lastReminderSentAt?: Date | string | null
+    branches?: CompanyUncheckedCreateNestedManyWithoutParentCompanyInput
+    branchAccesses?: EmployeeBranchAccessUncheckedCreateNestedManyWithoutBranchInput
+    employees?: EmployeeUncheckedCreateNestedManyWithoutCompanyInput
+    departments?: DepartmentUncheckedCreateNestedManyWithoutCompanyInput
+    shifts?: ShiftUncheckedCreateNestedManyWithoutCompanyInput
+    devices?: DeviceUncheckedCreateNestedManyWithoutCompanyInput
+    authRequests?: DeviceAuthRequestUncheckedCreateNestedManyWithoutCompanyInput
+    adminUsers?: AdminUserUncheckedCreateNestedManyWithoutCompanyInput
+    settings?: SystemSettingsUncheckedCreateNestedOneWithoutCompanyInput
+    attendances?: AttendanceRecordUncheckedCreateNestedManyWithoutCompanyInput
+    events?: EventRequestUncheckedCreateNestedManyWithoutCompanyInput
+    notifications?: NotificationUncheckedCreateNestedManyWithoutCompanyInput
+    auditLogs?: AdminAuditLogUncheckedCreateNestedManyWithoutCompanyInput
+    departmentShifts?: DepartmentShiftUncheckedCreateNestedManyWithoutCompanyInput
+    employeeShifts?: EmployeeShiftUncheckedCreateNestedManyWithoutCompanyInput
+    attendanceDayStatuses?: AttendanceDayStatusUncheckedCreateNestedManyWithoutCompanyInput
+  }
+
+  export type CompanyCreateOrConnectWithoutHolidaysInput = {
+    where: CompanyWhereUniqueInput
+    create: XOR<CompanyCreateWithoutHolidaysInput, CompanyUncheckedCreateWithoutHolidaysInput>
+  }
+
+  export type CompanyUpsertWithoutHolidaysInput = {
+    update: XOR<CompanyUpdateWithoutHolidaysInput, CompanyUncheckedUpdateWithoutHolidaysInput>
+    create: XOR<CompanyCreateWithoutHolidaysInput, CompanyUncheckedCreateWithoutHolidaysInput>
+    where?: CompanyWhereInput
+  }
+
+  export type CompanyUpdateToOneWithWhereWithoutHolidaysInput = {
+    where?: CompanyWhereInput
+    data: XOR<CompanyUpdateWithoutHolidaysInput, CompanyUncheckedUpdateWithoutHolidaysInput>
+  }
+
+  export type CompanyUpdateWithoutHolidaysInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    name?: StringFieldUpdateOperationsInput | string
+    slug?: StringFieldUpdateOperationsInput | string
+    customDomain?: NullableStringFieldUpdateOperationsInput | string | null
+    plan?: StringFieldUpdateOperationsInput | string
+    isActive?: BoolFieldUpdateOperationsInput | boolean
+    suspendedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    suspensionReason?: NullableStringFieldUpdateOperationsInput | string | null
+    suspendedById?: NullableStringFieldUpdateOperationsInput | string | null
+    suspendedByName?: NullableStringFieldUpdateOperationsInput | string | null
+    suspensionGraceDays?: NullableIntFieldUpdateOperationsInput | number | null
+    suspensionExpiresAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    deletionAlertSent?: BoolFieldUpdateOperationsInput | boolean
+    deletionAlertAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    maxEmployees?: IntFieldUpdateOperationsInput | number
+    maxDevices?: IntFieldUpdateOperationsInput | number
+    timezone?: StringFieldUpdateOperationsInput | string
+    lastAbsenceDateRun?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    descriptorsVersion?: IntFieldUpdateOperationsInput | number
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    isHolding?: BoolFieldUpdateOperationsInput | boolean
+    maxBranches?: NullableIntFieldUpdateOperationsInput | number | null
+    customPrice?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    billingCycle?: StringFieldUpdateOperationsInput | string
+    licenseStartDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    nextBillingDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    isExempt?: BoolFieldUpdateOperationsInput | boolean
+    billingEmail?: NullableStringFieldUpdateOperationsInput | string | null
+    billingPhone?: NullableStringFieldUpdateOperationsInput | string | null
+    billingContactName?: NullableStringFieldUpdateOperationsInput | string | null
+    billingNoticeDays?: IntFieldUpdateOperationsInput | number
+    lastReminderSentAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    parentCompany?: CompanyUpdateOneWithoutBranchesNestedInput
+    branches?: CompanyUpdateManyWithoutParentCompanyNestedInput
+    branchAccesses?: EmployeeBranchAccessUpdateManyWithoutBranchNestedInput
+    employees?: EmployeeUpdateManyWithoutCompanyNestedInput
+    departments?: DepartmentUpdateManyWithoutCompanyNestedInput
+    shifts?: ShiftUpdateManyWithoutCompanyNestedInput
+    devices?: DeviceUpdateManyWithoutCompanyNestedInput
+    authRequests?: DeviceAuthRequestUpdateManyWithoutCompanyNestedInput
+    adminUsers?: AdminUserUpdateManyWithoutCompanyNestedInput
+    settings?: SystemSettingsUpdateOneWithoutCompanyNestedInput
+    attendances?: AttendanceRecordUpdateManyWithoutCompanyNestedInput
+    events?: EventRequestUpdateManyWithoutCompanyNestedInput
+    notifications?: NotificationUpdateManyWithoutCompanyNestedInput
+    auditLogs?: AdminAuditLogUpdateManyWithoutCompanyNestedInput
+    departmentShifts?: DepartmentShiftUpdateManyWithoutCompanyNestedInput
+    employeeShifts?: EmployeeShiftUpdateManyWithoutCompanyNestedInput
+    attendanceDayStatuses?: AttendanceDayStatusUpdateManyWithoutCompanyNestedInput
+  }
+
+  export type CompanyUncheckedUpdateWithoutHolidaysInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    name?: StringFieldUpdateOperationsInput | string
+    slug?: StringFieldUpdateOperationsInput | string
+    customDomain?: NullableStringFieldUpdateOperationsInput | string | null
+    plan?: StringFieldUpdateOperationsInput | string
+    isActive?: BoolFieldUpdateOperationsInput | boolean
+    suspendedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    suspensionReason?: NullableStringFieldUpdateOperationsInput | string | null
+    suspendedById?: NullableStringFieldUpdateOperationsInput | string | null
+    suspendedByName?: NullableStringFieldUpdateOperationsInput | string | null
+    suspensionGraceDays?: NullableIntFieldUpdateOperationsInput | number | null
+    suspensionExpiresAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    deletionAlertSent?: BoolFieldUpdateOperationsInput | boolean
+    deletionAlertAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    maxEmployees?: IntFieldUpdateOperationsInput | number
+    maxDevices?: IntFieldUpdateOperationsInput | number
+    timezone?: StringFieldUpdateOperationsInput | string
+    lastAbsenceDateRun?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    descriptorsVersion?: IntFieldUpdateOperationsInput | number
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    parentCompanyId?: NullableStringFieldUpdateOperationsInput | string | null
+    isHolding?: BoolFieldUpdateOperationsInput | boolean
+    maxBranches?: NullableIntFieldUpdateOperationsInput | number | null
+    customPrice?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    billingCycle?: StringFieldUpdateOperationsInput | string
+    licenseStartDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    nextBillingDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    isExempt?: BoolFieldUpdateOperationsInput | boolean
+    billingEmail?: NullableStringFieldUpdateOperationsInput | string | null
+    billingPhone?: NullableStringFieldUpdateOperationsInput | string | null
+    billingContactName?: NullableStringFieldUpdateOperationsInput | string | null
+    billingNoticeDays?: IntFieldUpdateOperationsInput | number
+    lastReminderSentAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    branches?: CompanyUncheckedUpdateManyWithoutParentCompanyNestedInput
+    branchAccesses?: EmployeeBranchAccessUncheckedUpdateManyWithoutBranchNestedInput
+    employees?: EmployeeUncheckedUpdateManyWithoutCompanyNestedInput
+    departments?: DepartmentUncheckedUpdateManyWithoutCompanyNestedInput
+    shifts?: ShiftUncheckedUpdateManyWithoutCompanyNestedInput
+    devices?: DeviceUncheckedUpdateManyWithoutCompanyNestedInput
+    authRequests?: DeviceAuthRequestUncheckedUpdateManyWithoutCompanyNestedInput
+    adminUsers?: AdminUserUncheckedUpdateManyWithoutCompanyNestedInput
+    settings?: SystemSettingsUncheckedUpdateOneWithoutCompanyNestedInput
+    attendances?: AttendanceRecordUncheckedUpdateManyWithoutCompanyNestedInput
+    events?: EventRequestUncheckedUpdateManyWithoutCompanyNestedInput
+    notifications?: NotificationUncheckedUpdateManyWithoutCompanyNestedInput
+    auditLogs?: AdminAuditLogUncheckedUpdateManyWithoutCompanyNestedInput
+    departmentShifts?: DepartmentShiftUncheckedUpdateManyWithoutCompanyNestedInput
+    employeeShifts?: EmployeeShiftUncheckedUpdateManyWithoutCompanyNestedInput
+    attendanceDayStatuses?: AttendanceDayStatusUncheckedUpdateManyWithoutCompanyNestedInput
   }
 
   export type CompanyCreateManyParentCompanyInput = {
@@ -32812,6 +37271,7 @@ export namespace Prisma {
     tolerance?: number | null
     breakStartTime?: string | null
     breakEndTime?: string | null
+    scheduleByDay?: NullableJsonNullValueInput | InputJsonValue
     isActive?: boolean
     createdAt?: Date | string
     updatedAt?: Date | string
@@ -32933,6 +37393,40 @@ export namespace Prisma {
     shiftId: number
   }
 
+  export type AttendanceDayStatusCreateManyCompanyInput = {
+    id?: string
+    employeeId: string
+    date: Date | string
+    status: $Enums.DayStatusType
+    shiftId?: number | null
+    shiftName?: string | null
+    expectedStartTime?: string | null
+    expectedEndTime?: string | null
+    appliedToleranceMin?: number | null
+    isWorkDay?: boolean
+    lateMinutes?: number | null
+    overtimeMinutes?: number | null
+    earlyExitMinutes?: number | null
+    notes?: string | null
+    attendanceRecordId?: string | null
+    evaluatedAt?: Date | string
+    isLocked?: boolean
+    lastModifiedById?: string | null
+    lastModifiedReason?: string | null
+    createdAt?: Date | string
+    updatedAt?: Date | string
+  }
+
+  export type CompanyHolidayCreateManyCompanyInput = {
+    id?: string
+    name: string
+    date: Date | string
+    isMandatory?: boolean
+    departmentIds?: NullableJsonNullValueInput | InputJsonValue
+    createdAt?: Date | string
+    updatedAt?: Date | string
+  }
+
   export type CompanyUpdateWithoutParentCompanyInput = {
     id?: StringFieldUpdateOperationsInput | string
     name?: StringFieldUpdateOperationsInput | string
@@ -32982,6 +37476,8 @@ export namespace Prisma {
     auditLogs?: AdminAuditLogUpdateManyWithoutCompanyNestedInput
     departmentShifts?: DepartmentShiftUpdateManyWithoutCompanyNestedInput
     employeeShifts?: EmployeeShiftUpdateManyWithoutCompanyNestedInput
+    attendanceDayStatuses?: AttendanceDayStatusUpdateManyWithoutCompanyNestedInput
+    holidays?: CompanyHolidayUpdateManyWithoutCompanyNestedInput
   }
 
   export type CompanyUncheckedUpdateWithoutParentCompanyInput = {
@@ -33033,6 +37529,8 @@ export namespace Prisma {
     auditLogs?: AdminAuditLogUncheckedUpdateManyWithoutCompanyNestedInput
     departmentShifts?: DepartmentShiftUncheckedUpdateManyWithoutCompanyNestedInput
     employeeShifts?: EmployeeShiftUncheckedUpdateManyWithoutCompanyNestedInput
+    attendanceDayStatuses?: AttendanceDayStatusUncheckedUpdateManyWithoutCompanyNestedInput
+    holidays?: CompanyHolidayUncheckedUpdateManyWithoutCompanyNestedInput
   }
 
   export type CompanyUncheckedUpdateManyWithoutParentCompanyInput = {
@@ -33107,6 +37605,7 @@ export namespace Prisma {
     notifications?: NotificationUpdateManyWithoutEmployeeNestedInput
     eventRequests?: EventRequestUpdateManyWithoutEmployeeNestedInput
     branchAccesses?: EmployeeBranchAccessUpdateManyWithoutEmployeeNestedInput
+    attendanceDayStatuses?: AttendanceDayStatusUpdateManyWithoutEmployeeNestedInput
   }
 
   export type EmployeeUncheckedUpdateWithoutCompanyInput = {
@@ -33127,6 +37626,7 @@ export namespace Prisma {
     notifications?: NotificationUncheckedUpdateManyWithoutEmployeeNestedInput
     eventRequests?: EventRequestUncheckedUpdateManyWithoutEmployeeNestedInput
     branchAccesses?: EmployeeBranchAccessUncheckedUpdateManyWithoutEmployeeNestedInput
+    attendanceDayStatuses?: AttendanceDayStatusUncheckedUpdateManyWithoutEmployeeNestedInput
   }
 
   export type EmployeeUncheckedUpdateManyWithoutCompanyInput = {
@@ -33175,6 +37675,7 @@ export namespace Prisma {
     tolerance?: NullableIntFieldUpdateOperationsInput | number | null
     breakStartTime?: NullableStringFieldUpdateOperationsInput | string | null
     breakEndTime?: NullableStringFieldUpdateOperationsInput | string | null
+    scheduleByDay?: NullableJsonNullValueInput | InputJsonValue
     isActive?: BoolFieldUpdateOperationsInput | boolean
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -33191,6 +37692,7 @@ export namespace Prisma {
     tolerance?: NullableIntFieldUpdateOperationsInput | number | null
     breakStartTime?: NullableStringFieldUpdateOperationsInput | string | null
     breakEndTime?: NullableStringFieldUpdateOperationsInput | string | null
+    scheduleByDay?: NullableJsonNullValueInput | InputJsonValue
     isActive?: BoolFieldUpdateOperationsInput | boolean
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -33207,6 +37709,7 @@ export namespace Prisma {
     tolerance?: NullableIntFieldUpdateOperationsInput | number | null
     breakStartTime?: NullableStringFieldUpdateOperationsInput | string | null
     breakEndTime?: NullableStringFieldUpdateOperationsInput | string | null
+    scheduleByDay?: NullableJsonNullValueInput | InputJsonValue
     isActive?: BoolFieldUpdateOperationsInput | boolean
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -33564,6 +38067,108 @@ export namespace Prisma {
     shiftId?: IntFieldUpdateOperationsInput | number
   }
 
+  export type AttendanceDayStatusUpdateWithoutCompanyInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    date?: DateTimeFieldUpdateOperationsInput | Date | string
+    status?: EnumDayStatusTypeFieldUpdateOperationsInput | $Enums.DayStatusType
+    shiftId?: NullableIntFieldUpdateOperationsInput | number | null
+    shiftName?: NullableStringFieldUpdateOperationsInput | string | null
+    expectedStartTime?: NullableStringFieldUpdateOperationsInput | string | null
+    expectedEndTime?: NullableStringFieldUpdateOperationsInput | string | null
+    appliedToleranceMin?: NullableIntFieldUpdateOperationsInput | number | null
+    isWorkDay?: BoolFieldUpdateOperationsInput | boolean
+    lateMinutes?: NullableIntFieldUpdateOperationsInput | number | null
+    overtimeMinutes?: NullableIntFieldUpdateOperationsInput | number | null
+    earlyExitMinutes?: NullableIntFieldUpdateOperationsInput | number | null
+    notes?: NullableStringFieldUpdateOperationsInput | string | null
+    attendanceRecordId?: NullableStringFieldUpdateOperationsInput | string | null
+    evaluatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    isLocked?: BoolFieldUpdateOperationsInput | boolean
+    lastModifiedById?: NullableStringFieldUpdateOperationsInput | string | null
+    lastModifiedReason?: NullableStringFieldUpdateOperationsInput | string | null
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    employee?: EmployeeUpdateOneRequiredWithoutAttendanceDayStatusesNestedInput
+  }
+
+  export type AttendanceDayStatusUncheckedUpdateWithoutCompanyInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    employeeId?: StringFieldUpdateOperationsInput | string
+    date?: DateTimeFieldUpdateOperationsInput | Date | string
+    status?: EnumDayStatusTypeFieldUpdateOperationsInput | $Enums.DayStatusType
+    shiftId?: NullableIntFieldUpdateOperationsInput | number | null
+    shiftName?: NullableStringFieldUpdateOperationsInput | string | null
+    expectedStartTime?: NullableStringFieldUpdateOperationsInput | string | null
+    expectedEndTime?: NullableStringFieldUpdateOperationsInput | string | null
+    appliedToleranceMin?: NullableIntFieldUpdateOperationsInput | number | null
+    isWorkDay?: BoolFieldUpdateOperationsInput | boolean
+    lateMinutes?: NullableIntFieldUpdateOperationsInput | number | null
+    overtimeMinutes?: NullableIntFieldUpdateOperationsInput | number | null
+    earlyExitMinutes?: NullableIntFieldUpdateOperationsInput | number | null
+    notes?: NullableStringFieldUpdateOperationsInput | string | null
+    attendanceRecordId?: NullableStringFieldUpdateOperationsInput | string | null
+    evaluatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    isLocked?: BoolFieldUpdateOperationsInput | boolean
+    lastModifiedById?: NullableStringFieldUpdateOperationsInput | string | null
+    lastModifiedReason?: NullableStringFieldUpdateOperationsInput | string | null
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type AttendanceDayStatusUncheckedUpdateManyWithoutCompanyInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    employeeId?: StringFieldUpdateOperationsInput | string
+    date?: DateTimeFieldUpdateOperationsInput | Date | string
+    status?: EnumDayStatusTypeFieldUpdateOperationsInput | $Enums.DayStatusType
+    shiftId?: NullableIntFieldUpdateOperationsInput | number | null
+    shiftName?: NullableStringFieldUpdateOperationsInput | string | null
+    expectedStartTime?: NullableStringFieldUpdateOperationsInput | string | null
+    expectedEndTime?: NullableStringFieldUpdateOperationsInput | string | null
+    appliedToleranceMin?: NullableIntFieldUpdateOperationsInput | number | null
+    isWorkDay?: BoolFieldUpdateOperationsInput | boolean
+    lateMinutes?: NullableIntFieldUpdateOperationsInput | number | null
+    overtimeMinutes?: NullableIntFieldUpdateOperationsInput | number | null
+    earlyExitMinutes?: NullableIntFieldUpdateOperationsInput | number | null
+    notes?: NullableStringFieldUpdateOperationsInput | string | null
+    attendanceRecordId?: NullableStringFieldUpdateOperationsInput | string | null
+    evaluatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    isLocked?: BoolFieldUpdateOperationsInput | boolean
+    lastModifiedById?: NullableStringFieldUpdateOperationsInput | string | null
+    lastModifiedReason?: NullableStringFieldUpdateOperationsInput | string | null
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type CompanyHolidayUpdateWithoutCompanyInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    name?: StringFieldUpdateOperationsInput | string
+    date?: DateTimeFieldUpdateOperationsInput | Date | string
+    isMandatory?: BoolFieldUpdateOperationsInput | boolean
+    departmentIds?: NullableJsonNullValueInput | InputJsonValue
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type CompanyHolidayUncheckedUpdateWithoutCompanyInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    name?: StringFieldUpdateOperationsInput | string
+    date?: DateTimeFieldUpdateOperationsInput | Date | string
+    isMandatory?: BoolFieldUpdateOperationsInput | boolean
+    departmentIds?: NullableJsonNullValueInput | InputJsonValue
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type CompanyHolidayUncheckedUpdateManyWithoutCompanyInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    name?: StringFieldUpdateOperationsInput | string
+    date?: DateTimeFieldUpdateOperationsInput | Date | string
+    isMandatory?: BoolFieldUpdateOperationsInput | boolean
+    departmentIds?: NullableJsonNullValueInput | InputJsonValue
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
   export type EmployeeCreateManyDepartmentInput = {
     id?: string
     firstName: string
@@ -33601,6 +38206,7 @@ export namespace Prisma {
     notifications?: NotificationUpdateManyWithoutEmployeeNestedInput
     eventRequests?: EventRequestUpdateManyWithoutEmployeeNestedInput
     branchAccesses?: EmployeeBranchAccessUpdateManyWithoutEmployeeNestedInput
+    attendanceDayStatuses?: AttendanceDayStatusUpdateManyWithoutEmployeeNestedInput
   }
 
   export type EmployeeUncheckedUpdateWithoutDepartmentInput = {
@@ -33620,6 +38226,7 @@ export namespace Prisma {
     notifications?: NotificationUncheckedUpdateManyWithoutEmployeeNestedInput
     eventRequests?: EventRequestUncheckedUpdateManyWithoutEmployeeNestedInput
     branchAccesses?: EmployeeBranchAccessUncheckedUpdateManyWithoutEmployeeNestedInput
+    attendanceDayStatuses?: AttendanceDayStatusUncheckedUpdateManyWithoutEmployeeNestedInput
   }
 
   export type EmployeeUncheckedUpdateManyWithoutDepartmentInput = {
@@ -33708,6 +38315,29 @@ export namespace Prisma {
     id?: string
     branchId: string
     createdAt?: Date | string
+  }
+
+  export type AttendanceDayStatusCreateManyEmployeeInput = {
+    id?: string
+    date: Date | string
+    status: $Enums.DayStatusType
+    shiftId?: number | null
+    shiftName?: string | null
+    expectedStartTime?: string | null
+    expectedEndTime?: string | null
+    appliedToleranceMin?: number | null
+    isWorkDay?: boolean
+    lateMinutes?: number | null
+    overtimeMinutes?: number | null
+    earlyExitMinutes?: number | null
+    notes?: string | null
+    attendanceRecordId?: string | null
+    evaluatedAt?: Date | string
+    isLocked?: boolean
+    lastModifiedById?: string | null
+    lastModifiedReason?: string | null
+    createdAt?: Date | string
+    updatedAt?: Date | string
   }
 
   export type AttendanceRecordUpdateWithoutEmployeeInput = {
@@ -33888,6 +38518,76 @@ export namespace Prisma {
     id?: StringFieldUpdateOperationsInput | string
     branchId?: StringFieldUpdateOperationsInput | string
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type AttendanceDayStatusUpdateWithoutEmployeeInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    date?: DateTimeFieldUpdateOperationsInput | Date | string
+    status?: EnumDayStatusTypeFieldUpdateOperationsInput | $Enums.DayStatusType
+    shiftId?: NullableIntFieldUpdateOperationsInput | number | null
+    shiftName?: NullableStringFieldUpdateOperationsInput | string | null
+    expectedStartTime?: NullableStringFieldUpdateOperationsInput | string | null
+    expectedEndTime?: NullableStringFieldUpdateOperationsInput | string | null
+    appliedToleranceMin?: NullableIntFieldUpdateOperationsInput | number | null
+    isWorkDay?: BoolFieldUpdateOperationsInput | boolean
+    lateMinutes?: NullableIntFieldUpdateOperationsInput | number | null
+    overtimeMinutes?: NullableIntFieldUpdateOperationsInput | number | null
+    earlyExitMinutes?: NullableIntFieldUpdateOperationsInput | number | null
+    notes?: NullableStringFieldUpdateOperationsInput | string | null
+    attendanceRecordId?: NullableStringFieldUpdateOperationsInput | string | null
+    evaluatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    isLocked?: BoolFieldUpdateOperationsInput | boolean
+    lastModifiedById?: NullableStringFieldUpdateOperationsInput | string | null
+    lastModifiedReason?: NullableStringFieldUpdateOperationsInput | string | null
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    company?: CompanyUpdateOneRequiredWithoutAttendanceDayStatusesNestedInput
+  }
+
+  export type AttendanceDayStatusUncheckedUpdateWithoutEmployeeInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    date?: DateTimeFieldUpdateOperationsInput | Date | string
+    status?: EnumDayStatusTypeFieldUpdateOperationsInput | $Enums.DayStatusType
+    shiftId?: NullableIntFieldUpdateOperationsInput | number | null
+    shiftName?: NullableStringFieldUpdateOperationsInput | string | null
+    expectedStartTime?: NullableStringFieldUpdateOperationsInput | string | null
+    expectedEndTime?: NullableStringFieldUpdateOperationsInput | string | null
+    appliedToleranceMin?: NullableIntFieldUpdateOperationsInput | number | null
+    isWorkDay?: BoolFieldUpdateOperationsInput | boolean
+    lateMinutes?: NullableIntFieldUpdateOperationsInput | number | null
+    overtimeMinutes?: NullableIntFieldUpdateOperationsInput | number | null
+    earlyExitMinutes?: NullableIntFieldUpdateOperationsInput | number | null
+    notes?: NullableStringFieldUpdateOperationsInput | string | null
+    attendanceRecordId?: NullableStringFieldUpdateOperationsInput | string | null
+    evaluatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    isLocked?: BoolFieldUpdateOperationsInput | boolean
+    lastModifiedById?: NullableStringFieldUpdateOperationsInput | string | null
+    lastModifiedReason?: NullableStringFieldUpdateOperationsInput | string | null
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type AttendanceDayStatusUncheckedUpdateManyWithoutEmployeeInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    date?: DateTimeFieldUpdateOperationsInput | Date | string
+    status?: EnumDayStatusTypeFieldUpdateOperationsInput | $Enums.DayStatusType
+    shiftId?: NullableIntFieldUpdateOperationsInput | number | null
+    shiftName?: NullableStringFieldUpdateOperationsInput | string | null
+    expectedStartTime?: NullableStringFieldUpdateOperationsInput | string | null
+    expectedEndTime?: NullableStringFieldUpdateOperationsInput | string | null
+    appliedToleranceMin?: NullableIntFieldUpdateOperationsInput | number | null
+    isWorkDay?: BoolFieldUpdateOperationsInput | boolean
+    lateMinutes?: NullableIntFieldUpdateOperationsInput | number | null
+    overtimeMinutes?: NullableIntFieldUpdateOperationsInput | number | null
+    earlyExitMinutes?: NullableIntFieldUpdateOperationsInput | number | null
+    notes?: NullableStringFieldUpdateOperationsInput | string | null
+    attendanceRecordId?: NullableStringFieldUpdateOperationsInput | string | null
+    evaluatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    isLocked?: BoolFieldUpdateOperationsInput | boolean
+    lastModifiedById?: NullableStringFieldUpdateOperationsInput | string | null
+    lastModifiedReason?: NullableStringFieldUpdateOperationsInput | string | null
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
   }
 
   export type DepartmentShiftCreateManyShiftInput = {
