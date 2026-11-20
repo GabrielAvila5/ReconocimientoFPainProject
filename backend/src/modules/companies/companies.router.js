@@ -759,6 +759,21 @@ router.patch('/:id', async (req, res) => {
     if (name && typeof name === 'string' && name.trim().length >= 2) {
       dataToUpdate.name = name.trim();
     }
+    
+    // Regla de integridad BUG-07: Bloqueo de downgrade si tiene sucursales activas
+    const willDisableHolding = (plan && plan.toUpperCase() !== 'CUSTOM' && currentCompany.plan === 'CUSTOM') || (isHolding === false && currentCompany.isHolding);
+    if (willDisableHolding) {
+      const activeBranchesCount = await prisma.company.count({
+        where: { parentCompanyId: companyId, isActive: true }
+      });
+      if (activeBranchesCount > 0) {
+        return res.status(400).json({
+          error: 'HOLDING_HAS_ACTIVE_BRANCHES',
+          message: `No se puede degradar el plan ni desactivar la modalidad Holding porque la empresa tiene ${activeBranchesCount} sucursal(es) activa(s). Dé de baja o elimine las sucursales primero.`
+        });
+      }
+    }
+
     if (plan && ['STARTER', 'PRO', 'ENTERPRISE', 'CUSTOM'].includes(plan.toUpperCase())) {
       dataToUpdate.plan = plan.toUpperCase();
     }
@@ -769,6 +784,15 @@ router.patch('/:id', async (req, res) => {
       dataToUpdate.maxDevices = Number(maxDevices);
     }
     if (maxBranches !== undefined && Number.isInteger(Number(maxBranches)) && Number(maxBranches) > 0) {
+      const activeBranchesCount = await prisma.company.count({
+        where: { parentCompanyId: companyId, isActive: true }
+      });
+      if (Number(maxBranches) < activeBranchesCount) {
+        return res.status(400).json({
+          error: 'MAX_BRANCHES_BELOW_ACTIVE',
+          message: `No se puede reducir el cupo a ${maxBranches} sucursales porque la empresa cuenta actualmente con ${activeBranchesCount} sucursales activas.`
+        });
+      }
       dataToUpdate.maxBranches = Number(maxBranches);
     }
     if (typeof isHolding === 'boolean') {
@@ -1484,6 +1508,20 @@ router.delete('/:id', async (req, res) => {
 
     // 2. Cascada de eliminación limpia en orden de integridad referencial
     await runWithTenantContext({ companyId: company.id, isSuperAdmin: true }, async () => {
+      // 2.0 Desvincular accesos de sucursales y limpiar parentCompanyId de sucursales hijas
+      await prisma.employeeBranchAccess.deleteMany({
+        where: {
+          OR: [
+            { branchId: companyId },
+            { branch: { parentCompanyId: companyId } }
+          ]
+        }
+      });
+      await prisma.company.updateMany({
+        where: { parentCompanyId: companyId },
+        data: { parentCompanyId: null }
+      });
+
       // 2.1 Eventos y Asistencias
       await prisma.eventRequest.deleteMany({ where: { companyId } });
       await prisma.attendanceRecord.deleteMany({ where: { companyId } });

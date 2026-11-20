@@ -569,5 +569,83 @@ router.delete('/:id/assign-employee/:employeeId', async (req, res) => {
   }
 });
 
+/**
+ * DELETE /api/v1/branches/:id
+ * Elimina definitivamente una sucursal y realiza limpieza en cascada de sus datos asociados.
+ * - SUPER_ADMIN: Puede eliminar cualquier sucursal.
+ * - CORPORATE_ADMIN: Puede eliminar únicamente las sucursales que pertenecen a su holding.
+ */
+router.delete('/:id', async (req, res) => {
+  try {
+    const branchId = req.params.id;
+    const isSuperAdmin = req.user.role === 'SUPER_ADMIN';
+
+    const branch = await prisma.company.findUnique({
+      where: { id: branchId }
+    });
+
+    if (!branch || !branch.parentCompanyId) {
+      return res.status(404).json({ error: 'Sucursal no encontrada.' });
+    }
+
+    // Regla de salvaguarda: Solo SUPER_ADMIN puede ejecutar la eliminación física destructiva
+    if (!isSuperAdmin) {
+      return res.status(403).json({
+        error: 'PHYSICAL_DELETE_RESTRICTED',
+        message: 'Solo el Super Administrador de la plataforma puede ejecutar el borrado físico definitivo de una sucursal. Como Administrador Corporativo, utilice la opción de "Dar de baja" para deshabilitar su acceso conservando la auditoría.'
+      });
+    }
+
+    // 1. Desconectar sockets activos de la sucursal
+    const appModule = require('../../app');
+    if (typeof appModule.disconnectCompanySockets === 'function') {
+      appModule.disconnectCompanySockets(branchId, 'BRANCH_DELETED');
+    }
+
+    // 2. Limpieza transaccional en cascada en orden de restricciones referenciales
+    await runWithTenantContext({ companyId: branchId, isSuperAdmin: true }, async () => {
+      await prisma.$transaction([
+        prisma.employeeBranchAccess.deleteMany({ where: { branchId } }),
+        prisma.eventRequest.deleteMany({ where: { companyId: branchId } }),
+        prisma.attendanceRecord.deleteMany({ where: { companyId: branchId } }),
+        prisma.employeeShift.deleteMany({ where: { companyId: branchId } }),
+        prisma.departmentShift.deleteMany({ where: { companyId: branchId } }),
+        prisma.shift.deleteMany({ where: { companyId: branchId } }),
+        prisma.employee.deleteMany({ where: { companyId: branchId } }),
+        prisma.department.deleteMany({ where: { companyId: branchId } }),
+        prisma.deviceAuthRequest.deleteMany({ where: { companyId: branchId } }),
+        prisma.device.deleteMany({ where: { companyId: branchId } }),
+        prisma.notification.deleteMany({ where: { companyId: branchId } }),
+        prisma.adminAuditLog.deleteMany({ where: { companyId: branchId } }),
+        prisma.adminUser.deleteMany({ where: { companyId: branchId } }),
+        prisma.systemSettings.deleteMany({ where: { companyId: branchId } }),
+        prisma.company.delete({ where: { id: branchId } })
+      ]);
+    });
+
+    // Registrar en auditoría del Holding
+    try {
+      await prisma.adminAuditLog.create({
+        data: {
+          action: 'PURGE_BRANCH_PHYSICAL',
+          performedById: req.user.id,
+          performedByName: req.user.name || req.user.email || 'SuperAdmin',
+          targetName: branch.name,
+          targetEmail: req.user.email,
+          companyId: branch.parentCompanyId
+        }
+      });
+    } catch (e) {}
+
+    return res.json({
+      success: true,
+      message: `La sucursal "${branch.name}" y todos sus datos fueron eliminados exitosamente.`
+    });
+  } catch (error) {
+    console.error('Error al eliminar sucursal:', error);
+    return res.status(500).json({ error: 'Error al eliminar sucursal', message: error.message });
+  }
+});
+
 module.exports = router;
 

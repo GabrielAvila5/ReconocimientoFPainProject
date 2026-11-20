@@ -173,20 +173,52 @@ const processAbsences = async (targetCompanyId = null) => {
           }
         }
 
+        // 1.1 Omitir fines de semana estándar (Sábado = 6, Domingo = 0)
+        const dow = new Date(startOfDay).getUTCDay();
+        if (dow === 0 || dow === 6) {
+          console.log(`[CRON] Fin de semana detectado (${dow === 0 ? 'Domingo' : 'Sábado'}) para empresa ${comp.id}. Omitiendo generación de inasistencias.`);
+          return 0;
+        }
+
         const employees = await prisma.employee.findMany({
           where: { isActive: true, companyId: comp.id },
           select: { id: true, firstName: true, lastName: true }
         });
 
         let compAbsences = 0;
+        const appModule = require('../app');
+
         for (const emp of employees) {
+          // Verificar si el empleado tiene permiso, vacaciones o incapacidad justificada activa hoy
+          const activeEvent = await prisma.eventRequest.findFirst({
+            where: {
+              employeeId: emp.id,
+              status: 'ACTIVE',
+              companyId: comp.id,
+              OR: [
+                {
+                  date: { lte: startOfDay },
+                  dateTo: { gte: startOfDay }
+                },
+                {
+                  date: startOfDay
+                }
+              ]
+            }
+          });
+
+          if (activeEvent) {
+            // El empleado tiene permiso o ausencia autorizada
+            continue;
+          }
+
           const record = await prisma.attendanceRecord.findFirst({
             where: { employeeId: emp.id, date: startOfDay, companyId: comp.id }
           });
 
           if (!record) {
             compAbsences++;
-            await prisma.notification.create({
+            const notif = await prisma.notification.create({
               data: {
                 title: 'Falta por Inasistencia',
                 message: `${emp.firstName} ${emp.lastName} no registró asistencia el día de hoy.`,
@@ -196,6 +228,10 @@ const processAbsences = async (targetCompanyId = null) => {
                 companyId: comp.id
               }
             });
+
+            if (typeof appModule.emitNotification === 'function') {
+              appModule.emitNotification(notif);
+            }
           }
         }
 

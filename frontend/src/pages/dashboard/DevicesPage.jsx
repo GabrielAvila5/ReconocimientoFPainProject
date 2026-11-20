@@ -381,7 +381,10 @@ const DevicesPage = () => {
         credentials: 'include'
       });
 
-      if (!res.ok) throw new Error('Error al eliminar dispositivo');
+      const resData = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(resData.message || resData.error || 'Error al eliminar dispositivo');
+      }
 
       toast.success('Dispositivo eliminado', { description: `Se eliminó definitivamente "${deviceName}"` });
       setDevices(prev => prev.filter(d => d.id !== deviceId));

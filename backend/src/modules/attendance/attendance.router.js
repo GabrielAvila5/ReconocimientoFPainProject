@@ -20,10 +20,37 @@ router.post('/validate', requireApiKey, async (req, res) => {
       return res.status(400).json({ error: 'Descriptor inválido' });
     }
 
+    const { getDeviceByToken } = require('../../utils/authHelpers');
+    const { runWithTenantContext } = require('../../middlewares/tenantContext');
+    const { euclideanDistance, getFaceCache, syncCompanyCache } = require('../../utils/faceMath');
+
+    // Resolver dispositivo y su empresa correspondiente
+    const deviceToken = req.headers['x-device-token'] || req.body?.deviceToken;
+    let device = req.device;
+    if (!device && deviceToken) {
+      device = await getDeviceByToken(deviceToken);
+    }
+
+    const companyId = device?.companyId || null;
+
+    if (!companyId) {
+      return res.status(400).json({
+        error: 'DEVICE_COMPANY_REQUIRED',
+        message: 'Dispositivo no asociado a ninguna empresa. Acceso rechazado.'
+      });
+    }
+
+    // Obtener la caché de rostros exclusivamente de la empresa activa
+    let cachedUsers = getFaceCache(companyId);
+    // Si la caché en memoria está vacía para esta empresa, sincronizarla al vuelo
+    if (!cachedUsers || cachedUsers.length === 0) {
+      await syncCompanyCache(companyId);
+      cachedUsers = getFaceCache(companyId);
+    }
+
     let bestMatch = { id: null, name: null, distance: Infinity };
 
-    // Comparar en memoria
-    const cachedUsers = Array.isArray(global.cachedUsers) ? global.cachedUsers : [];
+    // Comparar en memoria exclusivamente contra los rostros de su propia empresa
     for (const user of cachedUsers) {
       if (!user.descriptor || user.descriptor.length === 0) continue;
       
@@ -33,23 +60,32 @@ router.post('/validate', requireApiKey, async (req, res) => {
       }
     }
 
-    // Umbral de validación
+    // Umbral de validación configurado por la empresa
     let threshold = 0.45;
     try {
-      const settings = await prisma.systemSettings.findFirst();
+      const settings = companyId
+        ? await prisma.systemSettings.findFirst({ where: { companyId } })
+        : await prisma.systemSettings.findFirst();
+
       if (settings && typeof settings.faceConfidenceThreshold === 'number') {
-        threshold = 1.0 - settings.faceConfidenceThreshold;
+        threshold = 1.0 - (settings.faceConfidenceThreshold * 0.6);
       }
     } catch (e) {
-      // Usar umbral estándar si no hay contexto de tenant
+      // Usar umbral estándar si no hay contexto
     }
 
-    if (bestMatch.distance <= threshold) {
-      // Retornar empleado, pero NO registrar asistencia aún
-      const employeeInfo = await prisma.employee.findUnique({
-        where: { id: bestMatch.id },
-        select: { id: true, firstName: true, lastName: true, identifier: true }
-      });
+    if (bestMatch.distance <= threshold && bestMatch.id) {
+      // Retornar datos del empleado validado dentro del contexto de la empresa
+      const fetchEmployee = async () => {
+        return prisma.employee.findUnique({
+          where: { id: bestMatch.id },
+          select: { id: true, firstName: true, lastName: true, identifier: true }
+        });
+      };
+
+      const employeeInfo = companyId
+        ? await runWithTenantContext({ companyId }, fetchEmployee)
+        : await fetchEmployee();
 
       return res.json({ 
         match: true, 
@@ -61,7 +97,7 @@ router.post('/validate', requireApiKey, async (req, res) => {
 
     return res.json({ match: false, distance: bestMatch.distance });
   } catch (error) {
-    console.error(error);
+    console.error('Error en /validate:', error);
     res.status(500).json({ error: 'Error del servidor' });
   }
 });
@@ -418,7 +454,15 @@ router.get('/', requireJwt, async (req, res) => {
           lte: endOfDay,
         }
       };
-      eventWhereClause.date = startOfDay;
+      eventWhereClause.OR = [
+        {
+          date: { lte: endOfDay },
+          dateTo: { gte: startOfDay }
+        },
+        {
+          date: { gte: startOfDay, lte: endOfDay }
+        }
+      ];
     }
 
     const records = await prisma.attendanceRecord.findMany({

@@ -37,29 +37,74 @@ const io = new Server(server, {
 app.set('io', io);
 
 // Middleware de autenticación y aislamiento multi-tenant en Socket.io
-io.use((socket, next) => {
+io.use(async (socket, next) => {
   const token = socket.handshake.auth?.token || socket.handshake.query?.token;
+  const deviceToken = socket.handshake.auth?.deviceToken || socket.handshake.query?.deviceToken;
+  const companyId = socket.handshake.auth?.companyId || socket.handshake.query?.companyId;
+
+  // 1. Autenticación de dispositivo Kiosko
+  if (deviceToken) {
+    try {
+      const { getDeviceByToken } = require('./utils/authHelpers');
+      const device = await getDeviceByToken(deviceToken);
+      if (device && device.isActive && !device.isBlocked) {
+        socket.isDevice = true;
+        socket.deviceId = device.id;
+        socket.companyId = device.companyId;
+        return next();
+      }
+    } catch (err) {
+      console.error('[Socket.io] Error al autenticar dispositivo:', err.message);
+    }
+  }
+
+  // 2. Conexión anónima o con companyId inicial
   if (!token) {
+    if (companyId) {
+      socket.companyId = companyId;
+    }
     socket.isAnonymous = true;
     return next();
   }
 
+  // 3. Autenticación de usuario JWT
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
     socket.user = decoded;
     socket.companyId = decoded.companyId || null;
     return next();
   } catch (err) {
+    // Si el token era en realidad un deviceToken
+    try {
+      const { getDeviceByToken } = require('./utils/authHelpers');
+      const device = await getDeviceByToken(token);
+      if (device && device.isActive && !device.isBlocked) {
+        socket.isDevice = true;
+        socket.deviceId = device.id;
+        socket.companyId = device.companyId;
+        return next();
+      }
+    } catch (dErr) {}
+
     return next(new Error('AUTHENTICATION_ERROR: Token inválido para Socket.io'));
   }
 });
 
 io.on('connection', (socket) => {
-  // Unir exclusivamente a salas de su propia empresa
+  // Unir dispositivo a su sala de hardware
+  if (socket.deviceId) {
+    socket.join(`device_${socket.deviceId}`);
+  }
+
+  // Unir a salas de su propia empresa
   if (socket.companyId) {
     socket.join(`company_${socket.companyId}`);
-    socket.join(`dashboard_${socket.companyId}`);
-  } else if (socket.user?.role === 'SUPER_ADMIN') {
+    if (!socket.isDevice) {
+      socket.join(`dashboard_${socket.companyId}`);
+    }
+  }
+  
+  if (socket.user?.role === 'SUPER_ADMIN') {
     socket.join('dashboard_global');
   }
 
@@ -175,11 +220,12 @@ if (process.env.NODE_ENV === 'production') {
   });
 }
 
-// Función para emitir notificaciones aisladas por empresa
+// Función para emitir notificaciones aisladas por empresa y globales a Super Admin
 const emitNotification = (notificationData) => {
   if (notificationData?.companyId) {
     io.to(`company_${notificationData.companyId}`).emit('new_notification', notificationData);
   }
+  io.to('dashboard_global').emit('new_notification', notificationData);
 };
 
 // Función para emitir evento de caché y descriptores invalidados por empresa

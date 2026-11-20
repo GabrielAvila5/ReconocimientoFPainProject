@@ -110,9 +110,18 @@ const FaceRecognitionPage = () => {
     init();
 
     // Conectar a Socket.io para escuchar actualizaciones de caché (Delta o Completa)
-    const socket = io('');
+    const deviceToken = localStorage.getItem('kiosk_device_token') || '';
+    const companyId = localStorage.getItem('kiosk_company_id') || '';
+    const socket = io(import.meta.env.VITE_API_URL || '', {
+      auth: { deviceToken, companyId },
+      reconnection: true
+    });
     socket.on('cache_updated', () => {
       console.log('Cache biométrico actualizado, descargando...');
+      fetchDescriptors();
+    });
+    socket.on('descriptors_invalidated', () => {
+      console.log('Descriptores invalidados, re-sincronizando...');
       fetchDescriptors();
     });
 

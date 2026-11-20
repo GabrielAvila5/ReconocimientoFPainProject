@@ -77,41 +77,53 @@ async function syncFaceCache(companyId = null) {
   }
 }
 
+const syncPromisesByCompany = new Map();
+
 async function syncCompanyCache(companyId) {
-  await runWithTenantContext({ companyId }, async () => {
-    const employees = await prisma.employee.findMany({
-      where: { 
-        isActive: true,
-        faceDescriptor: { not: null }
-      },
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        faceDescriptor: true
-      }
-    });
+  if (!companyId) return [];
+  if (syncPromisesByCompany.has(companyId)) {
+    return syncPromisesByCompany.get(companyId);
+  }
 
-    const parsedList = [];
-    for (const emp of employees) {
-      const descriptorArray = decryptFaceDescriptor(emp.faceDescriptor);
-      if (Array.isArray(descriptorArray) && descriptorArray.length === 128) {
-        parsedList.push({
-          id: emp.id,
-          name: `${emp.firstName} ${emp.lastName}`.trim(),
-          descriptor: descriptorArray
+  const syncPromise = (async () => {
+    try {
+      await runWithTenantContext({ companyId }, async () => {
+        const employees = await prisma.employee.findMany({
+          where: { 
+            isActive: true,
+            faceDescriptor: { not: null }
+          },
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            faceDescriptor: true
+          }
         });
-      }
-    }
 
-    global.cachedUsersByCompany.set(companyId, parsedList);
-    // Compatibilidad para pruebas legacy mono-tenant
-    if (companyId === 'default-company-pain') {
-      global.cachedUsers = parsedList;
-    }
+        const parsedList = [];
+        for (const emp of employees) {
+          const descriptorArray = decryptFaceDescriptor(emp.faceDescriptor);
+          if (Array.isArray(descriptorArray) && descriptorArray.length === 128) {
+            parsedList.push({
+              id: emp.id,
+              name: `${emp.firstName} ${emp.lastName}`.trim(),
+              descriptor: descriptorArray
+            });
+          }
+        }
 
-    console.log(`[FaceCache] Empresa ${companyId}: ${parsedList.length} rostros sincronizados en memoria.`);
-  });
+        global.cachedUsersByCompany.set(companyId, parsedList);
+        console.log(`[FaceCache] Empresa ${companyId}: ${parsedList.length} rostros sincronizados en memoria.`);
+      });
+      return global.cachedUsersByCompany.get(companyId) || [];
+    } finally {
+      syncPromisesByCompany.delete(companyId);
+    }
+  })();
+
+  syncPromisesByCompany.set(companyId, syncPromise);
+  return syncPromise;
 }
 
 function getFaceCache(companyId) {

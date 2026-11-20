@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { io } from 'socket.io-client';
 import { toast } from 'sonner';
-import { getBaseUrl } from '../utils/api';
+import api, { getBaseUrl } from '../utils/api';
 
 const NotificationContext = createContext();
 
@@ -19,19 +19,8 @@ export const NotificationProvider = ({ children }) => {
 
   const fetchUnreadCount = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const tenantId = localStorage.getItem('tenantId');
-      const baseUrl = getBaseUrl();
-      const response = await fetch(`${baseUrl}/api/v1/notifications/unread-count`, {
-        headers: {
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-          ...(tenantId ? { 'x-tenant-id': tenantId } : {})
-        }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setUnreadCount(data.count);
-      }
+      const response = await api.get('/notifications/unread-count');
+      setUnreadCount(response.data.count);
     } catch (error) {
       console.error('Error fetching unread count:', error);
     }
@@ -90,12 +79,7 @@ export const NotificationProvider = ({ children }) => {
 
   const markAsRead = async (id) => {
     try {
-      const token = localStorage.getItem('token');
-      const baseUrl = getBaseUrl();
-      await fetch(`${baseUrl}/api/v1/notifications/${id}/read`, {
-        method: 'PUT',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      await api.put(`/notifications/${id}/read`);
       // Actualizamos el conteo localmente para respuesta inmediata
       setUnreadCount(prev => Math.max(0, prev - 1));
     } catch (error) {
@@ -105,12 +89,7 @@ export const NotificationProvider = ({ children }) => {
 
   const markAllAsRead = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const baseUrl = getBaseUrl();
-      await fetch(`${baseUrl}/api/v1/notifications/read-all`, {
-        method: 'PUT',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      await api.put('/notifications/read-all');
       setUnreadCount(0);
     } catch (error) {
       console.error('Error marking all as read:', error);
@@ -119,13 +98,7 @@ export const NotificationProvider = ({ children }) => {
 
   const deleteNotification = async (id) => {
     try {
-      const token = localStorage.getItem('token');
-      const baseUrl = getBaseUrl();
-      await fetch(`${baseUrl}/api/v1/notifications/${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      // Deberíamos refetch el count por si la borrada no estaba leída, pero para simplificar
+      await api.delete(`/notifications/${id}`);
       fetchUnreadCount();
     } catch (error) {
       console.error('Error deleting notification:', error);
@@ -134,12 +107,7 @@ export const NotificationProvider = ({ children }) => {
 
   const deleteReadNotifications = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const baseUrl = getBaseUrl();
-      await fetch(`${baseUrl}/api/v1/notifications/read`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      await api.delete('/notifications/read');
     } catch (error) {
       console.error('Error deleting read notifications:', error);
     }

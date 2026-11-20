@@ -60,8 +60,8 @@ async function bumpDescriptorsVersion(companyId, req) {
       })
     );
 
-    // Sincronizar cache facial en memoria del proceso
-    syncFaceCache().catch(() => {});
+    // Sincronizar cache facial en memoria del proceso para este inquilino
+    syncFaceCache(companyId).catch(() => {});
 
     // Invalidar caché en memoria del payload de descriptores para este inquilino
     for (const key of descriptorsPayloadCache.keys()) {
@@ -78,6 +78,7 @@ async function bumpDescriptorsVersion(companyId, req) {
         version: updated.descriptorsVersion,
         timestamp: new Date().toISOString()
       });
+      io.to(`company_${companyId}`).emit('cache_updated');
     }
     return updated.descriptorsVersion;
   } catch (err) {

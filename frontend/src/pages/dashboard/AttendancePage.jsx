@@ -297,7 +297,13 @@ const AttendancePage = () => {
     
     const evalDays = [];
     if (period === 'day') {
-      evalDays.push(activeRange.start);
+      const [sy, sm, sd] = activeRange.start.split('-').map(Number);
+      const dayDate = new Date(sy, sm - 1, sd);
+      const dow = dayDate.getDay(); // 0 Dom, 6 Sab
+      // Solo evaluar inasistencias si es día hábil estándar (Lunes a Viernes)
+      if (dow >= 1 && dow <= 5) {
+        evalDays.push(activeRange.start);
+      }
     } else {
       const [sy, sm, sd] = activeRange.start.split('-').map(Number);
       const [ey, em, ed] = effectiveEndStr.split('-').map(Number);

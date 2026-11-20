@@ -596,6 +596,7 @@ const verifyDeviceToken = async (req, res) => {
         id: device.id,
         name: device.name,
         type: device.type,
+        companyId: device.companyId,
         isBlocked: false,
         isActive: true
       }
@@ -744,6 +745,15 @@ const toggleStatusDevice = async (req, res) => {
         deactivatedAt: updated.deactivatedAt,
         reason: updated.deactivatedReason
       });
+
+      // Si fue dado de baja, desconectar forzosamente su socket para revocar la sesión activa
+      if (!willBeActive) {
+        setTimeout(() => {
+          try {
+            io.in(`device_${id}`).disconnectSockets(true);
+          } catch (e) {}
+        }, 500);
+      }
     }
 
     return res.json({
@@ -828,6 +838,18 @@ const deleteDevice = async (req, res) => {
     const device = await prisma.device.findUnique({ where: { id } });
     if (!device) {
       return res.status(404).json({ error: 'Dispositivo no encontrado' });
+    }
+
+    // Regla de integridad y auditoría: No permitir eliminar dispositivos con historial de asistencias
+    const attendanceCount = await prisma.attendanceRecord.count({
+      where: { deviceId: id }
+    });
+
+    if (attendanceCount > 0) {
+      return res.status(400).json({
+        error: 'DEVICE_HAS_ATTENDANCE_HISTORY',
+        message: 'No se puede eliminar el dispositivo porque cuenta con historial de asistencias asociadas. Para suspender su acceso sin perder la trazabilidad de auditoría, use la opción "Dar de baja".'
+      });
     }
 
     await prisma.device.delete({ where: { id } });

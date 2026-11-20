@@ -40,6 +40,9 @@ const KioskGuard = ({ children }) => {
 
       if (response.ok && data.valid) {
         deviceIdRef.current = data.device?.id;
+        if (data.device?.companyId) {
+          localStorage.setItem('kiosk_company_id', data.device.companyId);
+        }
         setDeviceInfo(data.device);
         setStatus('authorized');
         setErrorMessage('');
