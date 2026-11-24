@@ -4,7 +4,8 @@ const requireJwt = require('../../middlewares/requireJwt');
 const prisma = require('../../utils/prisma');
 const { syncFaceCache } = require('../../utils/faceMath');
 const { getCompanyForDescriptors, getDeviceByToken, updateDeviceLastSeen } = require('../../utils/authHelpers');
-const { runWithTenantContext } = require('../../middlewares/tenantContext');
+const { runWithTenantContext, getTenantContext } = require('../../middlewares/tenantContext');
+const { syncAdminToEmployee } = require('../../utils/adminEmployeeSync');
 const { validateScheduleByDay } = require('../../utils/shiftUtils');
 
 // Tracker en memoria para rate limiting de descargas de descriptores (120 req/h)
@@ -227,7 +228,7 @@ router.use(requireJwt);
 
 router.get('/', async (req, res) => {
   try {
-    const [employees, admins] = await Promise.all([
+    let [employees, admins] = await Promise.all([
       prisma.employee.findMany({
         include: { 
           department: true,
@@ -237,9 +238,45 @@ router.get('/', async (req, res) => {
         }
       }),
       prisma.adminUser.findMany({
-        select: { id: true, email: true, name: true, role: true }
+        select: { id: true, email: true, name: true, role: true, companyId: true }
       })
     ]);
+
+    // Auto-curación de personal: Si existen administradores de la empresa actual sin
+    // registro de empleado, sincronizarlos automáticamente para que aparezcan en la lista.
+    const tenantCtx = getTenantContext();
+    const effectiveCompanyId = tenantCtx?.companyId || req.user?.companyId;
+
+    if (effectiveCompanyId && admins.length > 0) {
+      let syncedAny = false;
+      for (const admin of admins) {
+        if (!admin.email) continue;
+        const hasEmp = employees.some(e => e.email && e.email.trim().toLowerCase() === admin.email.trim().toLowerCase());
+        if (!hasEmp) {
+          try {
+            await syncAdminToEmployee(admin, {
+              companyId: effectiveCompanyId,
+              syncEmployee: true,
+              position: admin.role === 'SUPER_ADMIN' ? 'Super Administrador' : 'Administrador'
+            }, prisma);
+            syncedAny = true;
+          } catch (syncErr) {
+            console.error('[GET /employees] Error sincronizando admin como empleado:', syncErr.message);
+          }
+        }
+      }
+
+      if (syncedAny) {
+        employees = await prisma.employee.findMany({
+          include: { 
+            department: true,
+            shifts: {
+              include: { shift: true }
+            }
+          }
+        });
+      }
+    }
 
     const adminByEmail = new Map();
     admins.forEach(a => {

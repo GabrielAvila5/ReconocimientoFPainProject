@@ -6,6 +6,7 @@ const prisma = require('../../utils/prisma');
 const { runWithTenantContext } = require('../../middlewares/tenantContext');
 const { findAdminByEmailForLogin } = require('../../utils/authHelpers');
 const { calculateNextBillingDate } = require('../../utils/dbMigrations');
+const { syncAdminToEmployee } = require('../../utils/adminEmployeeSync');
 
 // Exclusivo para Super Admin (Regla Zero-Trust: requiere SUPER_ADMIN y DEFAULT_PLATFORM_COMPANY_ID)
 router.use(requireAuth);
@@ -666,7 +667,33 @@ router.post('/', async (req, res) => {
         }
       });
 
-      // 5.3 Auditoría de alta de empresa
+      // 5.3 Departamento por defecto "Administración"
+      let defaultDept = await prisma.department.findFirst({
+        where: { companyId: createdCompany.id, name: 'Administración' }
+      });
+      if (!defaultDept) {
+        defaultDept = await prisma.department.create({
+          data: {
+            name: 'Administración',
+            companyId: createdCompany.id
+          }
+        });
+      }
+
+      // 5.4 Sincronizar automáticamente al Administrador inicial como Empleado
+      let initialEmployee = null;
+      try {
+        initialEmployee = await syncAdminToEmployee(adminUser, {
+          companyId: createdCompany.id,
+          departmentId: defaultDept.id,
+          position: initialAdminRole === 'SUPER_ADMIN' ? 'Super Administrador' : 'Administrador',
+          syncEmployee: true
+        }, prisma);
+      } catch (syncErr) {
+        console.error('[CreateCompany] Error al sincronizar administrador como empleado inicial:', syncErr);
+      }
+
+      // 5.5 Auditoría de alta de empresa
       await prisma.adminAuditLog.create({
         data: {
           action: 'CREATE_COMPANY',
@@ -678,7 +705,7 @@ router.post('/', async (req, res) => {
         }
       });
 
-      return { settings, adminUser };
+      return { settings, adminUser, initialEmployee };
     });
 
     return res.status(201).json({
@@ -690,7 +717,14 @@ router.post('/', async (req, res) => {
         name: result.adminUser.name,
         email: result.adminUser.email,
         role: result.adminUser.role
-      }
+      },
+      employee: result.initialEmployee ? {
+        id: result.initialEmployee.id,
+        identifier: result.initialEmployee.identifier,
+        firstName: result.initialEmployee.firstName,
+        lastName: result.initialEmployee.lastName,
+        position: result.initialEmployee.position
+      } : null
     });
 
   } catch (error) {
@@ -700,6 +734,9 @@ router.post('/', async (req, res) => {
     if (createdCompany?.id) {
       try {
         await runWithTenantContext({ companyId: createdCompany.id, isSuperAdmin: true }, async () => {
+          await prisma.employeeShift.deleteMany({ where: { companyId: createdCompany.id } });
+          await prisma.employee.deleteMany({ where: { companyId: createdCompany.id } });
+          await prisma.department.deleteMany({ where: { companyId: createdCompany.id } });
           await prisma.systemSettings.deleteMany({ where: { companyId: createdCompany.id } });
           await prisma.adminUser.deleteMany({ where: { companyId: createdCompany.id } });
           await prisma.adminAuditLog.deleteMany({ where: { companyId: createdCompany.id } });

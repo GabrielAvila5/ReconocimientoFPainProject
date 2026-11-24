@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { loadFaceApiModels, faceapi } from '../../utils/faceApiLoader';
 import { parseDescriptor } from '../../utils/descriptorUtils';
-import { RefreshCw, UserX, CheckCircle2, Loader2, ArrowRight } from 'lucide-react';
+import { RefreshCw, UserX, CheckCircle2, Loader2, ArrowRight, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import { io } from 'socket.io-client';
 
@@ -360,23 +360,251 @@ const FaceRecognitionPage = () => {
     }
   };
 
+  const [syncingDescriptors, setSyncingDescriptors] = useState(false);
+
+  const handleManualSync = async () => {
+    try {
+      setSyncingDescriptors(true);
+      toast.info('Consultando perfiles biométricos...');
+      await fetchDescriptors();
+      toast.success('Búsqueda completada');
+    } catch (err) {
+      toast.error('Error al actualizar perfiles biométricos');
+    } finally {
+      setSyncingDescriptors(false);
+    }
+  };
+
   const getInitials = (f, l) => `${(f || '').charAt(0)}${(l || '').charAt(0)}`.toUpperCase();
 
   if (loading) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', background: '#0f0f0f' }}>
-        <RefreshCw size={48} className="spin" style={{ color: '#f97316', marginBottom: '1rem' }} />
-        <h2 style={{ color: '#fff' }}>{statusText}</h2>
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: '100dvh',
+        width: '100%',
+        maxWidth: '100vw',
+        background: '#0a0a0b',
+        color: '#fff',
+        padding: '2rem',
+        boxSizing: 'border-box'
+      }}>
+        <div style={{
+          width: '64px',
+          height: '64px',
+          borderRadius: '20px',
+          backgroundColor: 'rgba(249, 115, 22, 0.1)',
+          border: '1px solid rgba(249, 115, 22, 0.3)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          marginBottom: '1.25rem'
+        }}>
+          <RefreshCw size={28} className="spin" style={{ color: '#f97316' }} />
+        </div>
+        <h2 style={{ color: '#fff', fontSize: '1.25rem', fontWeight: 600, margin: '0 0 0.5rem 0' }}>{statusText}</h2>
+        <p style={{ color: '#71717a', fontSize: '0.85rem', margin: 0 }}>Inicializando motor de visión biométrica</p>
       </div>
     );
   }
 
   if (employeesData.length === 0) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', background: '#0f0f0f', color: '#e4e4e7' }}>
-        <UserX size={64} style={{ color: '#ef4444', marginBottom: '1.5rem' }} />
-        <h2 style={{ fontSize: '2rem', marginBottom: '1rem' }}>No hay perfiles biométricos registrados</h2>
-        <p style={{ color: '#a1a1aa' }}>Contacta al administrador para comenzar a enrolar empleados.</p>
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: '100dvh',
+        width: '100%',
+        maxWidth: '100vw',
+        background: '#0a0a0b',
+        color: '#e4e4e7',
+        padding: '2rem 1rem',
+        boxSizing: 'border-box',
+        position: 'relative',
+        overflow: 'hidden'
+      }}>
+        {/* Glow sutil de fondo */}
+        <div style={{
+          position: 'absolute',
+          top: '35%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          width: '380px',
+          height: '380px',
+          background: 'radial-gradient(circle, rgba(249, 115, 22, 0.12) 0%, rgba(0, 0, 0, 0) 70%)',
+          pointerEvents: 'none'
+        }} />
+
+        {/* Encabezado superior Kiosko */}
+        <div style={{ textAlign: 'center', marginBottom: '1.75rem', width: '100%', maxWidth: '540px', position: 'relative', zIndex: 1 }}>
+          <h1 style={{
+            color: '#fff',
+            fontSize: 'clamp(1.5rem, 4vw, 2.2rem)',
+            margin: '0 0 0.5rem 0',
+            textTransform: 'uppercase',
+            letterSpacing: '2px',
+            fontWeight: 800
+          }}>
+            Kiosko de Asistencia
+          </h1>
+          <KioskClock variant="badge" style={{ marginBottom: '0.5rem' }} />
+        </div>
+
+        {/* Tarjeta Card central */}
+        <div style={{
+          width: '100%',
+          maxWidth: '520px',
+          background: '#141416',
+          border: '1px solid #27272a',
+          borderRadius: '24px',
+          padding: 'clamp(2rem, 5vw, 2.75rem) clamp(1.5rem, 4vw, 2.25rem)',
+          textAlign: 'center',
+          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          position: 'relative',
+          zIndex: 1,
+          boxSizing: 'border-box'
+        }}>
+          <div style={{
+            width: '80px',
+            height: '80px',
+            borderRadius: '24px',
+            backgroundColor: 'rgba(239, 68, 68, 0.12)',
+            border: '1px solid rgba(239, 68, 68, 0.3)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginBottom: '1.25rem',
+            boxShadow: '0 0 30px rgba(239, 68, 68, 0.18)'
+          }}>
+            <UserX size={42} color="#ef4444" />
+          </div>
+
+          <span style={{
+            display: 'inline-block',
+            padding: '0.3rem 0.85rem',
+            backgroundColor: 'rgba(234, 179, 8, 0.12)',
+            color: '#facc15',
+            borderRadius: '99px',
+            fontSize: '0.75rem',
+            fontWeight: 700,
+            letterSpacing: '0.05em',
+            textTransform: 'uppercase',
+            marginBottom: '1rem',
+            border: '1px solid rgba(234, 179, 8, 0.25)'
+          }}>
+            Configuración Pendiente
+          </span>
+
+          <h2 style={{
+            fontSize: 'clamp(1.25rem, 3.5vw, 1.55rem)',
+            fontWeight: 800,
+            color: '#fff',
+            margin: '0 0 0.75rem 0',
+            lineHeight: 1.3
+          }}>
+            No hay perfiles biométricos registrados
+          </h2>
+
+          <p style={{
+            color: '#a1a1aa',
+            fontSize: '0.92rem',
+            lineHeight: 1.55,
+            margin: '0 0 1.75rem 0',
+            maxWidth: '430px'
+          }}>
+            Para comenzar a registrar entradas y salidas con reconocimiento facial, es necesario que el administrador registre y enrole el rostro del personal en la sección de Empleados.
+          </p>
+
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.85rem',
+            width: '100%'
+          }}>
+            <button
+              onClick={handleManualSync}
+              disabled={syncingDescriptors}
+              style={{
+                width: '100%',
+                padding: '0.85rem 1.25rem',
+                backgroundColor: '#f97316',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '12px',
+                fontWeight: 600,
+                fontSize: '0.95rem',
+                cursor: syncingDescriptors ? 'wait' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.6rem',
+                transition: 'background 0.2s, transform 0.1s',
+                boxShadow: '0 4px 18px rgba(249, 115, 22, 0.35)'
+              }}
+            >
+              <RefreshCw size={18} className={syncingDescriptors ? 'spin' : ''} />
+              {syncingDescriptors ? 'Comprobando sincronización...' : 'Comprobar perfiles ahora'}
+            </button>
+
+            <button
+              onClick={() => {
+                if (window.opener) {
+                  window.close();
+                } else {
+                  window.location.href = '/dashboard/employees';
+                }
+              }}
+              style={{
+                width: '100%',
+                padding: '0.8rem 1.25rem',
+                backgroundColor: 'transparent',
+                color: '#d4d4d8',
+                border: '1px solid #3f3f46',
+                borderRadius: '12px',
+                fontWeight: 500,
+                fontSize: '0.9rem',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.55rem',
+                transition: 'all 0.2s'
+              }}
+              onMouseOver={(e) => { e.currentTarget.style.borderColor = '#71717a'; e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.03)'; }}
+              onMouseOut={(e) => { e.currentTarget.style.borderColor = '#3f3f46'; e.currentTarget.style.backgroundColor = 'transparent'; }}
+            >
+              <ArrowLeft size={16} />
+              Regresar a Gestión de Personal
+            </button>
+          </div>
+
+          <div style={{
+            marginTop: '1.5rem',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            fontSize: '0.8rem',
+            color: '#71717a'
+          }}>
+            <span style={{
+              width: '8px',
+              height: '8px',
+              borderRadius: '50%',
+              backgroundColor: '#10b981',
+              boxShadow: '0 0 8px #10b981',
+              display: 'inline-block'
+            }} />
+            Dispositivo conectado y escuchando actualizaciones en tiempo real
+          </div>
+        </div>
       </div>
     );
   }

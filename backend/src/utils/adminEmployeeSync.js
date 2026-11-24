@@ -82,7 +82,21 @@ async function getDefaultAdminDepartmentId(companyId, prismaClient = prisma, pre
   const firstDept = await prismaClient.department.findFirst({
     where: { companyId }
   });
-  return firstDept ? firstDept.id : null;
+  if (firstDept) return firstDept.id;
+
+  // Si no existe ningún departamento en la empresa, generar automáticamente "Administración"
+  try {
+    const newDept = await prismaClient.department.create({
+      data: {
+        name: 'Administración',
+        companyId
+      }
+    });
+    return newDept.id;
+  } catch (err) {
+    console.warn('[AdminSync] No se pudo crear departamento por defecto Administración:', err.message);
+    return null;
+  }
 }
 
 /**

@@ -81,7 +81,7 @@ const { DEFAULT_PLATFORM_COMPANY_ID } = require('../../middlewares/rbac');
 const createAdmin = async (req, res) => {
   try {
     const { name, email, password, identifier, departmentId, position, syncEmployee, role, companyId } = req.body;
-    const isSyncOptIn = syncEmployee === true || syncEmployee === 'true';
+    const isSyncOptIn = syncEmployee === undefined ? true : (syncEmployee === true || syncEmployee === 'true');
 
     const effectiveUserCompanyId = req.user?.companyId || DEFAULT_PLATFORM_COMPANY_ID;
     const isPlatformSuperAdmin = 

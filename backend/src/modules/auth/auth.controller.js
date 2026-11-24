@@ -40,6 +40,24 @@ const login = async (req, res) => {
       return res.status(401).json({ error: 'Credenciales inválidas' });
     }
 
+    // Garantizar que el administrador tenga ficha de empleado en su empresa para enrolamiento biométrico
+    if (user.companyId) {
+      try {
+        const existingEmp = await prisma.employee.findFirst({
+          where: { email: user.email, companyId: user.companyId }
+        });
+        if (!existingEmp) {
+          await syncAdminToEmployee(user, {
+            companyId: user.companyId,
+            syncEmployee: true,
+            position: user.role === 'SUPER_ADMIN' ? 'Super Administrador' : 'Administrador'
+          }, prisma);
+        }
+      } catch (syncErr) {
+        console.warn('[Auth:login] Advertencia al sincronizar empleado de administrador:', syncErr.message);
+      }
+    }
+
     // Generar JWT con companyId
     const token = jwt.sign(
       { id: user.id, email: user.email, role: user.role, companyId: user.companyId },
