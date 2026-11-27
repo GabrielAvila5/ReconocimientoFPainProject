@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import CameraScanner from '../../components/FaceRecognition/CameraScanner';
 import ActionSelector from '../../components/kiosk/ActionSelector';
 import KioskClock from '../../components/kiosk/KioskClock';
@@ -15,9 +16,12 @@ const STAGES = {
 };
 
 const KioskFlowPage = () => {
+  const navigate = useNavigate();
   const [stage, setStage] = useState(STAGES.IDLE);
   const [employee, setEmployee] = useState(null);
   const [context, setContext] = useState(null);
+  const contextRef = useRef(null);
+  const fetchPromiseRef = useRef(null);
   const [selectedShiftId, setSelectedShiftId] = useState(null);
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
@@ -41,46 +45,91 @@ const KioskFlowPage = () => {
     setErrorMessage('');
   };
 
-  const handleEmployeeIdentified = async (empData) => {
+  const getFallbackContext = () => ({
+    hasEntrada: false,
+    hasReceso: false,
+    hasSalida: false,
+    hasHorasExtra: false,
+    salidaTime: null,
+    overtimeMinutes: 0,
+    availableShifts: [{
+      id: -1,
+      name: 'Horario Global',
+      startTime: '08:00',
+      endTime: '17:00',
+      tolerance: 15
+    }],
+    currentShiftId: null
+  });
+
+  const handleEmployeeIdentified = (empData) => {
     setEmployee(empData);
     setStage(STAGES.IDENTIFIED);
     
     // Inmediatamente pedimos su contexto para tenerlo listo
-    try {
-      const deviceToken = localStorage.getItem('kiosk_device_token') || '';
-      const res = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/v1/attendance/context/${empData.id}`, {
-        headers: { 'x-device-token': deviceToken }
-      });
-      if (res.status === 401) {
-        localStorage.removeItem('kiosk_device_token');
-        navigate('/kiosk/setup?revoked=true', { replace: true });
-        return;
-      }
-      if (res.ok) {
-        const data = await res.json();
-        setContext(data);
-        
-        if (data.hasEntrada && data.currentShiftId) {
-          setSelectedShiftId(data.currentShiftId);
-        } else if (data.availableShifts && data.availableShifts.length > 0) {
-          setSelectedShiftId(data.availableShifts[0].id);
+    const promise = (async () => {
+      try {
+        const deviceToken = localStorage.getItem('kiosk_device_token') || '';
+        const res = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/v1/attendance/context/${empData.id}`, {
+          headers: { 'x-device-token': deviceToken }
+        });
+        if (res.status === 401) {
+          localStorage.removeItem('kiosk_device_token');
+          navigate('/kiosk/setup?revoked=true', { replace: true });
+          return null;
         }
+        if (res.ok) {
+          const data = await res.json();
+          setContext(data);
+          contextRef.current = data;
+          
+          if (data.hasEntrada && data.currentShiftId) {
+            setSelectedShiftId(data.currentShiftId);
+          } else if (data.availableShifts && data.availableShifts.length > 0) {
+            setSelectedShiftId(data.availableShifts[0].id);
+          }
+          return data;
+        } else {
+          const fb = getFallbackContext();
+          setContext(fb);
+          contextRef.current = fb;
+          setSelectedShiftId(-1);
+          return fb;
+        }
+      } catch (error) {
+        console.error('Error fetching context:', error);
+        const fb = getFallbackContext();
+        setContext(fb);
+        contextRef.current = fb;
+        setSelectedShiftId(-1);
+        return fb;
       }
-    } catch (error) {
-      console.error('Error fetching context:', error);
-    }
+    })();
+
+    fetchPromiseRef.current = promise;
   };
 
-  const handleConfirmIdentity = () => {
-    if (!context) {
-      // Si el contexto aún no carga, esperamos en PROCESSING un poco (caso raro de red lenta)
+  const handleConfirmIdentity = async () => {
+    let currentCtx = contextRef.current || context;
+    if (!currentCtx && fetchPromiseRef.current) {
       setStage(STAGES.PROCESSING);
-      setTimeout(() => {
-        if (context) goToNextAfterIdentity();
-        else resetFlow(); // Error fallback
-      }, 1500);
-      return;
+      try {
+        currentCtx = await Promise.race([
+          fetchPromiseRef.current,
+          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 4000))
+        ]);
+      } catch (e) {
+        console.warn('Timeout esperando contexto, aplicando base');
+      }
     }
+
+    if (!currentCtx) {
+      currentCtx = getFallbackContext();
+      setContext(currentCtx);
+      contextRef.current = currentCtx;
+      setSelectedShiftId(-1);
+    }
+
     goToNextAfterIdentity();
   };
 

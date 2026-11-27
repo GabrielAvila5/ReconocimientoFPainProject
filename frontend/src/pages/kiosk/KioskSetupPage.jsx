@@ -88,6 +88,17 @@ const KioskSetupPage = () => {
       }
 
       const data = await res.json();
+      if (data.alreadyApproved && data.token) {
+        setStatus('approved');
+        setApprovedDevice(data.device || null);
+        sessionStorage.removeItem(SESSION_STORAGE_KEY);
+        localStorage.setItem('kiosk_device_token', data.token);
+        setTimeout(() => {
+          navigate('/kiosk', { replace: true });
+        }, 1200);
+        return;
+      }
+
       sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(data));
       setAuthData(data);
     } catch (err) {
@@ -100,6 +111,11 @@ const KioskSetupPage = () => {
   };
 
   useEffect(() => {
+    const existingToken = localStorage.getItem('kiosk_device_token');
+    if (existingToken && !isRevoked) {
+      navigate('/kiosk', { replace: true });
+      return;
+    }
     initRequest();
   }, []);
 
@@ -108,6 +124,37 @@ const KioskSetupPage = () => {
     if (!authData?.requestId) return;
 
     const baseUrl = import.meta.env.VITE_API_URL || '';
+
+    // 1. Polling HTTP de respaldo cada 2.5s (mitiga caídas de WebSocket por VPN o proxies como Hostinger/Nginx)
+    const pollInterval = setInterval(async () => {
+      try {
+        const res = await fetch(`${baseUrl}/api/v1/devices/auth-requests/${authData.requestId}/status`);
+        if (res.ok) {
+          const statusData = await res.json();
+          if (statusData.status === 'APPROVED' && statusData.token) {
+            clearInterval(pollInterval);
+            setStatus('approved');
+            setApprovedDevice(statusData.device || null);
+            sessionStorage.removeItem(SESSION_STORAGE_KEY);
+            localStorage.setItem('kiosk_device_token', statusData.token);
+            setTimeout(() => {
+              navigate('/kiosk', { replace: true });
+            }, 1200);
+          } else if (statusData.status === 'REJECTED') {
+            clearInterval(pollInterval);
+            setStatus('rejected');
+            sessionStorage.removeItem(SESSION_STORAGE_KEY);
+          } else if (statusData.status === 'EXPIRED') {
+            clearInterval(pollInterval);
+            setStatus('expired');
+            sessionStorage.removeItem(SESSION_STORAGE_KEY);
+          }
+        }
+      } catch (pollErr) {
+        // Silencioso ante pérdidas transitorias de red
+      }
+    }, 2500);
+
     const socket = io(baseUrl, {
       reconnection: true,
       reconnectionAttempts: 10,
@@ -121,7 +168,8 @@ const KioskSetupPage = () => {
     });
 
     socket.on('device_auth_approved', (payload) => {
-      console.log('[KioskSetup] Solicitud aprobada:', payload);
+      console.log('[KioskSetup] Solicitud aprobada vía socket:', payload);
+      clearInterval(pollInterval);
       setStatus('approved');
       setApprovedDevice(payload);
       sessionStorage.removeItem(SESSION_STORAGE_KEY);
@@ -130,10 +178,11 @@ const KioskSetupPage = () => {
       // Redirigir al Kiosko tras animación
       setTimeout(() => {
         navigate('/kiosk', { replace: true });
-      }, 1800);
+      }, 1500);
     });
 
     socket.on('device_auth_rejected', () => {
+      clearInterval(pollInterval);
       setStatus('rejected');
       sessionStorage.removeItem(SESSION_STORAGE_KEY);
     });
@@ -160,6 +209,7 @@ const KioskSetupPage = () => {
     timerRef.current = setInterval(updateCountdown, 1000);
 
     return () => {
+      clearInterval(pollInterval);
       if (socketRef.current) socketRef.current.disconnect();
       if (timerRef.current) clearInterval(timerRef.current);
     };

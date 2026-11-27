@@ -149,13 +149,15 @@ const DevicesPage = () => {
     setPairingApproveLoading(true);
     try {
       const baseUrl = import.meta.env.VITE_API_URL || '';
+      const activeTenant = localStorage.getItem('tenantId');
       const res = await fetch(`${baseUrl}/api/v1/devices/auth-requests/${pairingLookupData.id}/approve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
         credentials: 'include',
         body: JSON.stringify({
           name: kioskCustomName.trim() || `Kiosko ${pairingLookupData.pairingCode}`,
-          pairingCode: pairingLookupData.pairingCode
+          pairingCode: pairingLookupData.pairingCode,
+          companyId: activeTenant || pairingLookupData.companyId || undefined
         })
       });
 

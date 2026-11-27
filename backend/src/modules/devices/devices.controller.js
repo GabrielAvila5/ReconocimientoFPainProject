@@ -19,6 +19,18 @@ const getIo = (req) => {
   return req.app.get('io');
 };
 
+// Cache temporal en memoria de tokens aprobados para emparejamiento seguro
+// Resuelve caídas o bloqueos de WebSockets por VPN/proxies mediante HTTP Polling (TTL 15 min)
+const approvedTokensStore = new Map(); // requestId -> { token, deviceId, name, companyId, deviceUniqueId, expiresAt }
+
+// Limpieza periódica cada 5 minutos
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, v] of approvedTokensStore.entries()) {
+    if (now > v.expiresAt) approvedTokensStore.delete(k);
+  }
+}, 5 * 60 * 1000);
+
 // Helper para obtener la dirección IP real del cliente
 const getClientIp = (req) => {
   let ip = req.headers['x-forwarded-for']?.split(',')[0].trim() 
@@ -62,6 +74,24 @@ const requestDeviceAuth = async (req, res) => {
     const ipAddress = getClientIp(req);
     const userAgent = req.headers['user-agent'] || 'Kiosk Device';
     const { deviceId, forceNew, companySlug, companyId: inputCompanyId } = req.body || {};
+
+    // 0. Detección de aprobación previa reciente para este dispositivo (reconexión sin re-emparejamiento)
+    if (deviceId && !forceNew) {
+      for (const [reqId, data] of approvedTokensStore.entries()) {
+        if (data.deviceUniqueId === deviceId && Date.now() < data.expiresAt) {
+          return res.status(200).json({
+            alreadyApproved: true,
+            requestId: reqId,
+            token: data.token,
+            device: {
+              id: data.deviceId,
+              name: data.name,
+              companyId: data.companyId
+            }
+          });
+        }
+      }
+    }
 
     // 1. Detección de solicitud previa existente y activa para este dispositivo
     const existingRequest = await findActivePairingRequestForDevice({ deviceId, ipAddress, userAgent });
@@ -343,9 +373,9 @@ const approveDeviceAuth = async (req, res) => {
     }
 
     // Determinar la empresa a la que pertenecerá el dispositivo
-    let targetCompanyId = req.companyId || req.user?.companyId;
+    let targetCompanyId = requestedCompanyId || req.companyId || req.user?.companyId;
     if (req.user?.role === 'SUPER_ADMIN') {
-      targetCompanyId = requestedCompanyId || authRequest.companyId || 'default-company-pain';
+      targetCompanyId = requestedCompanyId || req.companyId || authRequest.companyId || req.user?.companyId || 'default-company-pain';
     } else if (req.user?.role === 'CORPORATE_ADMIN' && requestedCompanyId) {
       const branch = await prisma.company.findUnique({
         where: { id: requestedCompanyId },
@@ -439,6 +469,16 @@ const approveDeviceAuth = async (req, res) => {
 
     // Limpiar intentos fallidos al tener éxito
     clearFailedApproval(adminId);
+
+    // Guardar token temporal en memoria para respaldo por HTTP polling en caso de caída de WebSockets
+    approvedTokensStore.set(authRequest.id, {
+      token,
+      deviceId: device.id,
+      name: device.name,
+      companyId: device.companyId,
+      deviceUniqueId: authRequest.deviceId || null,
+      expiresAt: Date.now() + 15 * 60 * 1000
+    });
 
     // Emitir eventos Socket.io
     const io = getIo(req);
@@ -872,12 +912,63 @@ const deleteDevice = async (req, res) => {
   }
 };
 
+/**
+ * GET /api/v1/devices/auth-requests/:id/status
+ * Público (para Kiosko): Consulta el estado de una solicitud de autorización.
+ * Si fue aprobada, entrega el token de vinculación incluso si el socket falló.
+ */
+const getAuthRequestStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!id) return res.status(400).json({ error: 'ID de solicitud requerido' });
+
+    const authRequest = await getPairingRequestById(id);
+    if (!authRequest) {
+      return res.status(404).json({ error: 'Solicitud no encontrada' });
+    }
+
+    if (authRequest.status === 'APPROVED') {
+      const stored = approvedTokensStore.get(id);
+      if (stored && Date.now() < stored.expiresAt) {
+        return res.json({
+          status: 'APPROVED',
+          token: stored.token,
+          device: {
+            id: stored.deviceId,
+            name: stored.name,
+            companyId: stored.companyId
+          }
+        });
+      }
+      return res.json({ status: 'APPROVED' });
+    }
+
+    if (authRequest.status === 'REJECTED') {
+      return res.json({ status: 'REJECTED' });
+    }
+
+    if (authRequest.status === 'EXPIRED' || new Date() > authRequest.expiresAt) {
+      return res.json({ status: 'EXPIRED' });
+    }
+
+    return res.json({
+      status: 'PENDING',
+      pairingCode: authRequest.pairingCode,
+      expiresAt: authRequest.expiresAt
+    });
+  } catch (err) {
+    console.error('Error al consultar estado de solicitud de dispositivo:', err);
+    return res.status(500).json({ error: 'Error al consultar estado de solicitud' });
+  }
+};
+
 module.exports = {
   requestDeviceAuth,
   getPendingAuthRequests,
   lookupAuthRequestByCode,
   approveDeviceAuth,
   rejectDeviceAuth,
+  getAuthRequestStatus,
   verifyDeviceToken,
   getDevices,
   toggleBlockDevice,

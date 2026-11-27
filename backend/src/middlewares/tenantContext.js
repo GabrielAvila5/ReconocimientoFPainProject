@@ -40,6 +40,59 @@ function getTenantContext() {
  */
 async function tenantContextMiddleware(req, res, next) {
   try {
+    // 0. Si viene cabecera x-device-token, procesar con máxima prioridad para aislar peticiones de Kiosco.
+    // Esto garantiza que cookies JWT de administrador en el mismo navegador no interfieran ni corrompan el contexto del kiosko.
+    const deviceToken = req.headers['x-device-token'];
+    if (deviceToken) {
+      const { getDeviceByToken, updateDeviceLastSeen } = require('../utils/authHelpers');
+      const dev = await getDeviceByToken(deviceToken);
+      if (!dev) {
+        return res.status(401).json({
+          error: 'DEVICE_UNAUTHORIZED',
+          message: 'Token de dispositivo no válido.'
+        });
+      }
+      if (!dev.isActive) {
+        return res.status(403).json({
+          error: 'DEVICE_DEACTIVATED',
+          message: dev.deactivatedReason || 'Dispositivo dado de baja.'
+        });
+      }
+      if (dev.isBlocked) {
+        return res.status(403).json({
+          error: 'DEVICE_BLOCKED',
+          message: dev.blockedReason || 'Dispositivo bloqueado temporalmente.'
+        });
+      }
+
+      req.device = dev;
+      const deviceCompanyId = dev.companyId;
+      updateDeviceLastSeen(dev.id);
+
+      // Regla de Empresa Suspendida para el dispositivo
+      const prisma = require('../utils/prisma');
+      const comp = await prisma.company.findUnique({
+        where: { id: deviceCompanyId },
+        select: { isActive: true }
+      });
+      if (comp && !comp.isActive) {
+        return res.status(403).json({
+          error: 'COMPANY_SUSPENDED',
+          message: 'La empresa del dispositivo se encuentra suspendida. Acceso no autorizado.'
+        });
+      }
+
+      const context = {
+        companyId: deviceCompanyId,
+        deviceId: dev.id,
+        isSuperAdmin: false,
+        isImpersonating: false,
+        userId: null
+      };
+
+      return runWithTenantContext(context, () => next());
+    }
+
     // 1. Extraer usuario de token JWT si aún no fue decodificado
     if (!req.user) {
       let token = null;

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { loadFaceApiModels, faceapi } from '../../utils/faceApiLoader';
 import { parseDescriptor } from '../../utils/descriptorUtils';
 import { RefreshCw, UserX, CheckCircle2, Loader2, ArrowRight, ArrowLeft } from 'lucide-react';
@@ -21,6 +22,7 @@ const STAGES = {
 };
 
 const FaceRecognitionPage = () => {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [statusText, setStatusText] = useState('Cargando modelos de IA...');
   const [recognizedEmployee, setRecognizedEmployee] = useState(null);
@@ -230,36 +232,77 @@ const FaceRecognitionPage = () => {
     }
   };
 
-  const fetchContext = async (empId) => {
-    try {
-      const deviceToken = localStorage.getItem('kiosk_device_token') || '';
-      const res = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/v1/attendance/context/${empId}`, {
-        headers: { 'x-device-token': deviceToken }
-      });
-      if (res.status === 401) {
-        localStorage.removeItem('kiosk_device_token');
-        navigate('/kiosk/setup?revoked=true', { replace: true });
-        return;
-      }
-      if (res.ok) {
-        const data = await res.json();
-        setContext(data);
-        // Si ya tiene entrada registrada, seleccionamos su turno actual para otras acciones
-        if (data.hasEntrada && data.currentShiftId) {
-          setSelectedShiftId(data.currentShiftId);
-        } else if (data.availableShifts && data.availableShifts.length > 0) {
-          setSelectedShiftId(data.availableShifts[0].id);
+  const fetchContextPromiseRef = useRef(null);
+
+  const getFallbackContext = () => ({
+    hasEntrada: false,
+    hasReceso: false,
+    hasSalida: false,
+    hasHorasExtra: false,
+    salidaTime: null,
+    overtimeMinutes: 0,
+    availableShifts: [{
+      id: -1,
+      name: 'Horario Global',
+      startTime: '08:00',
+      endTime: '17:00',
+      tolerance: 15
+    }],
+    currentShiftId: null
+  });
+
+  const fetchContext = (empId) => {
+    const promise = (async () => {
+      try {
+        const deviceToken = localStorage.getItem('kiosk_device_token') || '';
+        const res = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/v1/attendance/context/${empId}`, {
+          headers: { 'x-device-token': deviceToken }
+        });
+
+        if (res.status === 401) {
+          localStorage.removeItem('kiosk_device_token');
+          navigate('/kiosk/setup?revoked=true', { replace: true });
+          return null;
         }
+
+        if (res.ok) {
+          const data = await res.json();
+          setContext(data);
+          contextRef.current = data;
+          if (data.hasEntrada && data.currentShiftId) {
+            setSelectedShiftId(data.currentShiftId);
+          } else if (data.availableShifts && data.availableShifts.length > 0) {
+            setSelectedShiftId(data.availableShifts[0].id);
+          }
+          return data;
+        } else {
+          console.warn('[fetchContext] Respuesta no exitosa del backend:', res.status);
+          const fallback = getFallbackContext();
+          setContext(fallback);
+          contextRef.current = fallback;
+          setSelectedShiftId(-1);
+          return fallback;
+        }
+      } catch (error) {
+        console.error('Error fetching context:', error);
+        const fallback = getFallbackContext();
+        setContext(fallback);
+        contextRef.current = fallback;
+        setSelectedShiftId(-1);
+        return fallback;
       }
-    } catch (error) {
-      console.error('Error fetching context:', error);
-    }
+    })();
+
+    fetchContextPromiseRef.current = promise;
+    return promise;
   };
 
   const resetFlow = () => {
     setStage(STAGES.SCANNING);
     setRecognizedEmployee(null);
     setContext(null);
+    contextRef.current = null;
+    fetchContextPromiseRef.current = null;
     setSelectedShiftId(null);
     setActiveModal(null);
     setActionPayload(null);
@@ -269,23 +312,36 @@ const FaceRecognitionPage = () => {
     if (canvasRef.current) {
       canvasRef.current.getContext('2d').clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
     }
-    // No cancelamos animFrame ni volvemos a llamar a detect(). 
-    // El ciclo detect() en idle (gracias a processingRef = false) retomará el escaneo automáticamente.
   };
 
   const contextRef = useRef(null);
   useEffect(() => { contextRef.current = context; }, [context]);
 
-  const handleConfirmIdentity = () => {
-    if (!contextRef.current) {
+  const handleConfirmIdentity = async () => {
+    let currentCtx = contextRef.current;
+
+    // Si el contexto aún está resolviéndose en red, esperar activamente su promesa
+    if (!currentCtx && fetchContextPromiseRef.current) {
       setStage(STAGES.PROCESSING);
-      setTimeout(() => {
-        if (contextRef.current) goToNextAfterIdentity(contextRef.current);
-        else resetFlow();
-      }, 2000);
-      return;
+      try {
+        currentCtx = await Promise.race([
+          fetchContextPromiseRef.current,
+          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 4000))
+        ]);
+      } catch (e) {
+        console.warn('[Kiosk] Tiempo de espera de contexto agotado, usando fallback base');
+      }
     }
-    goToNextAfterIdentity(contextRef.current);
+
+    // Si por red o retraso no se obtuvo, usar el contexto fallback seguro para nunca bloquear al usuario
+    if (!currentCtx) {
+      currentCtx = getFallbackContext();
+      setContext(currentCtx);
+      contextRef.current = currentCtx;
+      setSelectedShiftId(-1);
+    }
+
+    goToNextAfterIdentity(currentCtx);
   };
 
   const goToNextAfterIdentity = (currentCtx = contextRef.current) => {

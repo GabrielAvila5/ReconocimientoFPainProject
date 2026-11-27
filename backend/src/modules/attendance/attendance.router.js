@@ -130,29 +130,7 @@ router.get('/context/:employeeId', requireApiKey, async (req, res) => {
     const companyId = device.companyId;
 
     return await runWithTenantContext({ companyId, deviceId: device.id }, async () => {
-      const targetEmp = await prisma.employee.findUnique({
-        where: { id: employeeId },
-        select: { id: true, companyId: true }
-      });
-
-      if (!targetEmp) return res.status(404).json({ error: 'Empleado no encontrado' });
-
-      // Self-Healing: cerrar automáticamente registros previos olvidados del empleado
-      await processAutoCheckout(employeeId, companyId);
-
-      const settings = await prisma.systemSettings.findFirst();
-      const tz = settings?.timezone || DEFAULT_TZ;
-      const startOfDay = getStartOfDay(new Date(), tz);
-
-      // 1. Obtener registro de hoy
-      const todayRecord = await prisma.attendanceRecord.findFirst({
-        where: {
-          employeeId,
-          date: startOfDay
-        }
-      });
-
-      // 2. Obtener empleado con sus turnos y departamento
+      // 1. Obtener empleado con sus turnos y departamento
       const employee = await prisma.employee.findUnique({
         where: { id: employeeId },
         include: {
@@ -165,24 +143,46 @@ router.get('/context/:employeeId', requireApiKey, async (req, res) => {
 
       if (!employee) return res.status(404).json({ error: 'Empleado no encontrado' });
 
-      // 3. Resolver turnos disponibles (Cascada)
+      // Self-Healing asíncrono no bloqueante (no frena la respuesta UI del kiosko)
+      processAutoCheckout(employeeId, companyId).catch(err => {
+        console.warn('[attendance/context] Fallo no fatal en auto-cierre:', err.message);
+      });
+
+      const settings = await prisma.systemSettings.findFirst({
+        where: { companyId }
+      }).catch(() => null);
+
+      const tz = settings?.timezone || DEFAULT_TZ;
+      const startOfDay = getStartOfDay(new Date(), tz);
+
+      // 2. Obtener registro de hoy
+      const todayRecord = await prisma.attendanceRecord.findFirst({
+        where: {
+          employeeId,
+          date: startOfDay
+        }
+      });
+
+      // 3. Resolver turnos disponibles (Cascada segura con .filter(Boolean))
       let availableShifts = [];
-      if (employee.shifts.length > 0) {
-        availableShifts = employee.shifts.map(es => es.shift);
-      } else if (employee.department && employee.department.shifts.length > 0) {
-        availableShifts = employee.department.shifts.map(ds => ds.shift);
-      } else {
+      if (employee.shifts && employee.shifts.length > 0) {
+        availableShifts = employee.shifts.map(es => es.shift).filter(Boolean);
+      } else if (employee.department && employee.department.shifts && employee.department.shifts.length > 0) {
+        availableShifts = employee.department.shifts.map(ds => ds.shift).filter(Boolean);
+      }
+
+      if (availableShifts.length === 0) {
         availableShifts = [{
           id: -1,
           name: 'Horario Global',
-          startTime: `${(settings?.workdayStartHour ?? 9).toString().padStart(2, '0')}:${(settings?.workdayStartMinute ?? 0).toString().padStart(2, '0')}`,
-          endTime: `${(settings?.workdayEndHour ?? 18).toString().padStart(2, '0')}:${(settings?.workdayEndMinute ?? 0).toString().padStart(2, '0')}`,
+          startTime: `${(settings?.workdayStartHour ?? 8).toString().padStart(2, '0')}:${(settings?.workdayStartMinute ?? 0).toString().padStart(2, '0')}`,
+          endTime: `${(settings?.workdayEndHour ?? 17).toString().padStart(2, '0')}:${(settings?.workdayEndMinute ?? 0).toString().padStart(2, '0')}`,
           tolerance: settings?.latenessToleranceMin ?? 15
         }];
       }
 
       // 4. Armar contexto
-      res.json({
+      return res.json({
         hasEntrada: !!(todayRecord && todayRecord.entrada),
         hasReceso: !!(todayRecord && todayRecord.recesoInicio && !todayRecord.recesoFin),
         hasSalida: !!(todayRecord && todayRecord.salida),
@@ -190,7 +190,7 @@ router.get('/context/:employeeId', requireApiKey, async (req, res) => {
         salidaTime: todayRecord ? todayRecord.salida : null,
         overtimeMinutes: todayRecord ? todayRecord.overtimeMinutes : 0,
         availableShifts,
-        currentShiftId: todayRecord ? todayRecord.shiftId : null
+        currentShiftId: todayRecord ? todayRecord.shiftId : (availableShifts[0]?.id ?? null)
       });
     });
 

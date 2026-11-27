@@ -5,6 +5,7 @@ const {
   lookupAuthRequestByCode,
   approveDeviceAuth,
   rejectDeviceAuth,
+  getAuthRequestStatus,
   verifyDeviceToken,
   getDevices,
   toggleBlockDevice,
@@ -18,6 +19,7 @@ const router = express.Router();
 
 // --- Rutas Públicas (Utilizadas por el Kiosko) ---
 router.post('/auth-request', requestDeviceAuth);
+router.get('/auth-requests/:id/status', getAuthRequestStatus);
 router.post('/verify', verifyDeviceToken);
 
 // --- Rutas de Emparejamiento (SUPER_ADMIN, CORPORATE_ADMIN y ADMIN de empresa) ---
