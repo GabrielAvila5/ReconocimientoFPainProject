@@ -95,9 +95,16 @@ model Employee {
   lastName       String
   identifier     String             // Número de empleado o DNI
   email          String?
+  phone          String?            // Teléfono móvil / WhatsApp
   position       String?
   departmentId   Int?
   department     Department?        @relation(fields: [departmentId, companyId], references: [id, companyId], onDelete: Restrict)
+  hireDate       DateTime?          // Fecha de contratación / ingreso
+  birthDate      DateTime?          // Fecha de nacimiento
+  contractType   String?            // TIEMPO_COMPLETO, MEDIO_TIEMPO, HONORARIOS, etc.
+  emergencyContactName  String?     // Contacto de emergencia (Nombre)
+  emergencyContactPhone String?     // Contacto de emergencia (Teléfono)
+  customTolerance       Int?        // Tolerancia personalizada de entrada en minutos
   faceDescriptor String?            @db.Text // Cifrado AES-256-GCM
   enrolledAt     DateTime?
   isActive       Boolean            @default(true)

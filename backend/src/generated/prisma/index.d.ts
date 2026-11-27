@@ -5539,10 +5539,12 @@ export namespace Prisma {
 
   export type EmployeeAvgAggregateOutputType = {
     departmentId: number | null
+    customTolerance: number | null
   }
 
   export type EmployeeSumAggregateOutputType = {
     departmentId: number | null
+    customTolerance: number | null
   }
 
   export type EmployeeMinAggregateOutputType = {
@@ -5552,8 +5554,15 @@ export namespace Prisma {
     lastName: string | null
     identifier: string | null
     email: string | null
+    phone: string | null
     position: string | null
     departmentId: number | null
+    hireDate: Date | null
+    birthDate: Date | null
+    contractType: string | null
+    emergencyContactName: string | null
+    emergencyContactPhone: string | null
+    customTolerance: number | null
     faceDescriptor: string | null
     enrolledAt: Date | null
     isActive: boolean | null
@@ -5568,8 +5577,15 @@ export namespace Prisma {
     lastName: string | null
     identifier: string | null
     email: string | null
+    phone: string | null
     position: string | null
     departmentId: number | null
+    hireDate: Date | null
+    birthDate: Date | null
+    contractType: string | null
+    emergencyContactName: string | null
+    emergencyContactPhone: string | null
+    customTolerance: number | null
     faceDescriptor: string | null
     enrolledAt: Date | null
     isActive: boolean | null
@@ -5584,8 +5600,15 @@ export namespace Prisma {
     lastName: number
     identifier: number
     email: number
+    phone: number
     position: number
     departmentId: number
+    hireDate: number
+    birthDate: number
+    contractType: number
+    emergencyContactName: number
+    emergencyContactPhone: number
+    customTolerance: number
     faceDescriptor: number
     enrolledAt: number
     isActive: number
@@ -5597,10 +5620,12 @@ export namespace Prisma {
 
   export type EmployeeAvgAggregateInputType = {
     departmentId?: true
+    customTolerance?: true
   }
 
   export type EmployeeSumAggregateInputType = {
     departmentId?: true
+    customTolerance?: true
   }
 
   export type EmployeeMinAggregateInputType = {
@@ -5610,8 +5635,15 @@ export namespace Prisma {
     lastName?: true
     identifier?: true
     email?: true
+    phone?: true
     position?: true
     departmentId?: true
+    hireDate?: true
+    birthDate?: true
+    contractType?: true
+    emergencyContactName?: true
+    emergencyContactPhone?: true
+    customTolerance?: true
     faceDescriptor?: true
     enrolledAt?: true
     isActive?: true
@@ -5626,8 +5658,15 @@ export namespace Prisma {
     lastName?: true
     identifier?: true
     email?: true
+    phone?: true
     position?: true
     departmentId?: true
+    hireDate?: true
+    birthDate?: true
+    contractType?: true
+    emergencyContactName?: true
+    emergencyContactPhone?: true
+    customTolerance?: true
     faceDescriptor?: true
     enrolledAt?: true
     isActive?: true
@@ -5642,8 +5681,15 @@ export namespace Prisma {
     lastName?: true
     identifier?: true
     email?: true
+    phone?: true
     position?: true
     departmentId?: true
+    hireDate?: true
+    birthDate?: true
+    contractType?: true
+    emergencyContactName?: true
+    emergencyContactPhone?: true
+    customTolerance?: true
     faceDescriptor?: true
     enrolledAt?: true
     isActive?: true
@@ -5745,8 +5791,15 @@ export namespace Prisma {
     lastName: string
     identifier: string
     email: string | null
+    phone: string | null
     position: string | null
     departmentId: number | null
+    hireDate: Date | null
+    birthDate: Date | null
+    contractType: string | null
+    emergencyContactName: string | null
+    emergencyContactPhone: string | null
+    customTolerance: number | null
     faceDescriptor: string | null
     enrolledAt: Date | null
     isActive: boolean
@@ -5780,8 +5833,15 @@ export namespace Prisma {
     lastName?: boolean
     identifier?: boolean
     email?: boolean
+    phone?: boolean
     position?: boolean
     departmentId?: boolean
+    hireDate?: boolean
+    birthDate?: boolean
+    contractType?: boolean
+    emergencyContactName?: boolean
+    emergencyContactPhone?: boolean
+    customTolerance?: boolean
     faceDescriptor?: boolean
     enrolledAt?: boolean
     isActive?: boolean
@@ -5807,8 +5867,15 @@ export namespace Prisma {
     lastName?: boolean
     identifier?: boolean
     email?: boolean
+    phone?: boolean
     position?: boolean
     departmentId?: boolean
+    hireDate?: boolean
+    birthDate?: boolean
+    contractType?: boolean
+    emergencyContactName?: boolean
+    emergencyContactPhone?: boolean
+    customTolerance?: boolean
     faceDescriptor?: boolean
     enrolledAt?: boolean
     isActive?: boolean
@@ -5816,7 +5883,7 @@ export namespace Prisma {
     updatedAt?: boolean
   }
 
-  export type EmployeeOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "companyId" | "firstName" | "lastName" | "identifier" | "email" | "position" | "departmentId" | "faceDescriptor" | "enrolledAt" | "isActive" | "createdAt" | "updatedAt", ExtArgs["result"]["employee"]>
+  export type EmployeeOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "companyId" | "firstName" | "lastName" | "identifier" | "email" | "phone" | "position" | "departmentId" | "hireDate" | "birthDate" | "contractType" | "emergencyContactName" | "emergencyContactPhone" | "customTolerance" | "faceDescriptor" | "enrolledAt" | "isActive" | "createdAt" | "updatedAt", ExtArgs["result"]["employee"]>
   export type EmployeeInclude<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     company?: boolean | CompanyDefaultArgs<ExtArgs>
     department?: boolean | Employee$departmentArgs<ExtArgs>
@@ -5848,8 +5915,15 @@ export namespace Prisma {
       lastName: string
       identifier: string
       email: string | null
+      phone: string | null
       position: string | null
       departmentId: number | null
+      hireDate: Date | null
+      birthDate: Date | null
+      contractType: string | null
+      emergencyContactName: string | null
+      emergencyContactPhone: string | null
+      customTolerance: number | null
       faceDescriptor: string | null
       enrolledAt: Date | null
       isActive: boolean
@@ -6238,8 +6312,15 @@ export namespace Prisma {
     readonly lastName: FieldRef<"Employee", 'String'>
     readonly identifier: FieldRef<"Employee", 'String'>
     readonly email: FieldRef<"Employee", 'String'>
+    readonly phone: FieldRef<"Employee", 'String'>
     readonly position: FieldRef<"Employee", 'String'>
     readonly departmentId: FieldRef<"Employee", 'Int'>
+    readonly hireDate: FieldRef<"Employee", 'DateTime'>
+    readonly birthDate: FieldRef<"Employee", 'DateTime'>
+    readonly contractType: FieldRef<"Employee", 'String'>
+    readonly emergencyContactName: FieldRef<"Employee", 'String'>
+    readonly emergencyContactPhone: FieldRef<"Employee", 'String'>
+    readonly customTolerance: FieldRef<"Employee", 'Int'>
     readonly faceDescriptor: FieldRef<"Employee", 'String'>
     readonly enrolledAt: FieldRef<"Employee", 'DateTime'>
     readonly isActive: FieldRef<"Employee", 'Boolean'>
@@ -21605,8 +21686,15 @@ export namespace Prisma {
     lastName: 'lastName',
     identifier: 'identifier',
     email: 'email',
+    phone: 'phone',
     position: 'position',
     departmentId: 'departmentId',
+    hireDate: 'hireDate',
+    birthDate: 'birthDate',
+    contractType: 'contractType',
+    emergencyContactName: 'emergencyContactName',
+    emergencyContactPhone: 'emergencyContactPhone',
+    customTolerance: 'customTolerance',
     faceDescriptor: 'faceDescriptor',
     enrolledAt: 'enrolledAt',
     isActive: 'isActive',
@@ -21929,7 +22017,11 @@ export namespace Prisma {
     lastName: 'lastName',
     identifier: 'identifier',
     email: 'email',
+    phone: 'phone',
     position: 'position',
+    contractType: 'contractType',
+    emergencyContactName: 'emergencyContactName',
+    emergencyContactPhone: 'emergencyContactPhone',
     faceDescriptor: 'faceDescriptor'
   };
 
@@ -22568,8 +22660,15 @@ export namespace Prisma {
     lastName?: StringFilter<"Employee"> | string
     identifier?: StringFilter<"Employee"> | string
     email?: StringNullableFilter<"Employee"> | string | null
+    phone?: StringNullableFilter<"Employee"> | string | null
     position?: StringNullableFilter<"Employee"> | string | null
     departmentId?: IntNullableFilter<"Employee"> | number | null
+    hireDate?: DateTimeNullableFilter<"Employee"> | Date | string | null
+    birthDate?: DateTimeNullableFilter<"Employee"> | Date | string | null
+    contractType?: StringNullableFilter<"Employee"> | string | null
+    emergencyContactName?: StringNullableFilter<"Employee"> | string | null
+    emergencyContactPhone?: StringNullableFilter<"Employee"> | string | null
+    customTolerance?: IntNullableFilter<"Employee"> | number | null
     faceDescriptor?: StringNullableFilter<"Employee"> | string | null
     enrolledAt?: DateTimeNullableFilter<"Employee"> | Date | string | null
     isActive?: BoolFilter<"Employee"> | boolean
@@ -22592,8 +22691,15 @@ export namespace Prisma {
     lastName?: SortOrder
     identifier?: SortOrder
     email?: SortOrderInput | SortOrder
+    phone?: SortOrderInput | SortOrder
     position?: SortOrderInput | SortOrder
     departmentId?: SortOrderInput | SortOrder
+    hireDate?: SortOrderInput | SortOrder
+    birthDate?: SortOrderInput | SortOrder
+    contractType?: SortOrderInput | SortOrder
+    emergencyContactName?: SortOrderInput | SortOrder
+    emergencyContactPhone?: SortOrderInput | SortOrder
+    customTolerance?: SortOrderInput | SortOrder
     faceDescriptor?: SortOrderInput | SortOrder
     enrolledAt?: SortOrderInput | SortOrder
     isActive?: SortOrder
@@ -22623,8 +22729,15 @@ export namespace Prisma {
     lastName?: StringFilter<"Employee"> | string
     identifier?: StringFilter<"Employee"> | string
     email?: StringNullableFilter<"Employee"> | string | null
+    phone?: StringNullableFilter<"Employee"> | string | null
     position?: StringNullableFilter<"Employee"> | string | null
     departmentId?: IntNullableFilter<"Employee"> | number | null
+    hireDate?: DateTimeNullableFilter<"Employee"> | Date | string | null
+    birthDate?: DateTimeNullableFilter<"Employee"> | Date | string | null
+    contractType?: StringNullableFilter<"Employee"> | string | null
+    emergencyContactName?: StringNullableFilter<"Employee"> | string | null
+    emergencyContactPhone?: StringNullableFilter<"Employee"> | string | null
+    customTolerance?: IntNullableFilter<"Employee"> | number | null
     faceDescriptor?: StringNullableFilter<"Employee"> | string | null
     enrolledAt?: DateTimeNullableFilter<"Employee"> | Date | string | null
     isActive?: BoolFilter<"Employee"> | boolean
@@ -22647,8 +22760,15 @@ export namespace Prisma {
     lastName?: SortOrder
     identifier?: SortOrder
     email?: SortOrderInput | SortOrder
+    phone?: SortOrderInput | SortOrder
     position?: SortOrderInput | SortOrder
     departmentId?: SortOrderInput | SortOrder
+    hireDate?: SortOrderInput | SortOrder
+    birthDate?: SortOrderInput | SortOrder
+    contractType?: SortOrderInput | SortOrder
+    emergencyContactName?: SortOrderInput | SortOrder
+    emergencyContactPhone?: SortOrderInput | SortOrder
+    customTolerance?: SortOrderInput | SortOrder
     faceDescriptor?: SortOrderInput | SortOrder
     enrolledAt?: SortOrderInput | SortOrder
     isActive?: SortOrder
@@ -22671,8 +22791,15 @@ export namespace Prisma {
     lastName?: StringWithAggregatesFilter<"Employee"> | string
     identifier?: StringWithAggregatesFilter<"Employee"> | string
     email?: StringNullableWithAggregatesFilter<"Employee"> | string | null
+    phone?: StringNullableWithAggregatesFilter<"Employee"> | string | null
     position?: StringNullableWithAggregatesFilter<"Employee"> | string | null
     departmentId?: IntNullableWithAggregatesFilter<"Employee"> | number | null
+    hireDate?: DateTimeNullableWithAggregatesFilter<"Employee"> | Date | string | null
+    birthDate?: DateTimeNullableWithAggregatesFilter<"Employee"> | Date | string | null
+    contractType?: StringNullableWithAggregatesFilter<"Employee"> | string | null
+    emergencyContactName?: StringNullableWithAggregatesFilter<"Employee"> | string | null
+    emergencyContactPhone?: StringNullableWithAggregatesFilter<"Employee"> | string | null
+    customTolerance?: IntNullableWithAggregatesFilter<"Employee"> | number | null
     faceDescriptor?: StringNullableWithAggregatesFilter<"Employee"> | string | null
     enrolledAt?: DateTimeNullableWithAggregatesFilter<"Employee"> | Date | string | null
     isActive?: BoolWithAggregatesFilter<"Employee"> | boolean
@@ -24436,7 +24563,14 @@ export namespace Prisma {
     lastName: string
     identifier: string
     email?: string | null
+    phone?: string | null
     position?: string | null
+    hireDate?: Date | string | null
+    birthDate?: Date | string | null
+    contractType?: string | null
+    emergencyContactName?: string | null
+    emergencyContactPhone?: string | null
+    customTolerance?: number | null
     faceDescriptor?: string | null
     enrolledAt?: Date | string | null
     isActive?: boolean
@@ -24459,8 +24593,15 @@ export namespace Prisma {
     lastName: string
     identifier: string
     email?: string | null
+    phone?: string | null
     position?: string | null
     departmentId?: number | null
+    hireDate?: Date | string | null
+    birthDate?: Date | string | null
+    contractType?: string | null
+    emergencyContactName?: string | null
+    emergencyContactPhone?: string | null
+    customTolerance?: number | null
     faceDescriptor?: string | null
     enrolledAt?: Date | string | null
     isActive?: boolean
@@ -24480,7 +24621,14 @@ export namespace Prisma {
     lastName?: StringFieldUpdateOperationsInput | string
     identifier?: StringFieldUpdateOperationsInput | string
     email?: NullableStringFieldUpdateOperationsInput | string | null
+    phone?: NullableStringFieldUpdateOperationsInput | string | null
     position?: NullableStringFieldUpdateOperationsInput | string | null
+    hireDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    birthDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    contractType?: NullableStringFieldUpdateOperationsInput | string | null
+    emergencyContactName?: NullableStringFieldUpdateOperationsInput | string | null
+    emergencyContactPhone?: NullableStringFieldUpdateOperationsInput | string | null
+    customTolerance?: NullableIntFieldUpdateOperationsInput | number | null
     faceDescriptor?: NullableStringFieldUpdateOperationsInput | string | null
     enrolledAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     isActive?: BoolFieldUpdateOperationsInput | boolean
@@ -24503,8 +24651,15 @@ export namespace Prisma {
     lastName?: StringFieldUpdateOperationsInput | string
     identifier?: StringFieldUpdateOperationsInput | string
     email?: NullableStringFieldUpdateOperationsInput | string | null
+    phone?: NullableStringFieldUpdateOperationsInput | string | null
     position?: NullableStringFieldUpdateOperationsInput | string | null
     departmentId?: NullableIntFieldUpdateOperationsInput | number | null
+    hireDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    birthDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    contractType?: NullableStringFieldUpdateOperationsInput | string | null
+    emergencyContactName?: NullableStringFieldUpdateOperationsInput | string | null
+    emergencyContactPhone?: NullableStringFieldUpdateOperationsInput | string | null
+    customTolerance?: NullableIntFieldUpdateOperationsInput | number | null
     faceDescriptor?: NullableStringFieldUpdateOperationsInput | string | null
     enrolledAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     isActive?: BoolFieldUpdateOperationsInput | boolean
@@ -24525,8 +24680,15 @@ export namespace Prisma {
     lastName: string
     identifier: string
     email?: string | null
+    phone?: string | null
     position?: string | null
     departmentId?: number | null
+    hireDate?: Date | string | null
+    birthDate?: Date | string | null
+    contractType?: string | null
+    emergencyContactName?: string | null
+    emergencyContactPhone?: string | null
+    customTolerance?: number | null
     faceDescriptor?: string | null
     enrolledAt?: Date | string | null
     isActive?: boolean
@@ -24540,7 +24702,14 @@ export namespace Prisma {
     lastName?: StringFieldUpdateOperationsInput | string
     identifier?: StringFieldUpdateOperationsInput | string
     email?: NullableStringFieldUpdateOperationsInput | string | null
+    phone?: NullableStringFieldUpdateOperationsInput | string | null
     position?: NullableStringFieldUpdateOperationsInput | string | null
+    hireDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    birthDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    contractType?: NullableStringFieldUpdateOperationsInput | string | null
+    emergencyContactName?: NullableStringFieldUpdateOperationsInput | string | null
+    emergencyContactPhone?: NullableStringFieldUpdateOperationsInput | string | null
+    customTolerance?: NullableIntFieldUpdateOperationsInput | number | null
     faceDescriptor?: NullableStringFieldUpdateOperationsInput | string | null
     enrolledAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     isActive?: BoolFieldUpdateOperationsInput | boolean
@@ -24555,8 +24724,15 @@ export namespace Prisma {
     lastName?: StringFieldUpdateOperationsInput | string
     identifier?: StringFieldUpdateOperationsInput | string
     email?: NullableStringFieldUpdateOperationsInput | string | null
+    phone?: NullableStringFieldUpdateOperationsInput | string | null
     position?: NullableStringFieldUpdateOperationsInput | string | null
     departmentId?: NullableIntFieldUpdateOperationsInput | number | null
+    hireDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    birthDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    contractType?: NullableStringFieldUpdateOperationsInput | string | null
+    emergencyContactName?: NullableStringFieldUpdateOperationsInput | string | null
+    emergencyContactPhone?: NullableStringFieldUpdateOperationsInput | string | null
+    customTolerance?: NullableIntFieldUpdateOperationsInput | number | null
     faceDescriptor?: NullableStringFieldUpdateOperationsInput | string | null
     enrolledAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     isActive?: BoolFieldUpdateOperationsInput | boolean
@@ -26636,8 +26812,15 @@ export namespace Prisma {
     lastName?: SortOrder
     identifier?: SortOrder
     email?: SortOrder
+    phone?: SortOrder
     position?: SortOrder
     departmentId?: SortOrder
+    hireDate?: SortOrder
+    birthDate?: SortOrder
+    contractType?: SortOrder
+    emergencyContactName?: SortOrder
+    emergencyContactPhone?: SortOrder
+    customTolerance?: SortOrder
     faceDescriptor?: SortOrder
     enrolledAt?: SortOrder
     isActive?: SortOrder
@@ -26647,6 +26830,7 @@ export namespace Prisma {
 
   export type EmployeeAvgOrderByAggregateInput = {
     departmentId?: SortOrder
+    customTolerance?: SortOrder
   }
 
   export type EmployeeMaxOrderByAggregateInput = {
@@ -26656,8 +26840,15 @@ export namespace Prisma {
     lastName?: SortOrder
     identifier?: SortOrder
     email?: SortOrder
+    phone?: SortOrder
     position?: SortOrder
     departmentId?: SortOrder
+    hireDate?: SortOrder
+    birthDate?: SortOrder
+    contractType?: SortOrder
+    emergencyContactName?: SortOrder
+    emergencyContactPhone?: SortOrder
+    customTolerance?: SortOrder
     faceDescriptor?: SortOrder
     enrolledAt?: SortOrder
     isActive?: SortOrder
@@ -26672,8 +26863,15 @@ export namespace Prisma {
     lastName?: SortOrder
     identifier?: SortOrder
     email?: SortOrder
+    phone?: SortOrder
     position?: SortOrder
     departmentId?: SortOrder
+    hireDate?: SortOrder
+    birthDate?: SortOrder
+    contractType?: SortOrder
+    emergencyContactName?: SortOrder
+    emergencyContactPhone?: SortOrder
+    customTolerance?: SortOrder
     faceDescriptor?: SortOrder
     enrolledAt?: SortOrder
     isActive?: SortOrder
@@ -26683,6 +26881,7 @@ export namespace Prisma {
 
   export type EmployeeSumOrderByAggregateInput = {
     departmentId?: SortOrder
+    customTolerance?: SortOrder
   }
 
   export type EmployeeScalarRelationFilter = {
@@ -30307,7 +30506,14 @@ export namespace Prisma {
     lastName: string
     identifier: string
     email?: string | null
+    phone?: string | null
     position?: string | null
+    hireDate?: Date | string | null
+    birthDate?: Date | string | null
+    contractType?: string | null
+    emergencyContactName?: string | null
+    emergencyContactPhone?: string | null
+    customTolerance?: number | null
     faceDescriptor?: string | null
     enrolledAt?: Date | string | null
     isActive?: boolean
@@ -30328,8 +30534,15 @@ export namespace Prisma {
     lastName: string
     identifier: string
     email?: string | null
+    phone?: string | null
     position?: string | null
     departmentId?: number | null
+    hireDate?: Date | string | null
+    birthDate?: Date | string | null
+    contractType?: string | null
+    emergencyContactName?: string | null
+    emergencyContactPhone?: string | null
+    customTolerance?: number | null
     faceDescriptor?: string | null
     enrolledAt?: Date | string | null
     isActive?: boolean
@@ -31120,8 +31333,15 @@ export namespace Prisma {
     lastName?: StringFilter<"Employee"> | string
     identifier?: StringFilter<"Employee"> | string
     email?: StringNullableFilter<"Employee"> | string | null
+    phone?: StringNullableFilter<"Employee"> | string | null
     position?: StringNullableFilter<"Employee"> | string | null
     departmentId?: IntNullableFilter<"Employee"> | number | null
+    hireDate?: DateTimeNullableFilter<"Employee"> | Date | string | null
+    birthDate?: DateTimeNullableFilter<"Employee"> | Date | string | null
+    contractType?: StringNullableFilter<"Employee"> | string | null
+    emergencyContactName?: StringNullableFilter<"Employee"> | string | null
+    emergencyContactPhone?: StringNullableFilter<"Employee"> | string | null
+    customTolerance?: IntNullableFilter<"Employee"> | number | null
     faceDescriptor?: StringNullableFilter<"Employee"> | string | null
     enrolledAt?: DateTimeNullableFilter<"Employee"> | Date | string | null
     isActive?: BoolFilter<"Employee"> | boolean
@@ -31741,7 +31961,14 @@ export namespace Prisma {
     lastName: string
     identifier: string
     email?: string | null
+    phone?: string | null
     position?: string | null
+    hireDate?: Date | string | null
+    birthDate?: Date | string | null
+    contractType?: string | null
+    emergencyContactName?: string | null
+    emergencyContactPhone?: string | null
+    customTolerance?: number | null
     faceDescriptor?: string | null
     enrolledAt?: Date | string | null
     isActive?: boolean
@@ -31762,7 +31989,14 @@ export namespace Prisma {
     lastName: string
     identifier: string
     email?: string | null
+    phone?: string | null
     position?: string | null
+    hireDate?: Date | string | null
+    birthDate?: Date | string | null
+    contractType?: string | null
+    emergencyContactName?: string | null
+    emergencyContactPhone?: string | null
+    customTolerance?: number | null
     faceDescriptor?: string | null
     enrolledAt?: Date | string | null
     isActive?: boolean
@@ -32674,7 +32908,14 @@ export namespace Prisma {
     lastName: string
     identifier: string
     email?: string | null
+    phone?: string | null
     position?: string | null
+    hireDate?: Date | string | null
+    birthDate?: Date | string | null
+    contractType?: string | null
+    emergencyContactName?: string | null
+    emergencyContactPhone?: string | null
+    customTolerance?: number | null
     faceDescriptor?: string | null
     enrolledAt?: Date | string | null
     isActive?: boolean
@@ -32696,8 +32937,15 @@ export namespace Prisma {
     lastName: string
     identifier: string
     email?: string | null
+    phone?: string | null
     position?: string | null
     departmentId?: number | null
+    hireDate?: Date | string | null
+    birthDate?: Date | string | null
+    contractType?: string | null
+    emergencyContactName?: string | null
+    emergencyContactPhone?: string | null
+    customTolerance?: number | null
     faceDescriptor?: string | null
     enrolledAt?: Date | string | null
     isActive?: boolean
@@ -32934,7 +33182,14 @@ export namespace Prisma {
     lastName?: StringFieldUpdateOperationsInput | string
     identifier?: StringFieldUpdateOperationsInput | string
     email?: NullableStringFieldUpdateOperationsInput | string | null
+    phone?: NullableStringFieldUpdateOperationsInput | string | null
     position?: NullableStringFieldUpdateOperationsInput | string | null
+    hireDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    birthDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    contractType?: NullableStringFieldUpdateOperationsInput | string | null
+    emergencyContactName?: NullableStringFieldUpdateOperationsInput | string | null
+    emergencyContactPhone?: NullableStringFieldUpdateOperationsInput | string | null
+    customTolerance?: NullableIntFieldUpdateOperationsInput | number | null
     faceDescriptor?: NullableStringFieldUpdateOperationsInput | string | null
     enrolledAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     isActive?: BoolFieldUpdateOperationsInput | boolean
@@ -32956,8 +33211,15 @@ export namespace Prisma {
     lastName?: StringFieldUpdateOperationsInput | string
     identifier?: StringFieldUpdateOperationsInput | string
     email?: NullableStringFieldUpdateOperationsInput | string | null
+    phone?: NullableStringFieldUpdateOperationsInput | string | null
     position?: NullableStringFieldUpdateOperationsInput | string | null
     departmentId?: NullableIntFieldUpdateOperationsInput | number | null
+    hireDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    birthDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    contractType?: NullableStringFieldUpdateOperationsInput | string | null
+    emergencyContactName?: NullableStringFieldUpdateOperationsInput | string | null
+    emergencyContactPhone?: NullableStringFieldUpdateOperationsInput | string | null
+    customTolerance?: NullableIntFieldUpdateOperationsInput | number | null
     faceDescriptor?: NullableStringFieldUpdateOperationsInput | string | null
     enrolledAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     isActive?: BoolFieldUpdateOperationsInput | boolean
@@ -33909,7 +34171,14 @@ export namespace Prisma {
     lastName: string
     identifier: string
     email?: string | null
+    phone?: string | null
     position?: string | null
+    hireDate?: Date | string | null
+    birthDate?: Date | string | null
+    contractType?: string | null
+    emergencyContactName?: string | null
+    emergencyContactPhone?: string | null
+    customTolerance?: number | null
     faceDescriptor?: string | null
     enrolledAt?: Date | string | null
     isActive?: boolean
@@ -33931,8 +34200,15 @@ export namespace Prisma {
     lastName: string
     identifier: string
     email?: string | null
+    phone?: string | null
     position?: string | null
     departmentId?: number | null
+    hireDate?: Date | string | null
+    birthDate?: Date | string | null
+    contractType?: string | null
+    emergencyContactName?: string | null
+    emergencyContactPhone?: string | null
+    customTolerance?: number | null
     faceDescriptor?: string | null
     enrolledAt?: Date | string | null
     isActive?: boolean
@@ -34122,7 +34398,14 @@ export namespace Prisma {
     lastName?: StringFieldUpdateOperationsInput | string
     identifier?: StringFieldUpdateOperationsInput | string
     email?: NullableStringFieldUpdateOperationsInput | string | null
+    phone?: NullableStringFieldUpdateOperationsInput | string | null
     position?: NullableStringFieldUpdateOperationsInput | string | null
+    hireDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    birthDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    contractType?: NullableStringFieldUpdateOperationsInput | string | null
+    emergencyContactName?: NullableStringFieldUpdateOperationsInput | string | null
+    emergencyContactPhone?: NullableStringFieldUpdateOperationsInput | string | null
+    customTolerance?: NullableIntFieldUpdateOperationsInput | number | null
     faceDescriptor?: NullableStringFieldUpdateOperationsInput | string | null
     enrolledAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     isActive?: BoolFieldUpdateOperationsInput | boolean
@@ -34144,8 +34427,15 @@ export namespace Prisma {
     lastName?: StringFieldUpdateOperationsInput | string
     identifier?: StringFieldUpdateOperationsInput | string
     email?: NullableStringFieldUpdateOperationsInput | string | null
+    phone?: NullableStringFieldUpdateOperationsInput | string | null
     position?: NullableStringFieldUpdateOperationsInput | string | null
     departmentId?: NullableIntFieldUpdateOperationsInput | number | null
+    hireDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    birthDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    contractType?: NullableStringFieldUpdateOperationsInput | string | null
+    emergencyContactName?: NullableStringFieldUpdateOperationsInput | string | null
+    emergencyContactPhone?: NullableStringFieldUpdateOperationsInput | string | null
+    customTolerance?: NullableIntFieldUpdateOperationsInput | number | null
     faceDescriptor?: NullableStringFieldUpdateOperationsInput | string | null
     enrolledAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     isActive?: BoolFieldUpdateOperationsInput | boolean
@@ -34959,7 +35249,14 @@ export namespace Prisma {
     lastName: string
     identifier: string
     email?: string | null
+    phone?: string | null
     position?: string | null
+    hireDate?: Date | string | null
+    birthDate?: Date | string | null
+    contractType?: string | null
+    emergencyContactName?: string | null
+    emergencyContactPhone?: string | null
+    customTolerance?: number | null
     faceDescriptor?: string | null
     enrolledAt?: Date | string | null
     isActive?: boolean
@@ -34981,8 +35278,15 @@ export namespace Prisma {
     lastName: string
     identifier: string
     email?: string | null
+    phone?: string | null
     position?: string | null
     departmentId?: number | null
+    hireDate?: Date | string | null
+    birthDate?: Date | string | null
+    contractType?: string | null
+    emergencyContactName?: string | null
+    emergencyContactPhone?: string | null
+    customTolerance?: number | null
     faceDescriptor?: string | null
     enrolledAt?: Date | string | null
     isActive?: boolean
@@ -35134,7 +35438,14 @@ export namespace Prisma {
     lastName?: StringFieldUpdateOperationsInput | string
     identifier?: StringFieldUpdateOperationsInput | string
     email?: NullableStringFieldUpdateOperationsInput | string | null
+    phone?: NullableStringFieldUpdateOperationsInput | string | null
     position?: NullableStringFieldUpdateOperationsInput | string | null
+    hireDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    birthDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    contractType?: NullableStringFieldUpdateOperationsInput | string | null
+    emergencyContactName?: NullableStringFieldUpdateOperationsInput | string | null
+    emergencyContactPhone?: NullableStringFieldUpdateOperationsInput | string | null
+    customTolerance?: NullableIntFieldUpdateOperationsInput | number | null
     faceDescriptor?: NullableStringFieldUpdateOperationsInput | string | null
     enrolledAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     isActive?: BoolFieldUpdateOperationsInput | boolean
@@ -35156,8 +35467,15 @@ export namespace Prisma {
     lastName?: StringFieldUpdateOperationsInput | string
     identifier?: StringFieldUpdateOperationsInput | string
     email?: NullableStringFieldUpdateOperationsInput | string | null
+    phone?: NullableStringFieldUpdateOperationsInput | string | null
     position?: NullableStringFieldUpdateOperationsInput | string | null
     departmentId?: NullableIntFieldUpdateOperationsInput | number | null
+    hireDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    birthDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    contractType?: NullableStringFieldUpdateOperationsInput | string | null
+    emergencyContactName?: NullableStringFieldUpdateOperationsInput | string | null
+    emergencyContactPhone?: NullableStringFieldUpdateOperationsInput | string | null
+    customTolerance?: NullableIntFieldUpdateOperationsInput | number | null
     faceDescriptor?: NullableStringFieldUpdateOperationsInput | string | null
     enrolledAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     isActive?: BoolFieldUpdateOperationsInput | boolean
@@ -35287,7 +35605,14 @@ export namespace Prisma {
     lastName: string
     identifier: string
     email?: string | null
+    phone?: string | null
     position?: string | null
+    hireDate?: Date | string | null
+    birthDate?: Date | string | null
+    contractType?: string | null
+    emergencyContactName?: string | null
+    emergencyContactPhone?: string | null
+    customTolerance?: number | null
     faceDescriptor?: string | null
     enrolledAt?: Date | string | null
     isActive?: boolean
@@ -35309,8 +35634,15 @@ export namespace Prisma {
     lastName: string
     identifier: string
     email?: string | null
+    phone?: string | null
     position?: string | null
     departmentId?: number | null
+    hireDate?: Date | string | null
+    birthDate?: Date | string | null
+    contractType?: string | null
+    emergencyContactName?: string | null
+    emergencyContactPhone?: string | null
+    customTolerance?: number | null
     faceDescriptor?: string | null
     enrolledAt?: Date | string | null
     isActive?: boolean
@@ -35493,7 +35825,14 @@ export namespace Prisma {
     lastName?: StringFieldUpdateOperationsInput | string
     identifier?: StringFieldUpdateOperationsInput | string
     email?: NullableStringFieldUpdateOperationsInput | string | null
+    phone?: NullableStringFieldUpdateOperationsInput | string | null
     position?: NullableStringFieldUpdateOperationsInput | string | null
+    hireDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    birthDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    contractType?: NullableStringFieldUpdateOperationsInput | string | null
+    emergencyContactName?: NullableStringFieldUpdateOperationsInput | string | null
+    emergencyContactPhone?: NullableStringFieldUpdateOperationsInput | string | null
+    customTolerance?: NullableIntFieldUpdateOperationsInput | number | null
     faceDescriptor?: NullableStringFieldUpdateOperationsInput | string | null
     enrolledAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     isActive?: BoolFieldUpdateOperationsInput | boolean
@@ -35515,8 +35854,15 @@ export namespace Prisma {
     lastName?: StringFieldUpdateOperationsInput | string
     identifier?: StringFieldUpdateOperationsInput | string
     email?: NullableStringFieldUpdateOperationsInput | string | null
+    phone?: NullableStringFieldUpdateOperationsInput | string | null
     position?: NullableStringFieldUpdateOperationsInput | string | null
     departmentId?: NullableIntFieldUpdateOperationsInput | number | null
+    hireDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    birthDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    contractType?: NullableStringFieldUpdateOperationsInput | string | null
+    emergencyContactName?: NullableStringFieldUpdateOperationsInput | string | null
+    emergencyContactPhone?: NullableStringFieldUpdateOperationsInput | string | null
+    customTolerance?: NullableIntFieldUpdateOperationsInput | number | null
     faceDescriptor?: NullableStringFieldUpdateOperationsInput | string | null
     enrolledAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     isActive?: BoolFieldUpdateOperationsInput | boolean
@@ -36321,7 +36667,14 @@ export namespace Prisma {
     lastName: string
     identifier: string
     email?: string | null
+    phone?: string | null
     position?: string | null
+    hireDate?: Date | string | null
+    birthDate?: Date | string | null
+    contractType?: string | null
+    emergencyContactName?: string | null
+    emergencyContactPhone?: string | null
+    customTolerance?: number | null
     faceDescriptor?: string | null
     enrolledAt?: Date | string | null
     isActive?: boolean
@@ -36343,8 +36696,15 @@ export namespace Prisma {
     lastName: string
     identifier: string
     email?: string | null
+    phone?: string | null
     position?: string | null
     departmentId?: number | null
+    hireDate?: Date | string | null
+    birthDate?: Date | string | null
+    contractType?: string | null
+    emergencyContactName?: string | null
+    emergencyContactPhone?: string | null
+    customTolerance?: number | null
     faceDescriptor?: string | null
     enrolledAt?: Date | string | null
     isActive?: boolean
@@ -36490,7 +36850,14 @@ export namespace Prisma {
     lastName?: StringFieldUpdateOperationsInput | string
     identifier?: StringFieldUpdateOperationsInput | string
     email?: NullableStringFieldUpdateOperationsInput | string | null
+    phone?: NullableStringFieldUpdateOperationsInput | string | null
     position?: NullableStringFieldUpdateOperationsInput | string | null
+    hireDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    birthDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    contractType?: NullableStringFieldUpdateOperationsInput | string | null
+    emergencyContactName?: NullableStringFieldUpdateOperationsInput | string | null
+    emergencyContactPhone?: NullableStringFieldUpdateOperationsInput | string | null
+    customTolerance?: NullableIntFieldUpdateOperationsInput | number | null
     faceDescriptor?: NullableStringFieldUpdateOperationsInput | string | null
     enrolledAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     isActive?: BoolFieldUpdateOperationsInput | boolean
@@ -36512,8 +36879,15 @@ export namespace Prisma {
     lastName?: StringFieldUpdateOperationsInput | string
     identifier?: StringFieldUpdateOperationsInput | string
     email?: NullableStringFieldUpdateOperationsInput | string | null
+    phone?: NullableStringFieldUpdateOperationsInput | string | null
     position?: NullableStringFieldUpdateOperationsInput | string | null
     departmentId?: NullableIntFieldUpdateOperationsInput | number | null
+    hireDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    birthDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    contractType?: NullableStringFieldUpdateOperationsInput | string | null
+    emergencyContactName?: NullableStringFieldUpdateOperationsInput | string | null
+    emergencyContactPhone?: NullableStringFieldUpdateOperationsInput | string | null
+    customTolerance?: NullableIntFieldUpdateOperationsInput | number | null
     faceDescriptor?: NullableStringFieldUpdateOperationsInput | string | null
     enrolledAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     isActive?: BoolFieldUpdateOperationsInput | boolean
@@ -36760,7 +37134,14 @@ export namespace Prisma {
     lastName: string
     identifier: string
     email?: string | null
+    phone?: string | null
     position?: string | null
+    hireDate?: Date | string | null
+    birthDate?: Date | string | null
+    contractType?: string | null
+    emergencyContactName?: string | null
+    emergencyContactPhone?: string | null
+    customTolerance?: number | null
     faceDescriptor?: string | null
     enrolledAt?: Date | string | null
     isActive?: boolean
@@ -36782,8 +37163,15 @@ export namespace Prisma {
     lastName: string
     identifier: string
     email?: string | null
+    phone?: string | null
     position?: string | null
     departmentId?: number | null
+    hireDate?: Date | string | null
+    birthDate?: Date | string | null
+    contractType?: string | null
+    emergencyContactName?: string | null
+    emergencyContactPhone?: string | null
+    customTolerance?: number | null
     faceDescriptor?: string | null
     enrolledAt?: Date | string | null
     isActive?: boolean
@@ -36935,7 +37323,14 @@ export namespace Prisma {
     lastName?: StringFieldUpdateOperationsInput | string
     identifier?: StringFieldUpdateOperationsInput | string
     email?: NullableStringFieldUpdateOperationsInput | string | null
+    phone?: NullableStringFieldUpdateOperationsInput | string | null
     position?: NullableStringFieldUpdateOperationsInput | string | null
+    hireDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    birthDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    contractType?: NullableStringFieldUpdateOperationsInput | string | null
+    emergencyContactName?: NullableStringFieldUpdateOperationsInput | string | null
+    emergencyContactPhone?: NullableStringFieldUpdateOperationsInput | string | null
+    customTolerance?: NullableIntFieldUpdateOperationsInput | number | null
     faceDescriptor?: NullableStringFieldUpdateOperationsInput | string | null
     enrolledAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     isActive?: BoolFieldUpdateOperationsInput | boolean
@@ -36957,8 +37352,15 @@ export namespace Prisma {
     lastName?: StringFieldUpdateOperationsInput | string
     identifier?: StringFieldUpdateOperationsInput | string
     email?: NullableStringFieldUpdateOperationsInput | string | null
+    phone?: NullableStringFieldUpdateOperationsInput | string | null
     position?: NullableStringFieldUpdateOperationsInput | string | null
     departmentId?: NullableIntFieldUpdateOperationsInput | number | null
+    hireDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    birthDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    contractType?: NullableStringFieldUpdateOperationsInput | string | null
+    emergencyContactName?: NullableStringFieldUpdateOperationsInput | string | null
+    emergencyContactPhone?: NullableStringFieldUpdateOperationsInput | string | null
+    customTolerance?: NullableIntFieldUpdateOperationsInput | number | null
     faceDescriptor?: NullableStringFieldUpdateOperationsInput | string | null
     enrolledAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     isActive?: BoolFieldUpdateOperationsInput | boolean
@@ -37247,8 +37649,15 @@ export namespace Prisma {
     lastName: string
     identifier: string
     email?: string | null
+    phone?: string | null
     position?: string | null
     departmentId?: number | null
+    hireDate?: Date | string | null
+    birthDate?: Date | string | null
+    contractType?: string | null
+    emergencyContactName?: string | null
+    emergencyContactPhone?: string | null
+    customTolerance?: number | null
     faceDescriptor?: string | null
     enrolledAt?: Date | string | null
     isActive?: boolean
@@ -37593,7 +38002,14 @@ export namespace Prisma {
     lastName?: StringFieldUpdateOperationsInput | string
     identifier?: StringFieldUpdateOperationsInput | string
     email?: NullableStringFieldUpdateOperationsInput | string | null
+    phone?: NullableStringFieldUpdateOperationsInput | string | null
     position?: NullableStringFieldUpdateOperationsInput | string | null
+    hireDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    birthDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    contractType?: NullableStringFieldUpdateOperationsInput | string | null
+    emergencyContactName?: NullableStringFieldUpdateOperationsInput | string | null
+    emergencyContactPhone?: NullableStringFieldUpdateOperationsInput | string | null
+    customTolerance?: NullableIntFieldUpdateOperationsInput | number | null
     faceDescriptor?: NullableStringFieldUpdateOperationsInput | string | null
     enrolledAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     isActive?: BoolFieldUpdateOperationsInput | boolean
@@ -37614,8 +38030,15 @@ export namespace Prisma {
     lastName?: StringFieldUpdateOperationsInput | string
     identifier?: StringFieldUpdateOperationsInput | string
     email?: NullableStringFieldUpdateOperationsInput | string | null
+    phone?: NullableStringFieldUpdateOperationsInput | string | null
     position?: NullableStringFieldUpdateOperationsInput | string | null
     departmentId?: NullableIntFieldUpdateOperationsInput | number | null
+    hireDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    birthDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    contractType?: NullableStringFieldUpdateOperationsInput | string | null
+    emergencyContactName?: NullableStringFieldUpdateOperationsInput | string | null
+    emergencyContactPhone?: NullableStringFieldUpdateOperationsInput | string | null
+    customTolerance?: NullableIntFieldUpdateOperationsInput | number | null
     faceDescriptor?: NullableStringFieldUpdateOperationsInput | string | null
     enrolledAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     isActive?: BoolFieldUpdateOperationsInput | boolean
@@ -37635,8 +38058,15 @@ export namespace Prisma {
     lastName?: StringFieldUpdateOperationsInput | string
     identifier?: StringFieldUpdateOperationsInput | string
     email?: NullableStringFieldUpdateOperationsInput | string | null
+    phone?: NullableStringFieldUpdateOperationsInput | string | null
     position?: NullableStringFieldUpdateOperationsInput | string | null
     departmentId?: NullableIntFieldUpdateOperationsInput | number | null
+    hireDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    birthDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    contractType?: NullableStringFieldUpdateOperationsInput | string | null
+    emergencyContactName?: NullableStringFieldUpdateOperationsInput | string | null
+    emergencyContactPhone?: NullableStringFieldUpdateOperationsInput | string | null
+    customTolerance?: NullableIntFieldUpdateOperationsInput | number | null
     faceDescriptor?: NullableStringFieldUpdateOperationsInput | string | null
     enrolledAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     isActive?: BoolFieldUpdateOperationsInput | boolean
@@ -38175,7 +38605,14 @@ export namespace Prisma {
     lastName: string
     identifier: string
     email?: string | null
+    phone?: string | null
     position?: string | null
+    hireDate?: Date | string | null
+    birthDate?: Date | string | null
+    contractType?: string | null
+    emergencyContactName?: string | null
+    emergencyContactPhone?: string | null
+    customTolerance?: number | null
     faceDescriptor?: string | null
     enrolledAt?: Date | string | null
     isActive?: boolean
@@ -38194,7 +38631,14 @@ export namespace Prisma {
     lastName?: StringFieldUpdateOperationsInput | string
     identifier?: StringFieldUpdateOperationsInput | string
     email?: NullableStringFieldUpdateOperationsInput | string | null
+    phone?: NullableStringFieldUpdateOperationsInput | string | null
     position?: NullableStringFieldUpdateOperationsInput | string | null
+    hireDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    birthDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    contractType?: NullableStringFieldUpdateOperationsInput | string | null
+    emergencyContactName?: NullableStringFieldUpdateOperationsInput | string | null
+    emergencyContactPhone?: NullableStringFieldUpdateOperationsInput | string | null
+    customTolerance?: NullableIntFieldUpdateOperationsInput | number | null
     faceDescriptor?: NullableStringFieldUpdateOperationsInput | string | null
     enrolledAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     isActive?: BoolFieldUpdateOperationsInput | boolean
@@ -38215,7 +38659,14 @@ export namespace Prisma {
     lastName?: StringFieldUpdateOperationsInput | string
     identifier?: StringFieldUpdateOperationsInput | string
     email?: NullableStringFieldUpdateOperationsInput | string | null
+    phone?: NullableStringFieldUpdateOperationsInput | string | null
     position?: NullableStringFieldUpdateOperationsInput | string | null
+    hireDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    birthDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    contractType?: NullableStringFieldUpdateOperationsInput | string | null
+    emergencyContactName?: NullableStringFieldUpdateOperationsInput | string | null
+    emergencyContactPhone?: NullableStringFieldUpdateOperationsInput | string | null
+    customTolerance?: NullableIntFieldUpdateOperationsInput | number | null
     faceDescriptor?: NullableStringFieldUpdateOperationsInput | string | null
     enrolledAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     isActive?: BoolFieldUpdateOperationsInput | boolean
@@ -38235,7 +38686,14 @@ export namespace Prisma {
     lastName?: StringFieldUpdateOperationsInput | string
     identifier?: StringFieldUpdateOperationsInput | string
     email?: NullableStringFieldUpdateOperationsInput | string | null
+    phone?: NullableStringFieldUpdateOperationsInput | string | null
     position?: NullableStringFieldUpdateOperationsInput | string | null
+    hireDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    birthDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    contractType?: NullableStringFieldUpdateOperationsInput | string | null
+    emergencyContactName?: NullableStringFieldUpdateOperationsInput | string | null
+    emergencyContactPhone?: NullableStringFieldUpdateOperationsInput | string | null
+    customTolerance?: NullableIntFieldUpdateOperationsInput | number | null
     faceDescriptor?: NullableStringFieldUpdateOperationsInput | string | null
     enrolledAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     isActive?: BoolFieldUpdateOperationsInput | boolean

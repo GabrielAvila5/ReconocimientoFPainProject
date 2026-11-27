@@ -96,6 +96,72 @@ async function ensureCompanyBillingColumns() {
 }
 
 /**
+ * Asegura la existencia de las columnas enriquecidas en la tabla Employee
+ * (phone, hireDate, birthDate, contractType, emergencyContactName, emergencyContactPhone, customTolerance)
+ */
+async function ensureEmployeeEnrichedColumns() {
+  try {
+    const columns = await basePrisma.$queryRawUnsafe(`
+      SELECT COLUMN_NAME 
+      FROM INFORMATION_SCHEMA.COLUMNS 
+      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Employee'
+    `);
+    const columnNames = Array.isArray(columns) ? columns.map(c => c.COLUMN_NAME) : [];
+
+    if (!columnNames.includes('phone')) {
+      await basePrisma.$executeRawUnsafe(`
+        ALTER TABLE \`Employee\` ADD COLUMN \`phone\` VARCHAR(50) NULL
+      `);
+      console.log('[DB Migration] Added phone column to Employee table');
+    }
+
+    if (!columnNames.includes('hireDate')) {
+      await basePrisma.$executeRawUnsafe(`
+        ALTER TABLE \`Employee\` ADD COLUMN \`hireDate\` DATETIME(3) NULL
+      `);
+      console.log('[DB Migration] Added hireDate column to Employee table');
+    }
+
+    if (!columnNames.includes('birthDate')) {
+      await basePrisma.$executeRawUnsafe(`
+        ALTER TABLE \`Employee\` ADD COLUMN \`birthDate\` DATETIME(3) NULL
+      `);
+      console.log('[DB Migration] Added birthDate column to Employee table');
+    }
+
+    if (!columnNames.includes('contractType')) {
+      await basePrisma.$executeRawUnsafe(`
+        ALTER TABLE \`Employee\` ADD COLUMN \`contractType\` VARCHAR(50) NULL DEFAULT 'TIEMPO_COMPLETO'
+      `);
+      console.log('[DB Migration] Added contractType column to Employee table');
+    }
+
+    if (!columnNames.includes('emergencyContactName')) {
+      await basePrisma.$executeRawUnsafe(`
+        ALTER TABLE \`Employee\` ADD COLUMN \`emergencyContactName\` VARCHAR(191) NULL
+      `);
+      console.log('[DB Migration] Added emergencyContactName column to Employee table');
+    }
+
+    if (!columnNames.includes('emergencyContactPhone')) {
+      await basePrisma.$executeRawUnsafe(`
+        ALTER TABLE \`Employee\` ADD COLUMN \`emergencyContactPhone\` VARCHAR(50) NULL
+      `);
+      console.log('[DB Migration] Added emergencyContactPhone column to Employee table');
+    }
+
+    if (!columnNames.includes('customTolerance')) {
+      await basePrisma.$executeRawUnsafe(`
+        ALTER TABLE \`Employee\` ADD COLUMN \`customTolerance\` INT NULL
+      `);
+      console.log('[DB Migration] Added customTolerance column to Employee table');
+    }
+  } catch (err) {
+    console.warn('[DB Migration] Aviso en verificación de columnas Employee:', err.message);
+  }
+}
+
+/**
  * Calcula la próxima fecha de cobro de licencia a partir de una fecha base y un ciclo.
  * @param {Date|string} fromDate - Fecha base
  * @param {string} cycle - 'MENSUAL' | 'TRIMESTRAL' | 'SEMESTRAL' | 'ANUAL'
@@ -128,5 +194,6 @@ function calculateNextBillingDate(fromDate = new Date(), cycle = 'MENSUAL') {
 
 module.exports = {
   ensureCompanyBillingColumns,
+  ensureEmployeeEnrichedColumns,
   calculateNextBillingDate
 };

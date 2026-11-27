@@ -1269,6 +1269,44 @@ const EmployeesPage = () => {
                       }
                     })()}
                   </div>
+
+                  {/* Datos Enriquecidos de Contacto y RRHH */}
+                  <div style={{ marginBottom: '1.5rem', background: '#121212', padding: '1rem', borderRadius: '10px', border: '1px solid #27272a' }}>
+                    <h5 style={{ margin: '0 0 0.75rem 0', color: '#f97316', fontSize: '0.85rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Datos de Contacto y RRHH
+                    </h5>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem', fontSize: '0.85rem' }}>
+                      <div>
+                        <span style={{ color: '#a1a1aa', display: 'block', fontSize: '0.75rem' }}>Teléfono / WhatsApp</span>
+                        <span style={{ color: '#fff', fontWeight: 500 }}>{employeeDetails.phone || 'No registrado'}</span>
+                      </div>
+                      <div>
+                        <span style={{ color: '#a1a1aa', display: 'block', fontSize: '0.75rem' }}>Tipo de Contrato</span>
+                        <span style={{ color: '#fff', fontWeight: 500 }}>{(employeeDetails.contractType || 'TIEMPO_COMPLETO').replace('_', ' ')}</span>
+                      </div>
+                      <div>
+                        <span style={{ color: '#a1a1aa', display: 'block', fontSize: '0.75rem' }}>Fecha de Ingreso</span>
+                        <span style={{ color: '#fff', fontWeight: 500 }}>
+                          {employeeDetails.hireDate ? new Date(employeeDetails.hireDate).toLocaleDateString() : 'No registrada'}
+                        </span>
+                      </div>
+                      <div>
+                        <span style={{ color: '#a1a1aa', display: 'block', fontSize: '0.75rem' }}>Tolerancia de Retardo</span>
+                        <span style={{ color: '#fff', fontWeight: 500 }}>
+                          {employeeDetails.customTolerance ? `${employeeDetails.customTolerance} minutos` : 'Predeterminada'}
+                        </span>
+                      </div>
+                      {(employeeDetails.emergencyContactName || employeeDetails.emergencyContactPhone) && (
+                        <div style={{ gridColumn: '1 / -1', borderTop: '1px solid #27272a', paddingTop: '0.5rem', marginTop: '0.25rem' }}>
+                          <span style={{ color: '#ef4444', display: 'block', fontSize: '0.75rem', fontWeight: 600 }}>Contacto de Emergencia</span>
+                          <span style={{ color: '#fff' }}>
+                            {employeeDetails.emergencyContactName || 'Contacto'} 
+                            {employeeDetails.emergencyContactPhone ? ` • ${employeeDetails.emergencyContactPhone}` : ''}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                   
                   <div>
                     <h5 style={{ margin: '0 0 0.75rem 0', color: '#a1a1aa', fontSize: '0.9rem' }}>Último Registro de Asistencia</h5>
@@ -1839,28 +1877,77 @@ const EditEmployeeModal = ({ employee, departmentsList, onClose, onSaved }) => {
     lastName: employee.lastName || '',
     identifier: employee.identifier || '',
     email: employee.email || '',
+    phone: employee.phone || '',
     departmentId: employee.departmentId || '',
     position: employee.position || '',
+    contractType: employee.contractType || 'TIEMPO_COMPLETO',
+    hireDate: employee.hireDate ? new Date(employee.hireDate).toISOString().split('T')[0] : '',
+    emergencyContactName: employee.emergencyContactName || '',
+    emergencyContactPhone: employee.emergencyContactPhone || '',
+    customTolerance: employee.customTolerance !== null && employee.customTolerance !== undefined ? String(employee.customTolerance) : '',
+    shiftId: employee.shifts?.[0]?.shiftId || '',
     isActive: employee.isActive
   });
+  const [shiftsList, setShiftsList] = useState([]);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const fetchShifts = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const tenantId = localStorage.getItem('tenantId');
+        const res = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/v1/shifts`, {
+          headers: {
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+            ...(tenantId ? { 'x-tenant-id': tenantId } : {})
+          }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setShiftsList(Array.isArray(data) ? data : []);
+        }
+      } catch (e) {
+        console.warn('Error fetching shifts in EditModal:', e);
+      }
+    };
+    fetchShifts();
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
+      const tenantId = localStorage.getItem('tenantId');
+      const payload = {
+        firstName: formData.firstName.trim(),
+        lastName: formData.lastName.trim(),
+        identifier: formData.identifier.trim(),
+        email: formData.email ? formData.email.trim() : null,
+        phone: formData.phone ? formData.phone.trim() : null,
+        departmentId: formData.departmentId || null,
+        position: formData.position ? formData.position.trim() : null,
+        contractType: formData.contractType,
+        hireDate: formData.hireDate || null,
+        emergencyContactName: formData.emergencyContactName ? formData.emergencyContactName.trim() : null,
+        emergencyContactPhone: formData.emergencyContactPhone ? formData.emergencyContactPhone.trim() : null,
+        customTolerance: formData.customTolerance ? parseInt(formData.customTolerance, 10) : null,
+        shiftId: formData.shiftId || null,
+        isActive: formData.isActive
+      };
+
       const res = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/v1/employees/${employee.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}`,
+          ...(tenantId ? { 'x-tenant-id': tenantId } : {})
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(payload)
       });
       if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Error al actualizar empleado');
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || data.message || 'Error al actualizar empleado');
       }
       onSaved();
     } catch (err) {
@@ -1873,7 +1960,7 @@ const EditEmployeeModal = ({ employee, departmentsList, onClose, onSaved }) => {
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content page-glow" onClick={e => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+      <div className="modal-content page-glow" onClick={e => e.stopPropagation()} style={{ maxWidth: '640px', maxHeight: '90vh', overflowY: 'auto' }}>
         <div className="modal-header">
           <h3 style={{ color: '#fff', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <Edit size={20} /> Editar Empleado
@@ -1892,29 +1979,82 @@ const EditEmployeeModal = ({ employee, departmentsList, onClose, onSaved }) => {
               <input type="text" value={formData.lastName} onChange={e => setFormData({...formData, lastName: e.target.value})} style={inputStyle} required />
             </div>
           </div>
-          <div>
-            <label style={labelStyle}>Identificador (DNI / Matrícula)</label>
-            <input type="text" value={formData.identifier} onChange={e => setFormData({...formData, identifier: e.target.value})} style={inputStyle} required />
-          </div>
-          <div>
-            <label style={labelStyle}>Correo Electrónico (Opcional)</label>
-            <input type="email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} style={inputStyle} />
-          </div>
+
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
             <div>
-              <label style={labelStyle}>Departamento</label>
-              <select value={formData.departmentId} onChange={e => setFormData({...formData, departmentId: e.target.value})} style={inputStyle} required>
-                <option value="">Seleccione un departamento...</option>
-                {departmentsList.map(d => (
-                  <option key={d.id} value={d.id}>{d.name}</option>
-                ))}
-              </select>
+              <label style={labelStyle}>Identificador (DNI / Matrícula)</label>
+              <input type="text" value={formData.identifier} onChange={e => setFormData({...formData, identifier: e.target.value})} style={inputStyle} required />
+            </div>
+            <div>
+              <label style={labelStyle}>Teléfono / WhatsApp</label>
+              <input type="tel" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} style={inputStyle} placeholder="Ej. +52 55 1234 5678" />
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            <div>
+              <label style={labelStyle}>Correo Electrónico (Opcional)</label>
+              <input type="email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} style={inputStyle} />
             </div>
             <div>
               <label style={labelStyle}>Cargo (Opcional)</label>
               <input type="text" value={formData.position} onChange={e => setFormData({...formData, position: e.target.value})} style={inputStyle} placeholder="Ej. Desarrollador" />
             </div>
           </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            <div>
+              <label style={labelStyle}>Departamento (Opcional)</label>
+              <select value={formData.departmentId} onChange={e => setFormData({...formData, departmentId: e.target.value})} style={inputStyle}>
+                <option value="">(Sin departamento / General)</option>
+                {departmentsList.map(d => (
+                  <option key={d.id} value={d.id}>{d.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label style={labelStyle}>Tipo de Jornada</label>
+              <select value={formData.contractType} onChange={e => setFormData({...formData, contractType: e.target.value})} style={inputStyle}>
+                <option value="TIEMPO_COMPLETO">Tiempo Completo</option>
+                <option value="MEDIO_TIEMPO">Medio Tiempo</option>
+                <option value="PRACTICAS">Prácticas / Becario</option>
+                <option value="HONORARIOS">Honorarios / Freelance</option>
+              </select>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            <div>
+              <label style={labelStyle}>Turno Asignado</label>
+              <select value={formData.shiftId} onChange={e => setFormData({...formData, shiftId: e.target.value})} style={inputStyle}>
+                <option value="">(Heredar de Departamento / Global)</option>
+                {shiftsList.map(s => (
+                  <option key={s.id} value={s.id}>{s.name} ({s.startTime} - {s.endTime})</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label style={labelStyle}>Tolerancia Personalizada (Min)</label>
+              <input type="number" min="0" max="120" value={formData.customTolerance} onChange={e => setFormData({...formData, customTolerance: e.target.value})} style={inputStyle} placeholder="Ej. 15" />
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            <div>
+              <label style={labelStyle}>Fecha de Ingreso</label>
+              <input type="date" value={formData.hireDate} onChange={e => setFormData({...formData, hireDate: e.target.value})} style={inputStyle} />
+            </div>
+            <div>
+              <label style={labelStyle}>Contacto de Emergencia (Nombre)</label>
+              <input type="text" value={formData.emergencyContactName} onChange={e => setFormData({...formData, emergencyContactName: e.target.value})} style={inputStyle} placeholder="Nombre del familiar" />
+            </div>
+          </div>
+
+          <div>
+            <label style={labelStyle}>Teléfono de Emergencia</label>
+            <input type="tel" value={formData.emergencyContactPhone} onChange={e => setFormData({...formData, emergencyContactPhone: e.target.value})} style={inputStyle} placeholder="Teléfono de emergencia" />
+          </div>
+
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem' }}>
             <input type="checkbox" id="isActive" checked={formData.isActive} onChange={e => setFormData({...formData, isActive: e.target.checked})} />
             <label htmlFor="isActive" style={{ color: '#e4e4e7', cursor: 'pointer' }}>Empleado Activo</label>

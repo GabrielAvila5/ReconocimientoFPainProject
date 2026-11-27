@@ -173,8 +173,15 @@ exports.Prisma.EmployeeScalarFieldEnum = {
   lastName: 'lastName',
   identifier: 'identifier',
   email: 'email',
+  phone: 'phone',
   position: 'position',
   departmentId: 'departmentId',
+  hireDate: 'hireDate',
+  birthDate: 'birthDate',
+  contractType: 'contractType',
+  emergencyContactName: 'emergencyContactName',
+  emergencyContactPhone: 'emergencyContactPhone',
+  customTolerance: 'customTolerance',
   faceDescriptor: 'faceDescriptor',
   enrolledAt: 'enrolledAt',
   isActive: 'isActive',
@@ -437,7 +444,11 @@ exports.Prisma.EmployeeOrderByRelevanceFieldEnum = {
   lastName: 'lastName',
   identifier: 'identifier',
   email: 'email',
+  phone: 'phone',
   position: 'position',
+  contractType: 'contractType',
+  emergencyContactName: 'emergencyContactName',
+  emergencyContactPhone: 'emergencyContactPhone',
   faceDescriptor: 'faceDescriptor'
 };
 

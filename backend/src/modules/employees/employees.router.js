@@ -390,15 +390,36 @@ async function checkCompanyQuotaLimit(companyId) {
 // Crear empleado básico sin biometría
 router.post('/', async (req, res) => {
   try {
-    const companyId = req.user?.companyId;
+    const tenantCtx = getTenantContext();
+    let companyId = tenantCtx?.companyId || req.user?.companyId;
+    if (!companyId && req.user?.role === 'SUPER_ADMIN') {
+      companyId = req.headers['x-tenant-id'] || 'default-company-pain';
+    }
+
     if (!companyId) {
       return res.status(400).json({ error: 'TENANT_REQUIRED', message: 'Se requiere contexto de empresa.' });
     }
 
-    const { firstName, lastName, identifier, email, departmentId, position } = req.body;
+    const {
+      firstName,
+      lastName,
+      identifier,
+      email,
+      phone,
+      departmentId,
+      position,
+      hireDate,
+      birthDate,
+      contractType,
+      emergencyContactName,
+      emergencyContactPhone,
+      customTolerance,
+      shiftId,
+      customShift
+    } = req.body;
     
-    if (!departmentId) {
-      return res.status(400).json({ error: 'El departamento es obligatorio.' });
+    if (!firstName || !lastName || !identifier) {
+      return res.status(400).json({ error: 'Nombre, apellido e identificador (DNI/Nº Empleado) son obligatorios.' });
     }
 
     // 1. Validar límite de plan (maxEmployees) pre-transaccional
@@ -410,31 +431,99 @@ router.post('/', async (req, res) => {
       });
     }
 
-    // 2. Validar que el departamento exista y pertenezca a la empresa
-    const parsedDeptId = parseInt(departmentId, 10);
-    const department = await prisma.department.findUnique({
-      where: { id_companyId: { id: parsedDeptId, companyId } }
-    });
-
-    if (!department) {
-      return res.status(400).json({
-        error: 'DEPARTMENT_NOT_FOUND',
-        message: 'El departamento especificado no existe o no pertenece a su empresa.'
+    // 2. Resolver departamento de forma flexible (opcional con fallback automático)
+    let parsedDeptId = null;
+    if (departmentId !== undefined && departmentId !== null && departmentId !== '') {
+      parsedDeptId = parseInt(departmentId, 10);
+      const department = await prisma.department.findUnique({
+        where: { id_companyId: { id: parsedDeptId, companyId } }
       });
+
+      if (!department) {
+        return res.status(400).json({
+          error: 'DEPARTMENT_NOT_FOUND',
+          message: 'El departamento especificado no existe o no pertenece a su empresa.'
+        });
+      }
+    } else {
+      // Si no se proporcionó departamento, fallback inteligente a uno existente de la empresa (ej. "Administración")
+      const defaultDept = await prisma.department.findFirst({
+        where: { companyId }
+      });
+      if (defaultDept) {
+        parsedDeptId = defaultDept.id;
+      }
     }
+
+    const parsedTolerance = customTolerance !== undefined && customTolerance !== null && customTolerance !== ''
+      ? parseInt(customTolerance, 10)
+      : null;
+
+    const parsedHireDate = hireDate ? new Date(hireDate) : null;
+    const parsedBirthDate = birthDate ? new Date(birthDate) : null;
 
     const employee = await prisma.employee.create({
       data: {
         companyId,
-        firstName,
-        lastName,
-        identifier,
-        email: email || null,
-        position: position || null,
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        identifier: identifier.trim(),
+        email: email ? email.trim().toLowerCase() : null,
+        phone: phone ? phone.trim() : null,
+        position: position ? position.trim() : null,
         departmentId: parsedDeptId,
+        hireDate: parsedHireDate && !isNaN(parsedHireDate.getTime()) ? parsedHireDate : null,
+        birthDate: parsedBirthDate && !isNaN(parsedBirthDate.getTime()) ? parsedBirthDate : null,
+        contractType: contractType || 'TIEMPO_COMPLETO',
+        emergencyContactName: emergencyContactName ? emergencyContactName.trim() : null,
+        emergencyContactPhone: emergencyContactPhone ? emergencyContactPhone.trim() : null,
+        customTolerance: parsedTolerance,
         ...(req.body.faceDescriptor ? { faceDescriptor: req.body.faceDescriptor } : {})
       }
     });
+
+    // 3. Manejo de Horarios / Turnos
+    try {
+      if (shiftId) {
+        const parsedShiftId = parseInt(shiftId, 10);
+        const shiftExists = await prisma.shift.findUnique({
+          where: { id_companyId: { id: parsedShiftId, companyId } }
+        });
+        if (shiftExists) {
+          await prisma.employeeShift.create({
+            data: {
+              companyId,
+              employeeId: employee.id,
+              shiftId: parsedShiftId
+            }
+          });
+        }
+      } else if (customShift && customShift.startTime && customShift.endTime) {
+        const shiftName = `Turno - ${firstName} ${lastName}`.slice(0, 50);
+        const newShift = await prisma.shift.create({
+          data: {
+            companyId,
+            name: shiftName,
+            startTime: customShift.startTime,
+            endTime: customShift.endTime,
+            tolerance: parsedTolerance || (customShift.tolerance ? parseInt(customShift.tolerance, 10) : 15),
+            breakStartTime: customShift.breakStartTime || null,
+            breakEndTime: customShift.breakEndTime || null,
+            scheduleByDay: customShift.scheduleByDay ? (typeof customShift.scheduleByDay === 'string' ? JSON.parse(customShift.scheduleByDay) : customShift.scheduleByDay) : null,
+            isActive: true
+          }
+        });
+        await prisma.employeeShift.create({
+          data: {
+            companyId,
+            employeeId: employee.id,
+            shiftId: newShift.id
+          }
+        });
+      }
+    } catch (shiftErr) {
+      console.warn('[CreateEmployee] Advertencia al asignar turno inicial:', shiftErr.message);
+    }
 
     if (req.body.faceDescriptor) {
       await bumpDescriptorsVersion(companyId, req);
@@ -536,34 +625,73 @@ router.get('/:id', async (req, res) => {
 // Editar empleado básico (sin biometría)
 router.put('/:id', async (req, res) => {
   try {
-    const companyId = req.user?.companyId;
-    const { firstName, lastName, identifier, email, departmentId, position, isActive } = req.body;
-    
-    if (!departmentId) {
-      return res.status(400).json({ error: 'El departamento es obligatorio.' });
+    const tenantCtx = getTenantContext();
+    let companyId = tenantCtx?.companyId || req.user?.companyId;
+    if (!companyId && req.user?.role === 'SUPER_ADMIN') {
+      companyId = req.headers['x-tenant-id'] || 'default-company-pain';
     }
 
-    const parsedDeptId = parseInt(departmentId, 10);
-    if (companyId) {
-      const department = await prisma.department.findUnique({
-        where: { id_companyId: { id: parsedDeptId, companyId } }
-      });
-      if (!department) {
-        return res.status(400).json({
-          error: 'DEPARTMENT_NOT_FOUND',
-          message: 'El departamento especificado no existe o no pertenece a su empresa.'
-        });
-      }
-    }
-
-    let data = {
+    const {
       firstName,
       lastName,
       identifier,
-      email: email || null,
-      position: position || null,
-      departmentId: parsedDeptId
-    };
+      email,
+      phone,
+      departmentId,
+      position,
+      hireDate,
+      birthDate,
+      contractType,
+      emergencyContactName,
+      emergencyContactPhone,
+      customTolerance,
+      shiftId,
+      customShift,
+      isActive
+    } = req.body;
+    
+    let parsedDeptId = undefined;
+    if (departmentId !== undefined) {
+      if (departmentId === null || departmentId === '' || departmentId === 'null') {
+        parsedDeptId = null;
+      } else {
+        parsedDeptId = parseInt(departmentId, 10);
+        if (companyId) {
+          const department = await prisma.department.findUnique({
+            where: { id_companyId: { id: parsedDeptId, companyId } }
+          });
+          if (!department) {
+            return res.status(400).json({
+              error: 'DEPARTMENT_NOT_FOUND',
+              message: 'El departamento especificado no existe o no pertenece a su empresa.'
+            });
+          }
+        }
+      }
+    }
+
+    let data = {};
+    if (firstName !== undefined) data.firstName = firstName.trim();
+    if (lastName !== undefined) data.lastName = lastName.trim();
+    if (identifier !== undefined) data.identifier = identifier.trim();
+    if (email !== undefined) data.email = email ? email.trim().toLowerCase() : null;
+    if (phone !== undefined) data.phone = phone ? phone.trim() : null;
+    if (position !== undefined) data.position = position ? position.trim() : null;
+    if (parsedDeptId !== undefined) data.departmentId = parsedDeptId;
+    if (hireDate !== undefined) {
+      const d = hireDate ? new Date(hireDate) : null;
+      data.hireDate = d && !isNaN(d.getTime()) ? d : null;
+    }
+    if (birthDate !== undefined) {
+      const d = birthDate ? new Date(birthDate) : null;
+      data.birthDate = d && !isNaN(d.getTime()) ? d : null;
+    }
+    if (contractType !== undefined) data.contractType = contractType;
+    if (emergencyContactName !== undefined) data.emergencyContactName = emergencyContactName ? emergencyContactName.trim() : null;
+    if (emergencyContactPhone !== undefined) data.emergencyContactPhone = emergencyContactPhone ? emergencyContactPhone.trim() : null;
+    if (customTolerance !== undefined) {
+      data.customTolerance = customTolerance !== null && customTolerance !== '' ? parseInt(customTolerance, 10) : null;
+    }
 
     if (req.body.faceDescriptor !== undefined) {
       data.faceDescriptor = req.body.faceDescriptor;
@@ -578,8 +706,56 @@ router.put('/:id', async (req, res) => {
       data
     });
 
+    const targetCompanyId = companyId || employee.companyId;
+
+    // Actualizar turno si se envió shiftId o customShift
+    try {
+      if (shiftId !== undefined) {
+        await prisma.employeeShift.deleteMany({
+          where: { employeeId: employee.id }
+        });
+        if (shiftId && shiftId !== 'none' && shiftId !== 'global') {
+          const parsedShiftId = parseInt(shiftId, 10);
+          await prisma.employeeShift.create({
+            data: {
+              companyId: targetCompanyId,
+              employeeId: employee.id,
+              shiftId: parsedShiftId
+            }
+          });
+        }
+      } else if (customShift && customShift.startTime && customShift.endTime) {
+        await prisma.employeeShift.deleteMany({
+          where: { employeeId: employee.id }
+        });
+        const shiftName = `Turno - ${employee.firstName} ${employee.lastName}`.slice(0, 50);
+        const newShift = await prisma.shift.create({
+          data: {
+            companyId: targetCompanyId,
+            name: shiftName,
+            startTime: customShift.startTime,
+            endTime: customShift.endTime,
+            tolerance: data.customTolerance || (customShift.tolerance ? parseInt(customShift.tolerance, 10) : 15),
+            breakStartTime: customShift.breakStartTime || null,
+            breakEndTime: customShift.breakEndTime || null,
+            scheduleByDay: customShift.scheduleByDay ? (typeof customShift.scheduleByDay === 'string' ? JSON.parse(customShift.scheduleByDay) : customShift.scheduleByDay) : null,
+            isActive: true
+          }
+        });
+        await prisma.employeeShift.create({
+          data: {
+            companyId: targetCompanyId,
+            employeeId: employee.id,
+            shiftId: newShift.id
+          }
+        });
+      }
+    } catch (shiftErr) {
+      console.warn('[UpdateEmployee] Advertencia al actualizar turno:', shiftErr.message);
+    }
+
     if (isActive !== undefined || req.body.faceDescriptor !== undefined) {
-      await bumpDescriptorsVersion(companyId || employee.companyId, req);
+      await bumpDescriptorsVersion(targetCompanyId, req);
     }
 
     res.json(employee);
